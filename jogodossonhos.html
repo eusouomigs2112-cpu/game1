@@ -353,6 +353,8 @@ function startAmbience(){
   master.connect(audioCtx.destination);
   master.gain.linearRampToValueAtTime(0.16, audioCtx.currentTime+4); // fade-in lento
 
+  const stopList = [];   // todos os osciladores/fontes p/ poder parar a trilha depois
+
   // duas vozes graves em dissonância (clima tenso)
   const voices = [];
   [55, 58.27, 82.4].forEach((f,i)=>{
@@ -365,7 +367,7 @@ function startAmbience(){
     const lfo=audioCtx.createOscillator(), lfoG=audioCtx.createGain();
     lfo.frequency.value=0.07+i*0.03; lfoG.gain.value=1.5;
     lfo.connect(lfoG); lfoG.connect(o.frequency); lfo.start();
-    voices.push(o,lfo);
+    voices.push(o,lfo); stopList.push(o,lfo);
   });
 
   // ruído de vento (white noise filtrado e modulado)
@@ -381,6 +383,7 @@ function startAmbience(){
   windLFO.frequency.value=0.13; windLFOg.gain.value=0.045;
   windLFO.connect(windLFOg); windLFOg.connect(ng.gain); windLFO.start();
   noise.connect(nf); nf.connect(ng); ng.connect(master); noise.start();
+  stopList.push(noise, windLFO);
 
   // CAMADA DE TENSÃO (entra quando o monstro se aproxima) ----------------
   // duas notas altas dissonantes (tritono) que sobem e ficam mais ásperas
@@ -391,14 +394,35 @@ function startAmbience(){
     const o=audioCtx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
     const og=audioCtx.createGain(); og.gain.value=i?0.4:0.6;
     o.connect(og); og.connect(tenseGain); o.start();
-    tenseOscs.push(o);
+    tenseOscs.push(o); stopList.push(o);
   });
   // tremolo (pulsação) da camada de tensão -> sensação de pânico
   const trem=audioCtx.createOscillator(), tremG=audioCtx.createGain();
   trem.type='sine'; trem.frequency.value=5.5; tremG.gain.value=0.5;
   trem.connect(tremG); tremG.connect(tenseGain.gain); trem.start();
+  stopList.push(trem);
 
-  ambience = { master, tenseGain, tenseOscs, trem, nf };
+  ambience = { master, tenseGain, tenseOscs, trem, nf, stopList };
+}
+// para TODA a trilha (drone + tensão) — usado ao morrer / vencer / sair
+function stopAmbience(){
+  if(!ambience || !audioCtx) return;
+  const a=ambience; ambience=null;             // zera já p/ poder recriar depois
+  const t=audioCtx.currentTime;
+  try{
+    a.master.gain.cancelScheduledValues(t);
+    a.master.gain.setValueAtTime(a.master.gain.value, t);
+    a.master.gain.linearRampToValueAtTime(0, t+0.25);
+    a.tenseGain.gain.cancelScheduledValues(t);
+    a.tenseGain.gain.setValueAtTime(a.tenseGain.gain.value, t);
+    a.tenseGain.gain.linearRampToValueAtTime(0, t+0.25);
+  }catch(e){}
+  // depois do fade, para os osciladores e desconecta (libera CPU)
+  setTimeout(()=>{
+    (a.stopList||[]).forEach(n=>{ try{ n.stop(); }catch(e){} try{ n.disconnect(); }catch(e){} });
+    try{ a.master.disconnect(); }catch(e){}
+    try{ a.tenseGain.disconnect(); }catch(e){}
+  }, 300);
 }
 // muda a trilha conforme a entidade se aproxima. level 0..1
 function setAmbienceTension(level){
@@ -1593,6 +1617,7 @@ function die(){
     // gameState segue 'playing' para o loop continuar pro parceiro
   } else {
     gameState='dead';
+    stopAmbience();   // silencia a trilha de suspense após a morte
     const msgs=['O pesadelo te alcançou no corredor.','Você nunca chegou na porta.','A criatura sorriu antes de te pegar.','Acordar? Talvez nunca.'];
     const cp = checkpoint>1 ? ' · Tentar de novo volta na fase '+checkpoint+' (checkpoint 🚩)' : '';
     document.getElementById('deathMsg').textContent=msgs[Math.floor(Math.random()*msgs.length)]+' (Chegou na fase '+phase+')'+cp;
@@ -1601,10 +1626,12 @@ function die(){
 }
 function winGame(){
   gameState='win'; if(document.pointerLockElement) document.exitPointerLock();
+  stopAmbience();   // silencia a trilha ao vencer
   document.getElementById('win').classList.remove('hidden');
 }
 function backToLobby(){
   gameState='menu'; player.dead=false; checkpoint=1;
+  stopAmbience();   // silencia a trilha ao voltar pro lobby
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
   net.role='solo'; net.peer=null; net.conn=null; net.remoteState=null; net.monster=null;
   if(document.pointerLockElement) document.exitPointerLock();
