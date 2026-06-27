@@ -1604,7 +1604,14 @@ function beginPlay(sp){
   buildPhase(start);
   if(controlMode==='pc') renderer.domElement.requestPointerLock();
 }
-function startGame(){ net.role='solo'; checkpoint=1; beginPlay(1); }      // jogo novo
+// fase inicial p/ TESTE via URL: ?fase=6 (ou ?nivel=6 / ?phase=6). Sem param = 1.
+function startPhaseFromURL(){
+  const q=new URLSearchParams(location.search);
+  let n=parseInt(q.get('fase')||q.get('nivel')||q.get('phase')||'1',10);
+  if(!Number.isFinite(n)) n=1;
+  return Math.max(1,Math.min(MAX_PHASE,n));
+}
+function startGame(){ const sp=startPhaseFromURL(); net.role='solo'; checkpoint=sp; beginPlay(sp); } // jogo novo (ou fase de teste)
 function retryGame(){ net.role='solo'; beginPlay(checkpoint); }           // volta no checkpoint
 function die(){
   roar();
@@ -1771,9 +1778,12 @@ document.getElementById('devPC').onclick=()=>chooseDevice('pc');
 function chooseDevice(m){ controlMode=m;
   document.getElementById('device').classList.add('hidden');
   document.getElementById('start').classList.remove('hidden');
-  document.getElementById('startSub').textContent = m==='mobile'
+  const sp=startPhaseFromURL();
+  const base = m==='mobile'
     ? 'Setas para andar · arraste a tela para olhar'
     : 'PC: clique para travar o mouse · ESC para sair';
+  document.getElementById('startSub').textContent =
+    sp>1 ? '🧪 Modo teste: começa na fase '+sp+' · '+base : base;
 }
 document.querySelectorAll('.diff').forEach(b=>{
   b.onclick=()=>{
@@ -1796,6 +1806,16 @@ document.getElementById('connectBtn').onclick=mpConnect;
 document.getElementById('exitBtn').onclick=pauseGame;
 document.getElementById('resumeBtn').onclick=resumeGame;
 document.getElementById('quitBtn').onclick=quitToLobby;
+
+// modo TESTE: se veio ?fase=N na URL, avisa na tela inicial e ajusta o botão
+(function(){
+  const sp=startPhaseFromURL();
+  if(sp>1){
+    const b=document.getElementById('startBtn'); if(b) b.textContent='▶ Jogar (teste: fase '+sp+')';
+    const s=document.getElementById('startSub');
+    if(s) s.textContent='🧪 Modo teste: começando na fase '+sp+' (tire o "?fase='+sp+'" da URL para começar do início)';
+  }
+})();
 
 // inicia engine
 init();
