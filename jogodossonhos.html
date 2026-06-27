@@ -201,6 +201,12 @@
     <button class="diff" data-d="dificil">Difícil</button>
     <button class="diff" data-d="pesadelo">Pesadelo</button>
   </div>
+  <div style="margin:6px 0 4px; font-size:13px; opacity:.7; letter-spacing:1px;">🧪 TESTE — FASE INICIAL</div>
+  <div id="testPhaseRow" class="keys" style="align-items:center;">
+    <button class="diff" id="tpMinus" title="fase anterior">◀</button>
+    <div class="key" style="min-width:90px"><b id="tpVal">1</b> / 15</div>
+    <button class="diff" id="tpPlus" title="próxima fase">▶</button>
+  </div>
   <button id="startBtn">▶ Jogar Sozinho</button>
   <div style="margin:14px 0 4px; font-size:13px; opacity:.7; letter-spacing:1px;">CO-OP ONLINE (2 JOGADORES)</div>
   <div class="mp">
@@ -1604,14 +1610,15 @@ function beginPlay(sp){
   buildPhase(start);
   if(controlMode==='pc') renderer.domElement.requestPointerLock();
 }
-// fase inicial p/ TESTE via URL: ?fase=6 (ou ?nivel=6 / ?phase=6). Sem param = 1.
+// fase inicial p/ TESTE: seletor na tela inicial (◀ ▶) ou ?fase=6 na URL.
 function startPhaseFromURL(){
   const q=new URLSearchParams(location.search);
   let n=parseInt(q.get('fase')||q.get('nivel')||q.get('phase')||'1',10);
   if(!Number.isFinite(n)) n=1;
   return Math.max(1,Math.min(MAX_PHASE,n));
 }
-function startGame(){ const sp=startPhaseFromURL(); net.role='solo'; checkpoint=sp; beginPlay(sp); } // jogo novo (ou fase de teste)
+let testStartPhase = 1;                 // fase escolhida no seletor de teste
+function startGame(){ const sp=testStartPhase; net.role='solo'; checkpoint=sp; beginPlay(sp); } // jogo novo (ou fase de teste)
 function retryGame(){ net.role='solo'; beginPlay(checkpoint); }           // volta no checkpoint
 function die(){
   roar();
@@ -1778,12 +1785,9 @@ document.getElementById('devPC').onclick=()=>chooseDevice('pc');
 function chooseDevice(m){ controlMode=m;
   document.getElementById('device').classList.add('hidden');
   document.getElementById('start').classList.remove('hidden');
-  const sp=startPhaseFromURL();
-  const base = m==='mobile'
+  document.getElementById('startSub').textContent = m==='mobile'
     ? 'Setas para andar · arraste a tela para olhar'
     : 'PC: clique para travar o mouse · ESC para sair';
-  document.getElementById('startSub').textContent =
-    sp>1 ? '🧪 Modo teste: começa na fase '+sp+' · '+base : base;
 }
 document.querySelectorAll('.diff').forEach(b=>{
   b.onclick=()=>{
@@ -1807,15 +1811,21 @@ document.getElementById('exitBtn').onclick=pauseGame;
 document.getElementById('resumeBtn').onclick=resumeGame;
 document.getElementById('quitBtn').onclick=quitToLobby;
 
-// modo TESTE: se veio ?fase=N na URL, avisa na tela inicial e ajusta o botão
-(function(){
-  const sp=startPhaseFromURL();
-  if(sp>1){
-    const b=document.getElementById('startBtn'); if(b) b.textContent='▶ Jogar (teste: fase '+sp+')';
-    const s=document.getElementById('startSub');
-    if(s) s.textContent='🧪 Modo teste: começando na fase '+sp+' (tire o "?fase='+sp+'" da URL para começar do início)';
-  }
-})();
+// ---------- SELETOR DE FASE DE TESTE (◀ ▶) ----------
+function refreshTestPhase(){
+  const TH=THEMES[testStartPhase]||THEMES[1];
+  const vEl=document.getElementById('tpVal'); if(vEl) vEl.textContent=testStartPhase;
+  const b=document.getElementById('startBtn');
+  if(b) b.textContent = testStartPhase>1 ? '▶ Jogar (teste: '+TH.name+')' : '▶ Jogar Sozinho';
+}
+function setTestPhase(n){
+  testStartPhase=Math.max(1,Math.min(MAX_PHASE,n));
+  refreshTestPhase();
+}
+testStartPhase = startPhaseFromURL();   // ?fase=N na URL pré-seleciona
+document.getElementById('tpMinus').onclick=()=>setTestPhase(testStartPhase-1);
+document.getElementById('tpPlus').onclick =()=>setTestPhase(testStartPhase+1);
+refreshTestPhase();
 
 // inicia engine
 init();
