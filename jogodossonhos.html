@@ -27,6 +27,13 @@
     font-size:20px; text-shadow:0 2px 12px #000; opacity:0; transition:opacity .4s;
     text-align:center; padding:0 20px;
   }
+  #qte {
+    position:absolute; top:42%; left:50%; transform:translate(-50%,-50%);
+    display:none; text-align:center; font-size:clamp(28px,6vw,52px); font-weight:800;
+    color:#fff; text-shadow:0 0 18px #f33, 0 3px 10px #000; letter-spacing:2px; pointer-events:none;
+    animation:qtePulse .4s ease-in-out infinite alternate;
+  }
+  @keyframes qtePulse { from{ transform:translate(-50%,-50%) scale(1);} to{ transform:translate(-50%,-50%) scale(1.12);} }
   #minimap {
     position:absolute; bottom:14px; right:14px; width:150px; height:150px;
     border-radius:12px; border:1px solid rgba(124,92,255,.45); background:rgba(8,5,16,.55);
@@ -206,6 +213,7 @@
     <div id="hint">🚪 porta · 🚪 armário (E)</div>
   </div>
   <canvas id="minimap" width="150" height="150"></canvas>
+  <div id="qte"></div>
   <div id="crosshair"></div>
   <div id="msg"></div>
   <div id="danger"></div>
@@ -385,6 +393,8 @@ let stepTime=0, stepFreq=140;       // 👣 eco dos passos (varia por piso)
 let stingerCool=0;                  // 😱 som "quase pego"
 let slime=[];                       // 🟢 rastro de gosma do monstro
 let minimapOn=true;                 // 🗺️ minimapa (tecla M)
+let qte={active:false,presses:0,need:6,until:0,cool:0};   // ⚡ escapar ao ser pego (apertar E)
+let slideTime=0, slideCool=0;       // 🤸 deslizar
 let audioCtx = null;
 
 // dificuldade
@@ -699,6 +709,7 @@ function clearLevel(){
   walls = []; exitDoor=null; entity=null; entityActive=false;
   hideSpots=[]; hiding=false; hideSpot=null; wanderTarget=null;
   net.remoteAvatar=null; navGrid=null; slime=[];
+  qte.active=false; { const q=document.getElementById('qte'); if(q) q.style.display='none'; }
 }
 
 function addBox(x,y,z,w,h,d,mat){
@@ -1885,6 +1896,9 @@ function creepifyEntity(chasing){
 function interact(){
   if(gameState!=='playing') return;
 
+  // ⚡ se está no QTE de escapar -> apertar E conta como debater-se
+  if(qte.active){ qte.presses++; tone(420+qte.presses*30,0.05,'square',0.06); updateQteHud(); return; }
+
   // se já está escondido -> sair do armário
   if(hiding){ exitHide(); return; }
 
@@ -2060,6 +2074,16 @@ function updatePlayer(dt){
     return;
   }
 
+  // ⚡ QTE: o monstro te agarrou — debata-se (E). Câmera treme, sem andar.
+  if(qte.active){
+    updateQTE();
+    const k=0.14;
+    camera.position.set(player.pos.x+(Math.random()-0.5)*k, player.feet+player.height+(Math.random()-0.5)*k, player.pos.z+(Math.random()-0.5)*k);
+    camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
+    if(playerLight) playerLight.position.set(player.pos.x, player.feet+1.5, player.pos.z);
+    return;
+  }
+
   // morto no co-op: vira espectador (só olha, loop continua p/ o parceiro)
   if(player.dead){
     camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
@@ -2108,6 +2132,13 @@ function updatePlayer(dt){
   // AGACHAR (Ctrl ou C)
   player.crouch = !!(keys['ControlLeft']||keys['KeyC']);
   if(player.crouch) speed*=0.55;
+
+  // 🤸 DESLIZAR: correndo + agachar = arranque rápido e baixo (passa sob vigas)
+  slideCool-=dt; slideTime-=dt;
+  if(running && player.onGround && player.crouch && slideTime<=0 && slideCool<=0 && move.lengthSq()>0){
+    slideTime=0.5; slideCool=1.3; tone(150,0.28,'sawtooth',0.07);
+  }
+  if(slideTime>0){ player.crouch=true; speed=Math.max(speed, 4+9*(slideTime/0.5)); }
 
   // PULAR (Espaço)
   if(keys['Space'] && player.onGround){ player.vy=5.4; player.onGround=false; tone(220,0.12,'square',0.08); }
@@ -2241,8 +2272,11 @@ function updateEntity(dt){
   if(entityActive){ net._slimeT=(net._slimeT||0)-dt;
     if(net._slimeT<=0){ dropSlime(entity.position.x, entity.position.z); net._slimeT=0.28; } }
 
-  // pegou o player (só se NÃO estiver escondido nem já morto)
-  if(dist < DIFF[difficulty].catch && entityActive && !hiding && !player.dead){ die(); }
+  // pegou o player -> dispara o QTE de escapar (ou morre se em cooldown / já em QTE falho)
+  qte.cool-=dt;
+  if(dist < DIFF[difficulty].catch && entityActive && !hiding && !player.dead){
+    if(!qte.active && qte.cool<=0) startQTE();   // chance de se soltar
+  }
 }
 // 🟢 rastro de gosma
 function dropSlime(x,z){
@@ -2299,6 +2333,8 @@ function beginPlay(sp){
   if(audioCtx.state==='suspended') audioCtx.resume();
   startAmbience();
   player.dead=false; flashOn=true; flashBat=100;   // lanterna cheia ao iniciar
+  qte.active=false; qte.cool=0; slideTime=0; slideCool=0;
+  { const q=document.getElementById('qte'); if(q) q.style.display='none'; }
   gameState='playing'; phase=start;
   ['device','start','death','win'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
@@ -2324,6 +2360,36 @@ function startGame(){ const sp=testStartPhase; net.role='solo';
   stopFriendPolling(); if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }   // sai do modo online
   checkpoint=sp; beginPlay(sp); }                                                          // jogo novo (ou fase de teste)
 function retryGame(){ net.role='solo'; beginPlay(checkpoint); }           // volta no checkpoint
+// ⚡ QTE de escapar quando o monstro te agarra
+function updateQteHud(){
+  const el=document.getElementById('qte'); if(!el) return;
+  el.innerHTML='😱 APERTE <b>E</b>!<br>'+Math.min(qte.presses,qte.need)+' / '+qte.need;
+}
+function startQTE(){
+  qte.active=true; qte.presses=0;
+  qte.need = difficulty==='facil'?5 : difficulty==='pesadelo'?9 : difficulty==='dificil'?8 : 6;
+  qte.until = performance.now()+1700;
+  roar();
+  const el=document.getElementById('qte'); if(el) el.style.display='block'; updateQteHud();
+}
+function updateQTE(){
+  if(!qte.active) return;
+  if(qte.presses>=qte.need){            // escapou!
+    qte.active=false; qte.cool=2.8;
+    const el=document.getElementById('qte'); if(el) el.style.display='none';
+    tone(660,0.12,'square',0.12); setTimeout(()=>tone(990,0.14,'square',0.1),90);
+    showMsg('😮‍💨 Você se soltou!',1500);
+    if(entity){ // empurra o monstro pra longe
+      const dx=entity.position.x-player.pos.x, dz=entity.position.z-player.pos.z, d=Math.hypot(dx,dz)||1;
+      entity.position.x=player.pos.x+dx/d*7; entity.position.z=player.pos.z+dz/d*7;
+    }
+    return;
+  }
+  if(performance.now()>=qte.until){      // não conseguiu a tempo -> morre
+    qte.active=false; const el=document.getElementById('qte'); if(el) el.style.display='none';
+    die();
+  }
+}
 function die(){
   roar();
   if(document.pointerLockElement) document.exitPointerLock();
