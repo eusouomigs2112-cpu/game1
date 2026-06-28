@@ -2326,13 +2326,12 @@ function drawMinimap(){
   ctx.fillStyle='rgba(150,140,205,.5)';
   for(let r=0;r<g.rows;r++) for(let c=0;c<g.cols;c++) if(g.blocked[r*g.cols+c]) ctx.fillRect(c*sx,r*sy,sx+0.6,sy+0.6);
   const mp=(x,z)=>[ (x-g.minX)/g.cell*sx, (z-g.minZ)/g.cell*sy ];
-  if(exitDoor){ const [ex,ey]=mp(exitDoor.userData.x,exitDoor.userData.z); ctx.fillStyle='#5cf'; ctx.beginPath(); ctx.arc(ex,ey,4,0,6.3); ctx.fill(); }
+  // (porta removida do minimapa — você tem que achar sozinho)
   if(entity && entityActive){ const [mx,my]=mp(entity.position.x,entity.position.z); ctx.fillStyle='#ff3b3b'; ctx.beginPath(); ctx.arc(mx,my,4.5,0,6.3); ctx.fill(); }
   if(isMP() && net.remoteState && !net.remoteState.dead){ const [rx,ry]=mp(net.remoteState.x,net.remoteState.z); ctx.fillStyle='#33ddff'; ctx.beginPath(); ctx.arc(rx,ry,3.5,0,6.3); ctx.fill(); }
+  // você = pontinho branco simples (sem seta)
   const [px,py]=mp(player.pos.x,player.pos.z);
-  const ang=Math.atan2(-Math.cos(player.yaw), -Math.sin(player.yaw)); // direção no mapa
-  ctx.save(); ctx.translate(px,py); ctx.rotate(ang+Math.PI/2);
-  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.moveTo(0,-6); ctx.lineTo(4.5,5); ctx.lineTo(-4.5,5); ctx.closePath(); ctx.fill(); ctx.restore();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(px,py,4,0,6.3); ctx.fill();
 }
 
 function updateAmbience(dt){
