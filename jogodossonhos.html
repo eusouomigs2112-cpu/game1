@@ -256,7 +256,11 @@
     <input id="codeInput" placeholder="CÓDIGO" maxlength="5" autocomplete="off"/>
     <button id="connectBtn">Conectar</button>
   </div>
-  <button id="joinBtn" class="ghost" style="font-size:13px; padding:8px 16px; margin-top:8px;">🔑 Entrar com código (alternativa)</button>
+  <div style="margin:10px 0 2px; font-size:12px; opacity:.55; letter-spacing:1px;">OU JOGUE POR CÓDIGO (mais garantido)</div>
+  <div class="mp">
+    <button id="hostBtn" class="ghost" style="font-size:14px; padding:9px 18px;">🌐 Criar Sala</button>
+    <button id="joinBtn" class="ghost" style="font-size:14px; padding:9px 18px;">🔑 Entrar com código</button>
+  </div>
   <div class="sub" id="startSub">PC: clique para travar o mouse · ESC para sair</div>
 </div>
 
@@ -2279,6 +2283,7 @@ function genCode(){ // 5 caracteres legíveis (sem 0/O/1/I p/ evitar confusão)
 }
 function mpHost(){
   if(typeof Peer==='undefined'){ mpStatus('❌ Rede indisponível (precisa de internet).'); return; }
+  leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }   // sai do modo online
   net.role='host'; mpStatus('Criando sala...');
   const code=genCode();
   net.peer=new Peer('jds-'+code);   // prefixo evita colisão com outros apps no broker
@@ -2300,6 +2305,7 @@ function mpConnect(){
   const code=document.getElementById('codeInput').value.trim().toUpperCase();
   if(code.length!==5){ mpStatus('O código tem 5 caracteres.'); return; }
   if(typeof Peer==='undefined'){ mpStatus('❌ Rede indisponível (precisa de internet).'); return; }
+  leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }   // sai do modo online
   net.role='client'; mpStatus('Conectando...');
   net.peer=new Peer();
   net.peer.on('open', ()=>{ const conn=net.peer.connect('jds-'+code,{reliable:true}); wireConn(conn);
@@ -2353,12 +2359,17 @@ function goOnline(){
   net.playerId='jdsf-p-'+genCode().toLowerCase()+genCode().toLowerCase();
   leaveLobby();
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net._onlineOpened=false;
+  mpStatus('🌐 Conectando ao servidor de rede...');
   net.peer=new Peer(net.playerId);
-  net.peer.on('open', ()=>{ net.id=net.playerId;
+  net.peer.on('open', ()=>{ net.id=net.playerId; net._onlineOpened=true;
     document.getElementById('onlineBtn').textContent='🟢 Online: '+nick;
-    mpStatus('🟢 Conectando ao lobby...');
+    mpStatus('🟢 Conectado! Entrando no lobby...');
     joinLobby();
   });
+  // se o servidor não responder em 10s, avisa (provável broker fora do ar)
+  setTimeout(()=>{ if(!net._onlineOpened && net.role==='host')
+    mpStatus('⚠️ O servidor de rede não respondeu. Tente de novo, ou use “Criar Sala / Entrar com código”.'); }, 10000);
   // alguém clicou "Entrar" em mim -> sou host do jogo
   net.peer.on('connection', conn=>{ wireConn(conn);
     conn.on('open', ()=>{ leaveLobby(); mpStatus('✅ Parceiro entrou! Iniciando...');
@@ -2379,7 +2390,7 @@ function joinLobby(){
   const lc=net.peer.connect(LOBBY_ID,{reliable:true});
   lc.on('open', ()=>{ opened=true; net._joining=null; net.isCoord=false; net.lobbyConn=lc;
     lc.send({t:'hello', id:net.playerId, name:net.nick});
-    mpStatus('🟢 Online como <code>'+net.nick+'</code>. Veja os jogadores na lista 👇'); });
+    mpStatus('🟢 <b>'+net.nick+'</b> online! Jogadores aparecem na lista 👇 (sozinho? abra o jogo em outro aparelho e fique online lá)'); });
   lc.on('data', d=>{ if(d&&d.t==='roster'){ net.roster=d.roster||{}; renderFriendsFromRoster(); } });
   lc.on('close', ()=>{ if(net.role==='host' && !net.isCoord){     // coordenador caiu -> reassume
       net.lobbyConn=null; net.roster={}; renderFriendsFromRoster();
@@ -2392,7 +2403,7 @@ function becomeCoordinator(){
   net.isCoord=true; net._joining=null; net.lobbyClients=[];
   net.roster={}; net.roster[net.playerId]=net.nick; renderFriendsFromRoster();
   net.lobbyPeer=new Peer(LOBBY_ID);
-  net.lobbyPeer.on('open', ()=> mpStatus('🟢 Online como <code>'+net.nick+'</code>. Aguardando jogadores... 👇'));
+  net.lobbyPeer.on('open', ()=> mpStatus('🟢 <b>'+net.nick+'</b> online! Você é o 1º — abra o jogo em <b>outro aparelho/aba</b> e fique online lá para aparecer na lista 👇'));
   net.lobbyPeer.on('connection', conn=>{
     conn.on('data', d=>{ if(d&&d.t==='hello'){ conn._pid=d.id; net.roster[d.id]=d.name;
       if(net.lobbyClients.indexOf(conn)<0) net.lobbyClients.push(conn);
@@ -2467,6 +2478,7 @@ document.getElementById('winBtn').onclick=startGame;
 document.getElementById('lobbyBtn').onclick=backToLobby;
 document.getElementById('lobbyBtn2').onclick=backToLobby;
 document.getElementById('onlineBtn').onclick=goOnline;
+document.getElementById('hostBtn').onclick=mpHost;
 document.getElementById('joinBtn').onclick=mpJoin;
 document.getElementById('connectBtn').onclick=mpConnect;
 document.getElementById('exitBtn').onclick=pauseGame;
