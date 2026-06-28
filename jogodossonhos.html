@@ -27,6 +27,11 @@
     font-size:20px; text-shadow:0 2px 12px #000; opacity:0; transition:opacity .4s;
     text-align:center; padding:0 20px;
   }
+  #minimap {
+    position:absolute; bottom:14px; right:14px; width:150px; height:150px;
+    border-radius:12px; border:1px solid rgba(124,92,255,.45); background:rgba(8,5,16,.55);
+    backdrop-filter:blur(3px); opacity:.9;
+  }
   #crosshair {
     position:absolute; top:50%; left:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
     background:rgba(255,255,255,.7); border-radius:50%;
@@ -196,9 +201,11 @@
     <div>Fase <b id="phase">1</b> / 25</div>
     <div>Energia</div>
     <div id="stamina-wrap"><div id="stamina"></div></div>
+    <div>🔦 <b id="flashBat">100</b>%</div>
     <div>🎚️ <b id="diffLabel">Normal</b></div>
     <div id="hint">🚪 porta · 🚪 armário (E)</div>
   </div>
+  <canvas id="minimap" width="150" height="150"></canvas>
   <div id="crosshair"></div>
   <div id="msg"></div>
   <div id="danger"></div>
@@ -219,6 +226,7 @@
     <div class="tbtn" data-k="KeyE"><span class="em">✋</span>usar</div>
     <div class="tbtn" data-k="ControlLeft"><span class="em">⤓</span>abaixar</div>
     <div class="tbtn" data-tap="Space"><span class="em">⤒</span>pular</div>
+    <div class="tbtn" data-tap="KeyF"><span class="em">🔦</span>luz</div>
   </div>
 </div>
 
@@ -372,6 +380,11 @@ let dangerShake = 0;        // 0..1 — intensidade do tremor de câmera quando 
 let moonLight = null;       // luz direcional que projeta as sombras (segue o jogador)
 let playerLight = null;     // lanterna que acompanha o jogador (ilumina o redor)
 let introActive=false, introStart=0; const introDur=2.8;   // animação de entrada ("acordar")
+let flashOn=true, flashBat=100;     // 🔦 lanterna com bateria (tecla F)
+let stepTime=0, stepFreq=140;       // 👣 eco dos passos (varia por piso)
+let stingerCool=0;                  // 😱 som "quase pego"
+let slime=[];                       // 🟢 rastro de gosma do monstro
+let minimapOn=true;                 // 🗺️ minimapa (tecla M)
 let audioCtx = null;
 
 // dificuldade
@@ -643,6 +656,8 @@ function setupControls(){
   const canvas = renderer.domElement;
   document.addEventListener('keydown', e=>{ keys[e.code]=true;
     if(e.code==='KeyE') interact();
+    if(e.code==='KeyF'){ if(flashBat>0) flashOn=!flashOn; }                 // 🔦 lanterna
+    if(e.code==='KeyM'){ minimapOn=!minimapOn; const mm=document.getElementById('minimap'); if(mm) mm.style.display=minimapOn?'block':'none'; } // 🗺️
     if(e.code==='KeyW' && !wHeld){ wHeld=true; forwardPressed(); }  // 2x W = correr
     if(e.code==='Escape'||e.code==='KeyP'){ if(gameState==='playing') pauseGame(); else if(gameState==='paused') resumeGame(); }
     if(['Space','ControlLeft','ArrowUp','ArrowDown'].includes(e.code) && gameState==='playing') e.preventDefault();
@@ -683,7 +698,7 @@ function clearLevel(){
   }
   walls = []; exitDoor=null; entity=null; entityActive=false;
   hideSpots=[]; hiding=false; hideSpot=null; wanderTarget=null;
-  net.remoteAvatar=null; navGrid=null;
+  net.remoteAvatar=null; navGrid=null; slime=[];
 }
 
 function addBox(x,y,z,w,h,d,mat){
@@ -886,6 +901,10 @@ function buildPhase(p){
 
   // energia máxima: 2x nas fases de pular/abaixar (corredores de agilidade)
   staminaMax = ['red','sewer','factory','temple'].includes(TH.build) ? 200 : 100;
+  // 👣 timbre dos passos por piso (macio=grave, duro=agudo, metálico=mais agudo)
+  stepFreq = ['mansion','bedrooms','maze','backrooms','forest','field'].includes(TH.build) ? 95
+           : ['station','factory','sewer'].includes(TH.build) ? 210
+           : ['school','hospital','poolrooms','mall','waiting','temple','ice'].includes(TH.build) ? 175 : 140;
 
   // reset vertical do player
   player.feet=0; player.vy=0; player.crouch=false; player.eyeH=player.height;
@@ -2009,6 +2028,7 @@ function animate(){
     updatePlayer(dt);
     updateEntity(dt);
     updateAmbience(dt);
+    drawMinimap();
   }
   renderer.render(scene,camera);
 }
@@ -2113,8 +2133,22 @@ function updatePlayer(dt){
   camera.rotation.y=player.yaw + (sh?(Math.random()-0.5)*sh*0.15:0);
   camera.rotation.x=player.pitch + (sh?(Math.random()-0.5)*sh*0.15:0);
 
-  // a lanterna fica na altura dos olhos do jogador (ilumina o redor)
-  if(playerLight) playerLight.position.set(player.pos.x, player.feet+1.5, player.pos.z);
+  // 🔦 LANTERNA: bateria gasta acesa, recarrega apagada; ilumina ao redor
+  if(playerLight){
+    if(flashOn && flashBat>0) flashBat=Math.max(0, flashBat-dt*1.7);
+    else if(!flashOn) flashBat=Math.min(100, flashBat+dt*4.5);
+    if(flashBat<=0) flashOn=false;
+    const lit = flashOn && flashBat>0;
+    playerLight.intensity += ((lit?2.1:0.3) - playerLight.intensity)*0.25;
+    playerLight.position.set(player.pos.x, player.feet+1.5, player.pos.z);
+    const fb=document.getElementById('flashBat'); if(fb) fb.textContent=Math.round(flashBat);
+  }
+  // 👣 ECO DOS PASSOS: varia por piso, mais rápido correndo
+  if((move.lengthSq()>0) && player.onGround){
+    stepTime-=dt;
+    if(stepTime<=0){ tone(stepFreq*(0.92+Math.random()*0.16), 0.07, 'square', 0.045);
+      stepTime = running?0.30:0.46; }
+  }
 
   // porta pulsa (brilho azul)
   pulseDoor(t);
@@ -2198,8 +2232,46 @@ function updateEntity(dt){
     dangerShake=0;
   }
 
+  // 😱 STINGER "quase pego": ele encostou bem perto mas não te pegou
+  stingerCool-=dt;
+  if(entityActive && !hiding && stingerCool<=0 && dist < DIFF[difficulty].catch*2.3 && dist > DIFF[difficulty].catch){
+    tone(900,0.12,'sawtooth',0.14); setTimeout(()=>tone(1300,0.1,'sawtooth',0.1),60); stingerCool=2.0;
+  }
+  // 🟢 RASTRO DE GOSMA: marcas no chão por onde o monstro passa
+  if(entityActive){ net._slimeT=(net._slimeT||0)-dt;
+    if(net._slimeT<=0){ dropSlime(entity.position.x, entity.position.z); net._slimeT=0.28; } }
+
   // pegou o player (só se NÃO estiver escondido nem já morto)
   if(dist < DIFF[difficulty].catch && entityActive && !hiding && !player.dead){ die(); }
+}
+// 🟢 rastro de gosma
+function dropSlime(x,z){
+  const m=new THREE.Mesh(new THREE.CircleGeometry(0.32+Math.random()*0.22,10),
+    new THREE.MeshBasicMaterial({color:0x143f1c, transparent:true, opacity:0.5, depthWrite:false}));
+  m.rotation.x=-Math.PI/2; m.position.set(x,0.03,z); scene.add(m); slime.push({m,life:1});
+  if(slime.length>34){ const o=slime.shift(); scene.remove(o.m); o.m.geometry.dispose(); o.m.material.dispose(); }
+}
+function updateSlime(dt){
+  for(let i=slime.length-1;i>=0;i--){ const s=slime[i]; s.life-=dt*0.22;
+    if(s.life<=0){ scene.remove(s.m); s.m.geometry.dispose(); s.m.material.dispose(); slime.splice(i,1); }
+    else s.m.material.opacity=s.life*0.5; }
+}
+// 🗺️ minimapa (visão de cima usando a grade de navegação)
+function drawMinimap(){
+  const cv=document.getElementById('minimap'); if(!cv) return;
+  if(!minimapOn || !navGrid || gameState!=='playing'){ return; }
+  const ctx=cv.getContext('2d'), W=cv.width, H=cv.height, g=navGrid;
+  const sx=W/g.cols, sy=H/g.rows; ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='rgba(150,140,205,.5)';
+  for(let r=0;r<g.rows;r++) for(let c=0;c<g.cols;c++) if(g.blocked[r*g.cols+c]) ctx.fillRect(c*sx,r*sy,sx+0.6,sy+0.6);
+  const mp=(x,z)=>[ (x-g.minX)/g.cell*sx, (z-g.minZ)/g.cell*sy ];
+  if(exitDoor){ const [ex,ey]=mp(exitDoor.userData.x,exitDoor.userData.z); ctx.fillStyle='#5cf'; ctx.beginPath(); ctx.arc(ex,ey,4,0,6.3); ctx.fill(); }
+  if(entity && entityActive){ const [mx,my]=mp(entity.position.x,entity.position.z); ctx.fillStyle='#ff3b3b'; ctx.beginPath(); ctx.arc(mx,my,4.5,0,6.3); ctx.fill(); }
+  if(isMP() && net.remoteState && !net.remoteState.dead){ const [rx,ry]=mp(net.remoteState.x,net.remoteState.z); ctx.fillStyle='#33ddff'; ctx.beginPath(); ctx.arc(rx,ry,3.5,0,6.3); ctx.fill(); }
+  const [px,py]=mp(player.pos.x,player.pos.z);
+  const ang=Math.atan2(-Math.cos(player.yaw), -Math.sin(player.yaw)); // direção no mapa
+  ctx.save(); ctx.translate(px,py); ctx.rotate(ang+Math.PI/2);
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.moveTo(0,-6); ctx.lineTo(4.5,5); ctx.lineTo(-4.5,5); ctx.closePath(); ctx.fill(); ctx.restore();
 }
 
 function updateAmbience(dt){
@@ -2207,6 +2279,7 @@ function updateAmbience(dt){
   if(dust) dust.rotation.y+=dt*0.05;
   const wheel=scene.getObjectByName('wheel'); if(wheel) wheel.rotation.z+=dt*0.25;
   const car=scene.getObjectByName('carousel'); if(car) car.rotation.y+=dt*0.6;
+  updateSlime(dt);
 }
 
 // ---------- ESTADOS ----------
@@ -2225,7 +2298,7 @@ function beginPlay(sp){
   initAudio();
   if(audioCtx.state==='suspended') audioCtx.resume();
   startAmbience();
-  player.dead=false;
+  player.dead=false; flashOn=true; flashBat=100;   // lanterna cheia ao iniciar
   gameState='playing'; phase=start;
   ['device','start','death','win'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
@@ -2599,7 +2672,7 @@ function joinFriend(hostId, name){
 function setupTouch(){
   document.querySelectorAll('#touch .tbtn').forEach(el=>{
     const code=el.dataset.k||el.dataset.tap;
-    const press=e=>{ e.preventDefault(); keys[code]=true; if(code==='KeyE') interact(); if(code==='KeyW') forwardPressed(); };
+    const press=e=>{ e.preventDefault(); keys[code]=true; if(code==='KeyE') interact(); if(code==='KeyW') forwardPressed(); if(code==='KeyF' && flashBat>0) flashOn=!flashOn; };
     const release=e=>{ e.preventDefault(); keys[code]=false; if(code==='KeyW') forwardReleased(); };
     el.addEventListener('touchstart',press,{passive:false});
     el.addEventListener('touchend',release,{passive:false});
