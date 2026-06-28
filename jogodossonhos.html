@@ -136,18 +136,43 @@
   #win h1 { background:linear-gradient(90deg,#7cff9b,#6cf); -webkit-background-clip:text; background-clip:text; color:transparent; }
   .sub { font-size:13px; opacity:.5; margin-top:20px; }
 
-  /* modo Porteiro */
-  #ptRule { max-width:520px; font-size:15px; line-height:1.5; opacity:.9; margin:6px 0; }
-  #ptResidents { font-size:15px; font-weight:700; color:#9fe8ff; margin:8px 0 14px; max-width:520px; }
-  #ptCard {
-    width:230px; padding:22px; border-radius:20px; margin:6px auto 18px;
-    background:rgba(124,92,255,.12); border:2px solid rgba(124,92,255,.5);
-    display:flex; flex-direction:column; align-items:center; gap:8px;
-  }
-  #ptFace { font-size:96px; line-height:1; }
-  #ptName { font-size:24px; font-weight:800; letter-spacing:.5px; }
-  #ptScore { font-size:16px; margin-top:14px; min-height:24px; }
-  #ptAccept { background:linear-gradient(90deg,#3ad07a,#2aa85f); }
+  /* modo Porteiro — menu */
+  #ptRule { max-width:560px; font-size:14px; line-height:1.6; opacity:.92; margin:10px auto;
+    background:rgba(124,92,255,.1); border:1px solid rgba(124,92,255,.35); border-radius:14px; padding:12px 16px; }
+  #ptCoopPanel input { padding:9px 12px; border-radius:10px; border:1px solid rgba(124,92,255,.4);
+    background:rgba(255,255,255,.06); color:#fff; font-size:14px; outline:none; }
+  /* HUD do jogo Porteiro 3D (sobreposto, não bloqueia o mouse) */
+  #ptHud { position:fixed; inset:0; z-index:7; pointer-events:none;
+    font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
+  #ptHud.hidden { display:none; }
+  #ptStats { position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    display:flex; gap:18px; flex-wrap:wrap; justify-content:center;
+    background:rgba(10,8,24,.72); border:1px solid rgba(124,92,255,.4); border-radius:14px;
+    padding:9px 18px; font-size:15px; font-weight:700; backdrop-filter:blur(4px); }
+  #ptStats .s b { color:#aef0ff; }
+  #ptList { position:absolute; top:14px; left:14px; max-width:230px;
+    background:rgba(10,8,24,.72); border:1px solid rgba(124,92,255,.4); border-radius:14px;
+    padding:12px 14px; font-size:13px; line-height:1.7; backdrop-filter:blur(4px); }
+  #ptList h4 { margin:0 0 6px; font-size:13px; color:#9fe8ff; letter-spacing:.5px; }
+  #ptList .res { display:flex; align-items:center; gap:8px; }
+  #ptList .sw { width:14px; height:14px; border-radius:4px; border:1px solid rgba(255,255,255,.4); flex:none; }
+  #ptCenter { position:absolute; left:50%; bottom:26px; transform:translateX(-50%); text-align:center; width:min(92vw,560px); }
+  #ptVisName { font-size:30px; font-weight:800; letter-spacing:.5px;
+    text-shadow:0 2px 12px rgba(0,0,0,.9); min-height:38px; }
+  #ptVisName .claim { color:#ffd86b; }
+  #ptHint { font-size:13px; opacity:.8; margin:4px 0 12px; text-shadow:0 1px 6px #000; }
+  #ptBtns { display:flex; gap:16px; justify-content:center; }
+  .ptbig { pointer-events:auto; font-size:18px; font-weight:800; padding:14px 26px; border:none;
+    border-radius:14px; cursor:pointer; color:#fff; box-shadow:0 6px 18px rgba(0,0,0,.5); }
+  .ptbig.accept { background:linear-gradient(90deg,#3ad07a,#2aa85f); }
+  .ptbig.deny   { background:linear-gradient(90deg,#ff5d6d,#d8384a); }
+  .ptbig:active { transform:translateY(2px); }
+  #ptExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
+  #ptFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .12s; }
+  #ptFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.55); opacity:1; }
+  #ptFlash.bad  { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.6); opacity:1; }
+  #ptOverStats { font-size:16px; line-height:1.9; margin:14px 0; }
+  #ptOverStats b { color:#aef0ff; }
   /* tela de dispositivo */
   .devicebtns { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:24px 0; }
   .devbtn {
@@ -331,19 +356,66 @@
   <button class="ghost" id="modesBack">↩ Voltar</button>
 </div>
 
+<!-- MENU do modo Porteiro (escolha sozinho / co-op) -->
 <div id="porteiro" class="overlay hidden">
-  <h1>🚪 Porteiro</h1>
-  <div id="ptRule">Deixe entrar só <b>moradores da lista</b> com cara humana. Barre monstros e estranhos.</div>
-  <div id="ptResidents"></div>
-  <div id="ptStage">
-    <div id="ptCard"><div id="ptFace">🙂</div><div id="ptName">—</div></div>
-    <div class="btnrow">
-      <button id="ptDeny" class="ghost">✗ Mandar embora</button>
-      <button id="ptAccept">✓ Deixar entrar</button>
+  <h1>🚪 Porteiro do Prédio</h1>
+  <p>Você é o porteiro do prédio dos sonhos. Os <b>moradores</b> chegam na guarita — mas <b>monstros disfarçados</b> e <b>impostores</b> tentam passar.</p>
+  <div id="ptRule">
+    ✅ <b>Deixe entrar</b> só quem: está na <b>lista de moradores</b> de hoje, tem aparência <b>humana</b> e veste a <b>cor de camisa certa</b> do registro.<br>
+    ⛔ <b>Barre</b>: monstros (chifres, olhos brilhando, garras, pele cinza), nomes <b>fora da lista</b> e impostores com a <b>camisa trocada</b>.
+  </div>
+  <div class="keys" style="margin:4px 0 2px;">
+    <div class="key">🚶 <b>W A S D</b> andar na guarita</div>
+    <div class="key">🖱️ <b>Mouse</b> olhar</div>
+    <div class="key">✅ <b>E</b> deixar entrar</div>
+    <div class="key">⛔ <b>Q</b> barrar</div>
+  </div>
+  <div class="btnrow">
+    <button id="ptStartSolo">🙂 Jogar Sozinho</button>
+    <button id="ptStartCoop" class="ghost">👥 Co-op (com amigo)</button>
+  </div>
+  <div id="ptCoopPanel" style="display:none; margin-top:6px;">
+    <div style="font-size:13px; opacity:.7; letter-spacing:1px; margin-bottom:6px;">👥 CONECTE COM UM AMIGO — depois o jogo começa pros dois</div>
+    <div id="ptOnlineRow" style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+      <input id="ptNick" placeholder="Seu nome" maxlength="12" autocomplete="off"/>
+    </div>
+    <div class="mp" style="margin-top:8px;">
+      <button id="ptHostBtn" class="ghost" style="font-size:14px; padding:9px 18px;">🌐 Criar Sala</button>
+      <button id="ptJoinBtn" class="ghost" style="font-size:14px; padding:9px 18px;">🔑 Entrar com código</button>
+    </div>
+    <div id="ptJoinRow" style="display:none; gap:8px; justify-content:center; margin-top:8px;">
+      <input id="ptCodeInput" placeholder="CÓDIGO" maxlength="5" autocomplete="off"/>
+      <button id="ptConnectBtn">Conectar</button>
+    </div>
+    <div id="ptMpInfo" class="mpinfo"></div>
+  </div>
+  <button class="ghost" id="ptQuit" style="font-size:14px; margin-top:14px;">↩ Voltar</button>
+</div>
+
+<!-- HUD durante o jogo 3D do Porteiro -->
+<div id="ptHud" class="hidden">
+  <div id="ptStats"></div>
+  <div id="ptList"></div>
+  <div id="ptCenter">
+    <div id="ptVisName">—</div>
+    <div id="ptHint">Olhe o visitante e o registro · <b>E</b> entrar · <b>Q</b> barrar</div>
+    <div id="ptBtns">
+      <button id="ptDeny" class="ptbig deny">⛔ Barrar</button>
+      <button id="ptAccept" class="ptbig accept">✅ Entrar</button>
     </div>
   </div>
-  <div id="ptScore"></div>
-  <button class="ghost" id="ptQuit" style="font-size:14px; margin-top:18px;">↩ Sair pro menu</button>
+  <div id="ptFlash"></div>
+  <button id="ptExit" class="ghost">↩ Sair</button>
+</div>
+
+<!-- Tela de estatísticas / fim de turno -->
+<div id="ptOver" class="overlay hidden">
+  <h1 id="ptOverTitle">Fim do turno</h1>
+  <div id="ptOverStats"></div>
+  <div class="btnrow">
+    <button id="ptAgain">🔁 Jogar de novo</button>
+    <button id="ptOverMenu" class="ghost">↩ Menu</button>
+  </div>
 </div>
 
 <div id="death" class="overlay hidden">
@@ -713,8 +785,9 @@ function forwardReleased(){ autoRun=false; }   // soltar pra frente cancela a co
 function setupControls(){
   const canvas = renderer.domElement;
   document.addEventListener('keydown', e=>{ keys[e.code]=true;
-    if(e.code==='KeyE') interact();
-    if(e.code==='KeyF'){ if(flashBat>0) flashOn=!flashOn; }                 // 🔦 lanterna
+    if(e.code==='KeyE'){ if(gameState==='porteiro') ptDecide(true); else interact(); }   // 🚪 porteiro: E = deixar entrar
+    if(e.code==='KeyQ' && gameState==='porteiro') ptDecide(false);                       // 🚪 porteiro: Q = barrar
+    if(e.code==='KeyF'){ if(flashBat>0 && gameState!=='porteiro') flashOn=!flashOn; }     // 🔦 lanterna
     if(e.code==='KeyM'){ minimapOn=!minimapOn; const mm=document.getElementById('minimap'); if(mm) mm.style.display=minimapOn?'block':'none'; } // 🗺️
     if(e.code==='KeyW' && !wHeld){ wHeld=true; forwardPressed(); }  // 2x W = correr
     if(e.code==='Escape'||e.code==='KeyP'){ if(gameState==='playing') pauseGame(); else if(gameState==='paused') resumeGame(); }
@@ -724,7 +797,7 @@ function setupControls(){
     if(e.code==='KeyW'){ wHeld=false; forwardReleased(); }
   });
 
-  canvas.addEventListener('click', ()=>{ if(gameState==='playing') canvas.requestPointerLock(); });
+  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro') && controlMode==='pc') canvas.requestPointerLock(); });
 
   document.addEventListener('mousemove', e=>{
     if(introActive) return;                       // trava o olhar durante a intro
@@ -2114,6 +2187,8 @@ function animate(){
     updateEntity(dt);
     updateAmbience(dt);
     drawMinimap();
+  } else if(gameState==='porteiro'){
+    updatePorteiro(dt);
   }
   renderer.render(scene,camera);
 }
@@ -2414,7 +2489,12 @@ function beginPlay(sp){
   qte.active=false; qte.cool=0; slideTime=0; slideCool=0;
   { const q=document.getElementById('qte'); if(q) q.style.display='none'; }
   gameState='playing'; phase=start;
-  ['device','start','death','win'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  // restaura o HUD do jogo (caso viesse do modo Porteiro)
+  document.getElementById('topbar').style.display='';
+  document.getElementById('danger').style.display='';
+  document.getElementById('minimap').style.display = minimapOn?'block':'none';
+  document.getElementById('ptHud').classList.add('hidden');
+  ['device','start','death','win','modes','porteiro','ptOver'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
   buildPhase(start);
   playIntro();   // animação de "acordar no sonho"
@@ -2652,6 +2732,15 @@ function onNetData(d){
   else if(d.t==='caught'){ showMsg('💀 Seu parceiro caiu! Vá até ele e aperte E pra reviver.',4000); if(net.remoteState) net.remoteState.dead=true; }
   else if(d.t==='revive'){ if(player.dead){ player.dead=false;
     document.getElementById('death').classList.add('hidden'); showMsg('❤️ Seu parceiro te reviveu!',2500); } }
+  // ---- modo Porteiro (co-op) ----
+  else if(d.t==='pt_begin'){ pt=ptFresh(); pt.coop=true; pt.residents=d.residents||[]; pt.registry=d.registry||{}; ptEnter(); }
+  else if(d.t==='pt_spawn'){ ptSpawnVisitor(d.d); }
+  else if(d.t==='pt_decide'){ if(net.role!=='client') ptApply(d.accept); }   // host processa a decisão do parceiro
+  else if(d.t==='pt_state'){ Object.assign(pt, d.s); ptUpdateHud(); }
+  else if(d.t==='pt_result'){ if(pt.cur && pt.cur.state==='waiting'){
+      if(d.accept){ pt.cur.state = d.monster?'attack':'entering'; } else pt.cur.state='leaving';
+      ptFlash((pt.cur.ok===d.accept)?'good':'bad'); } }
+  else if(d.t==='pt_over'){ ptOver(); }
 }
 function hostAdvance(){
   if(phase>=MAX_PHASE){ netSend({t:'win'}); winGame(); return; }
@@ -2852,47 +2941,323 @@ function startSpectator(){
   document.getElementById('modes').classList.add('hidden');
   beginPlay(testStartPhase);
 }
-// 🚪 Porteiro (estilo "Não é meu vizinho")
-const PT_RESID=['Ana','Beto','Caio','Duda','Edu','Fê','Gabi','Hugo','Íris','Léo','Mia','Nina'];
-const PT_FAKE=['Zorg','Krell','Nyx','Vorm','???','Mr. X','Sombra','Gtoo'];
-const PT_HUMAN=['🙂','😀','🧑','👩','👨','🧔','👵','👦','👧','🧓'];
-const PT_MONSTER=['👹','😈','💀','🧟','👺','👻','🤡','👽'];
-let pt={residents:[],lives:3,score:0,cur:null,over:false};
+// 🚪 ============ PORTEIRO 3D (estilo "Não é meu vizinho") ============
+// Você é o porteiro: visitantes em 3D chegam na guarita. Deixe entrar só
+// os moradores certos (nome na lista + humano + camisa do registro).
+// Sem fotos/emoji: personagens montados com formas. Solo ou co-op.
+const PT_NAMES=['Ana','Beto','Caio','Duda','Edu','Fábio','Gabi','Hugo','Íris','João',
+                'Lia','Mauro','Nina','Otto','Paula','Rui','Sofia','Téo','Vera','Zeca'];
+const PT_FAKE=['Zorg','Krell','Nyx','Vorm','Gorp','Blic','Sombra','Glub','Xan','Murm','???','Vex'];
+const SHIRTS=[{n:'Vermelha',c:0xd23a3a},{n:'Azul',c:0x3a6fd2},{n:'Verde',c:0x2faa55},
+              {n:'Amarela',c:0xd9c33a},{n:'Roxa',c:0x8a4fd0},{n:'Laranja',c:0xe07b2a},
+              {n:'Branca',c:0xe8e8ee},{n:'Rosa',c:0xe06fae}];
+const SKINS=[0xf1c9a5,0xe0a878,0xc68642,0x8d5524,0xffdbac,0xa86a3a];
+const HAIRS=[0x2a1a0c,0x4a2c12,0x111111,0x6b4a2a,0x9a9a9a,0xcc4422];
+const PANTS=[0x223047,0x2a2a2a,0x4a3a2a,0x303a4a,0x553a55];
 function ptPick(a){ return a[(Math.random()*a.length)|0]; }
-function startPorteiro(){
-  pt.lives=3; pt.score=0; pt.over=false;
-  pt.residents=[]; const pool=PT_RESID.slice();
-  for(let i=0;i<4;i++) pt.residents.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
-  document.getElementById('modes').classList.add('hidden');
-  document.getElementById('porteiro').classList.remove('hidden');
-  document.getElementById('ptResidents').innerHTML='🏠 Moradores de hoje: '+pt.residents.join(' · ');
-  document.getElementById('ptStage').style.display='';
-  initAudio();
-  porteiroNext();
+function hex6(c){ return '#'+c.toString(16).padStart(6,'0'); }
+function ptFresh(){ return {residents:[],registry:{},lives:3,score:0,processed:0,correct:0,
+  wrong:0,streak:0,best:0,admitted:0,blocked:0,cur:null,cool:0.5,over:false,coop:false}; }
+let pt=ptFresh();
+
+// ---- personagem 3D (formas, sem emoji) ----
+function ptLimb(parent, mat, px,py,pz, r,h, endMesh){
+  const pivot=new THREE.Group(); pivot.position.set(px,py,pz);
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r*0.9,h,10),mat); m.position.y=-h/2; pivot.add(m);
+  if(endMesh){ endMesh.position.y=-h; pivot.add(endMesh); }
+  parent.add(pivot); return pivot;
 }
-function porteiroNext(){
-  const humanFace=Math.random()<0.55;
-  const fromList=Math.random()<0.55;
-  const face = humanFace ? ptPick(PT_HUMAN) : ptPick(PT_MONSTER);
-  const name = fromList ? ptPick(pt.residents) : ptPick(PT_FAKE);
-  pt.cur={ ok: (humanFace && pt.residents.includes(name)) };   // aceitar só humano da lista
-  document.getElementById('ptFace').textContent=face;
-  document.getElementById('ptName').textContent=name;
-  document.getElementById('ptScore').innerHTML='❤️'.repeat(pt.lives)+'🖤'.repeat(Math.max(0,3-pt.lives))+'  ·  Pontos: <b>'+pt.score+'</b>';
+function makePerson(d){
+  const g=new THREE.Group(); const mon=d.monster||null;
+  const skinC = (mon&&mon.gray)? 0x8c9a86 : d.skin;
+  const skin =new THREE.MeshStandardMaterial({color:skinC, roughness:0.7});
+  const shirt=new THREE.MeshStandardMaterial({color:d.shirt, roughness:0.6});
+  const pants=new THREE.MeshStandardMaterial({color:d.pants, roughness:0.75});
+  const hairMat=new THREE.MeshStandardMaterial({color:d.hair, roughness:0.85});
+  const dark =new THREE.MeshStandardMaterial({color:0x1a1a1a, roughness:0.6});
+  const claw =new THREE.MeshStandardMaterial({color:0xeee2cc, roughness:0.4});
+  // pernas + sapatos
+  const legL=ptLimb(g,pants,-0.13,0.82,0,0.12,0.82), legR=ptLimb(g,pants,0.13,0.82,0,0.12,0.82);
+  [-0.13,0.13].forEach(x=>{ const s=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.12,0.34),dark); s.position.set(x,0.06,0.07); g.add(s); });
+  // tronco
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(0.54,0.72,0.32), shirt); torso.position.y=1.2; g.add(torso);
+  // braços (com mãos ou garras na ponta)
+  const handMesh=()=> (mon&&mon.claws)
+    ? new THREE.Mesh(new THREE.ConeGeometry(0.1,0.26,6),claw)
+    : new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8),skin);
+  const armL=ptLimb(g,shirt,-0.34,1.48,0,0.09,0.66,handMesh());
+  const armR=ptLimb(g,shirt, 0.34,1.48,0,0.09,0.66,handMesh());
+  // pescoço + cabeça
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.12,8),skin); neck.position.y=1.62; g.add(neck);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,16,16),skin); head.scale.set(1,1.12,1); head.position.y=1.86; g.add(head);
+  // olhos (vermelhos e brilhando se monstro)
+  const glow=!!(mon&&mon.glow);
+  const eyeMat=new THREE.MeshStandardMaterial({color:glow?0xff2a2a:0x141414, emissive:glow?0xff0000:0x000000, emissiveIntensity:glow?1.6:0});
+  [-0.08,0.08].forEach(x=>{ const e=new THREE.Mesh(new THREE.SphereGeometry(0.042,8,8),eyeMat); e.position.set(x,1.9,0.19); g.add(e); });
+  if(mon&&mon.thirdEye){ const e=new THREE.Mesh(new THREE.SphereGeometry(0.04,8,8),eyeMat); e.position.set(0,2.0,0.19); g.add(e); }
+  // cabelo (humano)
+  if(!mon){ const hair=new THREE.Mesh(new THREE.SphereGeometry(0.23,12,12),hairMat); hair.scale.set(1,0.7,1); hair.position.y=1.99; g.add(hair); }
+  // traços de monstro
+  if(mon){
+    if(mon.horns){ const hm=new THREE.MeshStandardMaterial({color:0x20120a, roughness:0.5});
+      [-0.12,0.12].forEach(x=>{ const h=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.22,7),hm); h.position.set(x,2.06,0); h.rotation.z=x<0?0.3:-0.3; g.add(h); }); }
+    if(mon.fangs){ [-0.05,0.05].forEach(x=>{ const f=new THREE.Mesh(new THREE.ConeGeometry(0.022,0.09,6),claw); f.position.set(x,1.78,0.19); f.rotation.x=Math.PI; g.add(f); }); }
+    g.add(new THREE.PointLight(0xff3322,0.5,3));   // brilho avermelhado sinistro
+  }
+  if(mon&&mon.big) g.scale.setScalar(1.18);
+  // plaquinha de nome
+  const label=makeNameSprite(); g.add(label); setSpriteText(label, d.name);
+  g.userData={legL,legR,armL,armR,label};
+  return g;
 }
-function porteiroDecide(accept){
+
+// ---- cena 3D da guarita ----
+function buildPorteiroScene(){
+  clearLevel();
+  scene.background=new THREE.Color(0x10131f);
+  scene.fog=new THREE.FogExp2(0x10131f, 0.018);
+  wallMat=new THREE.MeshStandardMaterial({color:0x4a4660, roughness:0.85});
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(80,80), new THREE.MeshStandardMaterial({color:0x24263a, roughness:0.95}));
+  floor.rotation.x=-Math.PI/2; scene.add(floor);
+  const path=new THREE.Mesh(new THREE.PlaneGeometry(2.6,18), new THREE.MeshStandardMaterial({color:0x383b52, roughness:0.9}));
+  path.rotation.x=-Math.PI/2; path.position.set(0,0.01,-8); scene.add(path);
+  const booth=new THREE.MeshStandardMaterial({color:0x5b4a8a, roughness:0.7});
+  // balcão (frente, baixo) — bloqueia o porteiro
+  addBox(0,0.52,-0.75,3.0,1.05,0.3,booth);
+  walls.push({min:new THREE.Vector3(-1.5,0,-0.92),max:new THREE.Vector3(1.5,1.05,-0.58)});
+  // moldura da janela
+  addBox(-1.45,1.95,-0.75,0.2,1.9,0.2,booth); addBox(1.45,1.95,-0.75,0.2,1.9,0.2,booth);
+  addBox(0,2.85,-0.75,3.1,0.22,0.22,booth);
+  // paredes laterais + traseira + teto
+  addWall(-1.6,0.9,0.2,3.4); addWall(1.6,0.9,0.2,3.4); addWall(0,2.5,3.4,0.2);
+  addBox(0,3.0,0.9,3.6,0.18,3.6,booth);
+  // luzes da cena (recriadas a cada build; somem no próximo clearLevel)
+  const lamp=new THREE.PointLight(0xfff0cc,1.5,14,1.5); lamp.position.set(0,2.7,-0.4); scene.add(lamp);
+  const lamp2=new THREE.PointLight(0xcfe0ff,1.2,18,1.3); lamp2.position.set(0,4.2,-3.5); scene.add(lamp2);
+  // poste de luz lá fora
+  addBox(1.3,2.0,-3.5,0.12,4,0.12,new THREE.MeshStandardMaterial({color:0x222633}));
+}
+
+// ---- geração do dia e dos visitantes ----
+function ptGenDay(){
+  pt.registry={}; pt.residents=[];
+  const pool=PT_NAMES.slice();
+  for(let i=0;i<6;i++){ const name=pool.splice((Math.random()*pool.length)|0,1)[0];
+    pt.residents.push(name);
+    pt.registry[name]={ skin:ptPick(SKINS), shirt:(Math.random()*SHIRTS.length)|0, pants:ptPick(PANTS), hair:ptPick(HAIRS) }; }
+}
+function ptMakeDesc(){
+  const r=Math.random(); let type = r<0.42?'ok' : r<0.67?'monster' : r<0.85?'stranger' : 'impostor';
+  let name,skin,shirtIdx,pants,hair,monster=null,ok=false,reason='';
+  if(type==='ok'){ name=ptPick(pt.residents); const g=pt.registry[name];
+    skin=g.skin; shirtIdx=g.shirt; pants=g.pants; hair=g.hair; ok=true; reason='Morador certo ✅'; }
+  else if(type==='impostor'){ name=ptPick(pt.residents); const g=pt.registry[name];
+    skin=g.skin; pants=g.pants; hair=g.hair;
+    do{ shirtIdx=(Math.random()*SHIRTS.length)|0; }while(shirtIdx===g.shirt);
+    reason='Impostor: camisa trocada'; }
+  else if(type==='stranger'){ name=ptPick(PT_FAKE); skin=ptPick(SKINS); shirtIdx=(Math.random()*SHIRTS.length)|0;
+    pants=ptPick(PANTS); hair=ptPick(HAIRS); reason='Estranho: fora da lista'; }
+  else { name = Math.random()<0.5?ptPick(pt.residents):ptPick(PT_FAKE);
+    skin=ptPick(SKINS); shirtIdx=(Math.random()*SHIRTS.length)|0; pants=ptPick(PANTS); hair=ptPick(HAIRS);
+    monster={ gray:Math.random()<0.6, glow:Math.random()<0.7, horns:Math.random()<0.6,
+              claws:Math.random()<0.5, fangs:Math.random()<0.5, thirdEye:Math.random()<0.3, big:Math.random()<0.4 };
+    if(!Object.values(monster).some(Boolean)) monster.glow=true;
+    reason='MONSTRO disfarçado 👹'; }
+  return { name, skin, shirt:SHIRTS[shirtIdx].c, shirtIdx, pants, hair, monster, ok, reason };
+}
+function ptDescNet(c){ return {name:c.name,skin:c.skin,shirt:c.shirt,shirtIdx:c.shirtIdx,
+  pants:c.pants,hair:c.hair,monster:c.monster,ok:c.ok,reason:c.reason}; }
+function ptClearVisitor(){ if(pt.cur&&pt.cur.group){ scene.remove(pt.cur.group); disposeObj(pt.cur.group); } }
+function ptSpawnVisitor(desc){
+  ptClearVisitor();
+  pt.cur=desc; const g=makePerson(desc);
+  g.position.set(0,0,-14); g.rotation.y=0;   // encara o porteiro (+Z) já andando
+  pt.cur.group=g; pt.cur.state='walkin'; pt.cur.t=0; scene.add(g);
+  ptUpdateHud();
+}
+
+// ---- loop / animação ----
+function ptMovePlayer(dt){
+  if(isMP()){ sendPos(); updateRemote(); }
+  const running = keys['ShiftLeft']||keys['ShiftRight']||autoRun;
+  let speed = running?5.0:3.0;
+  const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  const move=new THREE.Vector3();
+  if(keys['KeyW']) move.add(fwd); if(keys['KeyS']) move.sub(fwd);
+  if(keys['KeyD']) move.add(right); if(keys['KeyA']) move.sub(right);
+  if(move.lengthSq()>0) move.normalize();
+  const next=player.pos.clone().addScaledVector(move, speed*dt);
+  collideBody(next, 0, 1.95); player.pos.copy(next);
+  const t=clock.elapsedTime, bob=(move.lengthSq()>0)?Math.sin(t*9)*0.035:0;
+  camera.position.set(player.pos.x, player.feet+player.height+bob, player.pos.z);
+  camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
+  if(playerLight){ playerLight.intensity += (0.6-playerLight.intensity)*0.2; playerLight.position.set(player.pos.x,player.feet+1.6,player.pos.z); }
+  if(move.lengthSq()>0){ stepTime-=dt; if(stepTime<=0){ tone(150*(0.9+Math.random()*0.2),0.05,'square',0.03); stepTime=running?0.32:0.46; } }
+}
+function ptUpdateVisitor(dt){
+  const c=pt.cur; if(!c||!c.group) return;
+  const g=c.group, ud=g.userData; c.t=(c.t||0)+dt;
+  const walking = c.state==='walkin'||c.state==='leaving'||c.state==='entering'||c.state==='attack';
+  const sw = walking? Math.sin(c.t*9)*0.5 : Math.sin(clock.elapsedTime*1.8)*0.04;
+  ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw;
+  if(c.state!=='attack'){ ud.armL.rotation.x=-sw; ud.armR.rotation.x=sw; }
+  if(c.state==='walkin'){ g.position.z += 3.0*dt;
+    if(g.position.z>=-2.5){ g.position.z=-2.5; c.state='waiting'; tone(880,0.07,'sine',0.07); setTimeout(()=>tone(1200,0.07,'sine',0.05),90); ptUpdateHud(); } }
+  else if(c.state==='leaving'){ g.rotation.y=Math.PI; g.position.z -= 3.4*dt; if(g.position.z<-14){ ptClearVisitor(); pt.cur=null; pt.cool=0.45; } }
+  else if(c.state==='entering'){ g.rotation.y=-Math.PI/2; g.position.x += 3.0*dt; if(g.position.x>3.6){ ptClearVisitor(); pt.cur=null; pt.cool=0.45; } }
+  else if(c.state==='attack'){ g.position.z += 6.5*dt; ud.armL.rotation.x=-1.3; ud.armR.rotation.x=-1.3;
+    if(g.position.z>0.6){ ptClearVisitor(); pt.cur=null; pt.cool=0.6; } }
+}
+function updatePorteiro(dt){
+  ptMovePlayer(dt);
+  ptUpdateVisitor(dt);
   if(pt.over) return;
-  const correct = (accept===pt.cur.ok);
-  if(correct){ pt.score++; tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); }
-  else { pt.lives--; tone(160,0.3,'sawtooth',0.18); }
-  if(pt.lives<=0){ porteiroOver(); } else { porteiroNext(); }
+  if(net.role!=='client' && !pt.cur){ pt.cool-=dt;
+    if(pt.cool<=0){ const d=ptMakeDesc(); ptSpawnVisitor(d);
+      if(isMP()) netSend({t:'pt_spawn', d:ptDescNet(pt.cur)}); } }
 }
-function porteiroOver(){
-  pt.over=true;
-  document.getElementById('ptStage').style.display='none';
-  document.getElementById('ptScore').innerHTML='💀 Fim de turno! Você fez <b>'+pt.score+'</b> ponto(s).<br><br>'+
-    '<button id="ptAgain">🔁 Jogar de novo</button>';
-  document.getElementById('ptAgain').onclick=startPorteiro;
+
+// ---- decisão / pontuação ----
+function ptFlash(kind){
+  const f=document.getElementById('ptFlash'); if(!f) return;
+  f.className=kind; setTimeout(()=>{ f.className=''; }, 260);
+}
+function ptDecide(accept){
+  if(pt.over||!pt.cur||pt.cur.state!=='waiting') return;
+  if(net.role==='client'){ netSend({t:'pt_decide', accept}); return; }   // host decide de fato
+  ptApply(accept);
+}
+function ptStateNet(){ return {lives:pt.lives,score:pt.score,processed:pt.processed,correct:pt.correct,
+  wrong:pt.wrong,streak:pt.streak,best:pt.best,admitted:pt.admitted,blocked:pt.blocked}; }
+function ptApply(accept){
+  const c=pt.cur; if(!c||c.state!=='waiting'||pt.over) return;
+  const correct = (accept===c.ok);
+  pt.processed++;
+  if(correct){ pt.correct++; pt.streak++; if(pt.streak>pt.best) pt.best=pt.streak; pt.score+=10+(pt.streak-1)*2;
+    tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); ptFlash('good'); }
+  else { pt.wrong++; pt.streak=0; pt.lives--; tone(150,0.32,'sawtooth',0.18); ptFlash('bad'); }
+  if(c.ok&&accept) pt.admitted++;
+  if(!c.ok&&!accept) pt.blocked++;
+  if(accept){ if(c.monster){ c.state='attack'; if(typeof roar==='function') roar(); } else c.state='entering'; }
+  else c.state='leaving';
+  if(isMP()){ netSend({t:'pt_result', accept, monster:!!c.monster}); netSend({t:'pt_state', s:ptStateNet()}); }
+  ptUpdateHud();
+  if(pt.lives<=0) ptOver();
+}
+
+// ---- HUD ----
+function ptUpdateHud(){
+  if(document.getElementById('ptHud').classList.contains('hidden')) return;
+  const hearts='❤️'.repeat(Math.max(0,pt.lives))+'🖤'.repeat(Math.max(0,3-pt.lives));
+  const acc = pt.processed? Math.round(pt.correct/pt.processed*100):100;
+  document.getElementById('ptStats').innerHTML=
+    `<span class="s">${hearts}</span>`+
+    `<span class="s">⭐ <b>${pt.score}</b></span>`+
+    `<span class="s">🎯 <b>${acc}%</b></span>`+
+    `<span class="s">🔥 <b>${pt.streak}</b></span>`+
+    `<span class="s">🏅 <b>${pt.best}</b></span>`;
+  let list='<h4>📋 Moradores de hoje</h4>';
+  pt.residents.forEach(n=>{ const reg=pt.registry[n]; if(!reg) return; const c=SHIRTS[reg.shirt];
+    list+=`<div class="res"><span class="sw" style="background:${hex6(c.c)}"></span>${n} <span style="opacity:.55">(${c.n})</span></div>`; });
+  document.getElementById('ptList').innerHTML=list;
+  const vis=document.getElementById('ptVisName');
+  if(pt.cur && pt.cur.state==='waiting') vis.innerHTML=`<span class="claim">"${pt.cur.name}"</span> quer entrar`;
+  else vis.textContent='—';
+}
+function ptOver(){
+  if(pt.over) return; pt.over=true;
+  if(document.pointerLockElement) document.exitPointerLock();
+  const acc=pt.processed?Math.round(pt.correct/pt.processed*100):100;
+  document.getElementById('ptOverTitle').textContent = pt.lives>0 ? '🏁 Turno encerrado' : '💀 Fim do turno!';
+  document.getElementById('ptOverStats').innerHTML=
+    `Pontos: <b>${pt.score}</b><br>`+
+    `Visitantes atendidos: <b>${pt.processed}</b><br>`+
+    `Acertos: <b>${pt.correct}</b> · Erros: <b>${pt.wrong}</b><br>`+
+    `Precisão: <b>${acc}%</b> · Melhor sequência: <b>${pt.best}</b><br>`+
+    `🏠 Moradores admitidos: <b>${pt.admitted}</b> · 👹 Ameaças barradas: <b>${pt.blocked}</b>`;
+  document.getElementById('ptHud').classList.add('hidden');
+  document.getElementById('ptOver').classList.remove('hidden');
+  if(isMP() && net.role!=='client') netSend({t:'pt_over'});
+}
+
+// ---- entrar na cena (solo e co-op) ----
+function ptEnter(){
+  spectator=false;
+  ['modes','porteiro','start','device','ptOver','death','win'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+  buildPorteiroScene();
+  staminaMax=100; player.height=1.7; player.pos.set(0,1.7,1.0); player.feet=0; player.vy=0;
+  player.crouch=false; player.yaw=0; player.pitch=-0.05; player.stamina=100;
+  introActive=false; hiding=false; player.dead=false; qte.active=false; gameState='porteiro';
+  // esconde o HUD do jogo de horror (barra de fase, minimapa, overlay de perigo)
+  ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('ptHud').classList.remove('hidden');
+  if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
+  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  if(isMP()) createRemoteAvatar();
+  ptUpdateHud();
+  showMsg('🚪 Plantão começou! Confira o registro à esquerda.',3500);
+}
+function ptStartSolo(){
+  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
+  pt=ptFresh(); ptGenDay(); pt.cool=0.6; ptEnter();
+}
+
+// ---- co-op (rede via PeerJS) ----
+function ptInfo(h){ const el=document.getElementById('ptMpInfo'); if(el) el.innerHTML=h; }
+function ptHost(){
+  if(typeof Peer==='undefined'){ ptInfo('❌ Rede indisponível (precisa de internet).'); return; }
+  leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.nick=sanitizeNick(document.getElementById('ptNick').value);
+  net.role='host'; ptInfo('Criando sala...');
+  const code=genCode();
+  net.peer=new Peer('jds-'+code, PEER_OPTS); wireVoice();
+  net.peer.on('open', ()=>{ net.id=code; ptInfo('Sala criada! Código: <code>'+code+'</code><br>Envie ao amigo e aguarde...'); });
+  net.peer.on('connection', conn=>{ wireConn(conn);
+    conn.on('open', ()=>{ ptInfo('✅ Amigo entrou! Começando...');
+      pt=ptFresh(); pt.coop=true; ptGenDay();
+      netSend({t:'pt_begin', residents:pt.residents, registry:pt.registry});
+      try{ startVoiceCall(conn.peer); }catch(e){}
+      pt.cool=1.0; ptEnter(); }); });
+  net.peer.on('error', e=>{ if(e.type==='unavailable-id'){ try{net.peer.destroy();}catch(_){} ptHost(); return; }
+    ptInfo('❌ Erro de rede: '+e.type); });
+}
+function ptConnect(){
+  const code=document.getElementById('ptCodeInput').value.trim().toUpperCase();
+  if(code.length!==5){ ptInfo('O código tem 5 caracteres.'); return; }
+  if(typeof Peer==='undefined'){ ptInfo('❌ Rede indisponível (precisa de internet).'); return; }
+  leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.nick=sanitizeNick(document.getElementById('ptNick').value);
+  net.role='client'; ptInfo('Conectando...');
+  net.peer=new Peer(undefined, PEER_OPTS); wireVoice();
+  net.peer.on('open', ()=>{ const conn=net.peer.connect('jds-'+code,{reliable:true}); wireConn(conn);
+    conn.on('open', ()=>ptInfo('✅ Conectado! Aguardando o host iniciar...')); });
+  net.peer.on('error', e=>ptInfo('❌ Erro: '+e.type+' (código certo?)'));
+}
+function ptExitGame(){
+  pt.over=true; ptClearVisitor(); pt.cur=null;
+  if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
+  net.role='solo'; net.conn=null; net.remoteState=null; net.remoteAvatar=null;
+  try{ stopVoice(); }catch(e){}
+  if(document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('ptHud').classList.add('hidden');
+  document.getElementById('ptOver').classList.add('hidden');
+  document.getElementById('touch').classList.remove('on');
+  // restaura o HUD do jogo de horror
+  document.getElementById('topbar').style.display='';
+  document.getElementById('danger').style.display='';
+  document.getElementById('minimap').style.display = minimapOn?'block':'none';
+  gameState='menu'; clearLevel();
+  document.getElementById('porteiro').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');
+}
+function ptAgain(){
+  document.getElementById('ptOver').classList.add('hidden');
+  if(net.role==='client'){ document.getElementById('ptHud').classList.remove('hidden'); ptInfo(''); return; } // host reinicia
+  if(isMP()){ pt=ptFresh(); pt.coop=true; ptGenDay();
+    netSend({t:'pt_begin', residents:pt.residents, registry:pt.registry}); pt.cool=1.0; ptEnter(); }
+  else ptStartSolo();
 }
 
 // ---------- BOTÕES ----------
@@ -2938,14 +3303,30 @@ document.getElementById('modesBack').onclick=()=>{
   document.getElementById('modes').classList.add('hidden');
   document.getElementById('start').classList.remove('hidden');
 };
-document.getElementById('modePorteiro').onclick=startPorteiro;
+document.getElementById('modePorteiro').onclick=()=>{
+  document.getElementById('modes').classList.add('hidden');
+  document.getElementById('porteiro').classList.remove('hidden');
+  document.getElementById('ptCoopPanel').style.display='none';
+};
 document.getElementById('modeSpec').onclick=startSpectator;
-document.getElementById('ptAccept').onclick=()=>porteiroDecide(true);
-document.getElementById('ptDeny').onclick=()=>porteiroDecide(false);
+// menu Porteiro
+document.getElementById('ptStartSolo').onclick=ptStartSolo;
+document.getElementById('ptStartCoop').onclick=()=>{
+  const p=document.getElementById('ptCoopPanel'); p.style.display = p.style.display==='none'?'block':'none';
+};
+document.getElementById('ptHostBtn').onclick=ptHost;
+document.getElementById('ptJoinBtn').onclick=()=>{ document.getElementById('ptJoinRow').style.display='flex'; ptInfo('Digite o código do amigo e clique Conectar.'); };
+document.getElementById('ptConnectBtn').onclick=ptConnect;
 document.getElementById('ptQuit').onclick=()=>{
   document.getElementById('porteiro').classList.add('hidden');
-  document.getElementById('start').classList.remove('hidden');
+  document.getElementById('modes').classList.remove('hidden');
 };
+// HUD do jogo Porteiro
+document.getElementById('ptAccept').onclick=()=>ptDecide(true);
+document.getElementById('ptDeny').onclick=()=>ptDecide(false);
+document.getElementById('ptExit').onclick=ptExitGame;
+document.getElementById('ptAgain').onclick=ptAgain;
+document.getElementById('ptOverMenu').onclick=ptExitGame;
 
 // ---------- SELETOR DE FASE DE TESTE (◀ ▶) ----------
 function refreshTestPhase(){
