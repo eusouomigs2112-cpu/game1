@@ -71,6 +71,13 @@
     box-shadow:none; color:#fff; display:flex; align-items:center; justify-content:center;
   }
   #exitBtn:hover { background:rgba(124,92,255,.4); transform:none; }
+  #voiceBtn {
+    position:absolute; top:14px; right:70px; margin:0; pointer-events:auto; display:none;
+    width:48px; height:48px; padding:0; font-size:20px; border-radius:14px;
+    background:rgba(20,10,35,.6); border:1px solid rgba(110,255,160,.6);
+    box-shadow:none; color:#fff; align-items:center; justify-content:center;
+  }
+  #voiceBtn:hover { background:rgba(124,92,255,.4); transform:none; }
 
   /* Overlays */
   .overlay {
@@ -195,6 +202,7 @@
   <div id="crosshair"></div>
   <div id="msg"></div>
   <div id="danger"></div>
+  <button id="voiceBtn" title="Microfone">🎙️</button>
   <button id="exitBtn" title="Pausar / Sair">⏸</button>
 </div>
 
@@ -2270,7 +2278,7 @@ function winGame(){
 function backToLobby(){
   gameState='menu'; player.dead=false; checkpoint=1;
   stopAmbience(); silenceAudioSoon(500);   // silencia a trilha ao voltar pro lobby
-  stopFriendPolling();
+  stopVoice(); stopFriendPolling();
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
   net.role='solo'; net.peer=null; net.conn=null; net.remoteState=null; net.monster=null; net.nick=null;
   net.roster={}; net.playerId=null; net.isCoord=false; net._joining=null;
@@ -2305,6 +2313,58 @@ function quitToLobby(){
 // ==================== CO-OP ONLINE (PeerJS) ====================
 function mpStatus(html){ document.getElementById('mpInfo').innerHTML=html; }
 function netSend(o){ if(net.conn&&net.conn.open){ try{net.conn.send(o);}catch(e){} } }
+
+// ==================== CHAT DE VOZ (WebRTC via PeerJS) ====================
+const voice = { stream:null, call:null, audio:null, on:false, muted:false };
+async function getMic(){
+  if(voice.stream) return voice.stream;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ return null; }
+  try{ voice.stream = await navigator.mediaDevices.getUserMedia({audio:true, video:false}); }
+  catch(e){ showMsg('🎤 Microfone bloqueado — chat de voz off',3000); return null; }
+  return voice.stream;
+}
+function playRemoteVoice(stream){
+  if(!voice.audio){ voice.audio=document.createElement('audio'); voice.audio.autoplay=true; voice.audio.playsInline=true; document.body.appendChild(voice.audio); }
+  voice.audio.srcObject=stream; voice.audio.play().catch(()=>{});
+}
+function showVoiceBtn(){
+  const b=document.getElementById('voiceBtn'); if(b){ b.style.display='flex'; updateVoiceBtn(); }
+}
+function updateVoiceBtn(){
+  const b=document.getElementById('voiceBtn'); if(!b) return;
+  b.textContent = voice.muted ? '🔇' : '🎙️';
+  b.title = voice.muted ? 'Microfone mudo (clique para falar)' : 'Microfone ligado (clique para mutar)';
+  b.style.borderColor = voice.muted ? 'rgba(255,80,80,.6)' : 'rgba(110,255,160,.6)';
+}
+function toggleMute(){
+  voice.muted=!voice.muted;
+  if(voice.stream) voice.stream.getAudioTracks().forEach(t=>t.enabled=!voice.muted);
+  updateVoiceBtn();
+}
+// registra atendimento de chamadas de voz no peer atual (cliente atende; host liga)
+function wireVoice(){
+  if(!net.peer) return;
+  net.peer.on('call', async call=>{
+    const s=await getMic(); try{ call.answer(s||undefined); }catch(e){}
+    call.on('stream', rs=>playRemoteVoice(rs)); call.on('close', stopVoice);
+    voice.call=call; voice.on=true; showVoiceBtn();
+  });
+}
+async function startVoiceCall(remoteId){
+  if(!net.peer || !remoteId) return;
+  const s=await getMic();
+  try{ const call=net.peer.call(remoteId, s||undefined);
+    call.on('stream', rs=>playRemoteVoice(rs)); call.on('close', stopVoice);
+    voice.call=call; }catch(e){}
+  voice.on=true; showVoiceBtn();
+}
+function stopVoice(){
+  try{ if(voice.call) voice.call.close(); }catch(e){}
+  if(voice.stream){ voice.stream.getTracks().forEach(t=>{try{t.stop();}catch(e){}}); }
+  if(voice.audio){ voice.audio.srcObject=null; }
+  voice.stream=null; voice.call=null; voice.on=false; voice.muted=false;
+  const b=document.getElementById('voiceBtn'); if(b) b.style.display='none';
+}
 function sendPos(){
   const now=clock.elapsedTime;
   if(now-net.lastSend<0.05) return; net.lastSend=now;
@@ -2391,11 +2451,12 @@ function mpHost(){
   net.role='host'; mpStatus('Criando sala...');
   const code=genCode();
   net.peer=new Peer('jds-'+code, PEER_OPTS);   // prefixo evita colisão com outros apps no broker
+  wireVoice();
   net.peer.on('open', ()=>{ net.id=code;
     mpStatus('Sala criada! Código: <code>'+code+'</code><br>Envie ao parceiro e aguarde...'); });
   net.peer.on('connection', conn=>{ wireConn(conn);
     conn.on('open', ()=>{ mpStatus('✅ Parceiro conectado! Iniciando...');
-      netSend({t:'start', difficulty}); setTimeout(beginPlay,600); }); });
+      netSend({t:'start', difficulty}); startVoiceCall(conn.peer); setTimeout(beginPlay,600); }); });
   net.peer.on('error', e=>{
     if(e.type==='unavailable-id'){ try{net.peer.destroy();}catch(_){} mpHost(); return; } // código em uso -> tenta outro
     mpStatus('❌ Erro de rede: '+e.type);
@@ -2413,6 +2474,7 @@ function mpConnect(){
   net.nick=sanitizeNick(document.getElementById('nickInput').value);
   net.role='client'; mpStatus('Conectando...');
   net.peer=new Peer(undefined, PEER_OPTS);
+  wireVoice();
   net.peer.on('open', ()=>{ const conn=net.peer.connect('jds-'+code,{reliable:true}); wireConn(conn);
     conn.on('open', ()=>mpStatus('✅ Conectado! Aguardando o host iniciar...')); });
   net.peer.on('error', e=>mpStatus('❌ Erro: '+e.type+' (código certo?)'));
@@ -2467,6 +2529,7 @@ function goOnline(){
   net._onlineOpened=false;
   mpStatus('🌐 Conectando ao servidor de rede...');
   net.peer=new Peer(net.playerId, PEER_OPTS);
+  wireVoice();
   net.peer.on('open', ()=>{ net.id=net.playerId; net._onlineOpened=true;
     document.getElementById('onlineBtn').textContent='🟢 Online: '+nick;
     mpStatus('🟢 Conectado! Entrando no lobby...');
@@ -2478,7 +2541,7 @@ function goOnline(){
   // alguém clicou "Entrar" em mim -> sou host do jogo
   net.peer.on('connection', conn=>{ wireConn(conn);
     conn.on('open', ()=>{ leaveLobby(); mpStatus('✅ Parceiro entrou! Iniciando...');
-      netSend({t:'start', difficulty}); setTimeout(beginPlay,600); }); });
+      netSend({t:'start', difficulty}); startVoiceCall(conn.peer); setTimeout(beginPlay,600); }); });
   net.peer.on('error', e=>{
     if(e.type==='peer-unavailable'){
       if(net._joining==='lobby' && !net.isCoord){ becomeCoordinator(); return; }   // não há coordenador -> viro um
@@ -2587,6 +2650,7 @@ document.getElementById('hostBtn').onclick=mpHost;
 document.getElementById('joinBtn').onclick=mpJoin;
 document.getElementById('connectBtn').onclick=mpConnect;
 document.getElementById('exitBtn').onclick=pauseGame;
+document.getElementById('voiceBtn').onclick=toggleMute;
 document.getElementById('resumeBtn').onclick=resumeGame;
 document.getElementById('quitBtn').onclick=quitToLobby;
 
