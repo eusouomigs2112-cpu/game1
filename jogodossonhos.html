@@ -31,6 +31,12 @@
     position:absolute; top:50%; left:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
     background:rgba(255,255,255,.7); border-radius:50%;
   }
+  /* vinheta cinematográfica (escurece as bordas — clima de terror) */
+  #vignette {
+    position:fixed; inset:0; pointer-events:none; z-index:4;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,.62) 100%);
+    mix-blend-mode:multiply;
+  }
   #danger {
     position:absolute; inset:0; box-shadow:inset 0 0 200px 40px rgba(200,0,40,0);
     transition:box-shadow .25s; pointer-events:none;
@@ -134,6 +140,7 @@
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="vignette"></div>
 
 <div id="hud">
   <div id="topbar">
@@ -259,6 +266,7 @@ let scene, camera, renderer, clock;
 let player = { pos:new THREE.Vector3(), yaw:0, pitch:0, height:1.7,
                feet:0, vy:0, eyeH:1.7, crouch:false, onGround:true, stamina:100 };
 let levelExit = {x:0, z:0};
+let staminaMax = 100;                   // energia máxima (2x nas fases de pular/abaixar)
 let controlMode = 'pc';                 // 'pc' | 'mobile'
 let lookTouchId = null;                 // toque ativo de "olhar"
 let checkpoint = 1;                     // fase de retorno (parque = checkpoint)
@@ -457,15 +465,21 @@ function init(){
 
   renderer = new THREE.WebGLRenderer({canvas:document.getElementById('game'), antialias:true, powerPreference:'high-performance'});
   renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); // menos pixels = mais FPS
+  // resolução mais nítida (até 2x) — em telas hi-DPI melhora bastante as bordas
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   renderer.shadowMap.enabled = false;                     // sombras em tempo real são caras
+  // gerenciamento de cor + tom cinematográfico (visual mais rico e com profundidade)
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.25;
 
   clock = new THREE.Clock();
 
   // luzes globais (criadas UMA vez, marcadas para nunca serem removidas)
-  const amb = new THREE.AmbientLight(0x9a8acc, 1.5);
-  const moon = new THREE.DirectionalLight(0xaabbff, 1.0); moon.position.set(5,12,4);
-  const fill = new THREE.HemisphereLight(0x9988ff, 0x222233, 0.8);
+  // intensidades reforçadas p/ compensar o tone mapping (que escurece os médios)
+  const amb = new THREE.AmbientLight(0x9a8acc, 1.9);
+  const moon = new THREE.DirectionalLight(0xaabbff, 1.5); moon.position.set(5,12,4);
+  const fill = new THREE.HemisphereLight(0x9988ff, 0x222233, 1.05);
   [amb,moon,fill].forEach(l=>{ l.userData.keep=true; scene.add(l); });
 
   window.addEventListener('resize', ()=>{
@@ -677,9 +691,12 @@ function buildPhase(p){
   // porta de saída no ponto definido pelo cenário
   buildExitDoor(levelExit.x, levelExit.z);
 
+  // energia máxima: 2x nas fases de pular/abaixar (corredores de agilidade)
+  staminaMax = ['red','sewer','factory','temple'].includes(TH.build) ? 200 : 100;
+
   // reset vertical do player
   player.feet=0; player.vy=0; player.crouch=false; player.eyeH=player.height;
-  player.yaw=0; player.pitch=0; player.stamina=100;
+  player.yaw=0; player.pitch=0; player.stamina=staminaMax;
 
   // monstro da fase (atrás do player)
   spawnEntity(player.pos.x, player.pos.z - 3);
@@ -1453,8 +1470,8 @@ function updatePlayer(dt){
 
   // ESCONDIDO: câmera dentro do armário, sem andar (mas pode olhar)
   if(hiding && hideSpot){
-    player.stamina=Math.min(100,player.stamina+25*dt);
-    document.getElementById('stamina').style.width=player.stamina+'%';
+    player.stamina=Math.min(staminaMax,player.stamina+25*dt);
+    document.getElementById('stamina').style.width=(player.stamina/staminaMax*100)+'%';
     camera.position.set(hideSpot.x, player.height*0.92, hideSpot.z+0.1);
     camera.rotation.order='YXZ';
     camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
@@ -1469,10 +1486,10 @@ function updatePlayer(dt){
   if(running && (keys['KeyW']||keys['KeyS']||keys['KeyA']||keys['KeyD']) && player.stamina>0){
     player.stamina=Math.max(0,player.stamina-30*dt);
   } else {
-    player.stamina=Math.min(100,player.stamina+18*dt);
+    player.stamina=Math.min(staminaMax,player.stamina+18*dt);
   }
   if(player.stamina<=0) speed=3.0;
-  document.getElementById('stamina').style.width=player.stamina+'%';
+  document.getElementById('stamina').style.width=(player.stamina/staminaMax*100)+'%';
 
   // movimento relativo ao yaw
   const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
