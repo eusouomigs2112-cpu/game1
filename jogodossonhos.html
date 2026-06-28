@@ -37,6 +37,18 @@
     background:radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,.62) 100%);
     mix-blend-mode:multiply;
   }
+  /* grão de filme (textura granulada — clima de horror analógico) */
+  #grain {
+    position:fixed; inset:-60%; width:220%; height:220%; pointer-events:none; z-index:3;
+    opacity:0.06; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size:170px 170px;
+    animation:grain .5s steps(4) infinite;
+  }
+  @keyframes grain {
+    0%{transform:translate(0,0)} 25%{transform:translate(-6%,4%)}
+    50%{transform:translate(5%,-5%)} 75%{transform:translate(-4%,6%)} 100%{transform:translate(3%,-2%)}
+  }
   #danger {
     position:absolute; inset:0; box-shadow:inset 0 0 200px 40px rgba(200,0,40,0);
     transition:box-shadow .25s; pointer-events:none;
@@ -157,6 +169,7 @@
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="grain"></div>
 <div id="vignette"></div>
 
 <div id="hud">
@@ -302,6 +315,7 @@ let entity = null;         // o monstro
 let entityActive = false;
 let gameState = 'menu';    // menu | playing | dead | win
 let heartTime = 0;
+let dangerShake = 0;        // 0..1 — intensidade do tremor de câmera quando o monstro chega perto
 let audioCtx = null;
 
 // dificuldade
@@ -1728,9 +1742,37 @@ function spawnEntity(x,z){
   }
 
   const aura=new THREE.PointLight(auraColor,0,7); g.add(aura);
+  // halos aditivos atrás dos olhos -> brilho assustador que pulsa
+  function eyeGlow(eye){
+    if(!eye || !eye.parent || eye===head) return null;
+    const col=(eye.material && eye.material.color) ? eye.material.color.clone() : new THREE.Color(0xff2222);
+    const gl=new THREE.Mesh(new THREE.SphereGeometry(0.16,10,10),
+      new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.5,
+        blending:THREE.AdditiveBlending, depthWrite:false}));
+    gl.position.copy(eye.position); gl.scale.setScalar(1.5); eye.parent.add(gl); return gl;
+  }
+  const eyeGlows=[eyeGlow(eyeL), eyeGlow(eyeR)].filter(Boolean);
   g.position.set(x,0,z); scene.add(g);
   const baseSpeed=DIFF[difficulty].speed + phase*0.15 + ((key==='carmesim'||key==='devorador')?1.2:0);
-  entity=g; entity.userData={speed:baseSpeed, aura, eyeL, eyeR, head};
+  entity=g; entity.userData={speed:baseSpeed, aura, eyeL, eyeR, head, eyeGlows, auraColor};
+}
+// animação assustadora do monstro (chamada todo frame quando ativo). chasing=perseguindo
+function creepifyEntity(chasing){
+  if(!entity) return; const ud=entity.userData, tt=clock.elapsedTime;
+  // olhos pulsam (mais rápido/forte quando persegue)
+  const sp=chasing?9:3.5;
+  const pulse=0.5+0.5*Math.sin(tt*sp);
+  ud.eyeGlows && ud.eyeGlows.forEach(gl=>{ if(gl){ const s=1.3+pulse*0.9; gl.scale.setScalar(s);
+    gl.material.opacity=0.3+pulse*0.5; }});
+  // cabeça treme; quando persegue, ganha um tremor errático
+  ud.head.rotation.z=Math.sin(tt*8)*0.15 + (chasing?Math.sin(tt*37)*0.12:0);
+  ud.head.rotation.x=(chasing?Math.sin(tt*23)*0.08:0);
+  // corpo cambaleia de um lado pro outro
+  entity.rotation.z=Math.sin(tt*(chasing?7:2.5))*(chasing?0.07:0.035);
+  // respiração (escala sutil)
+  const br=1+Math.sin(tt*2.2)*0.025; entity.scale.set(br,br,br);
+  // a luz da aura pisca quando persegue
+  ud.aura.intensity=(chasing?1.9:1.4)+(chasing?Math.sin(tt*22)*0.5:0);
 }
 
 // ---------- INTERAGIR (E): esconder no armário OU abrir a porta ----------
@@ -1896,10 +1938,13 @@ function updatePlayer(dt){
   const t=clock.elapsedTime;
   const bob = (move.lengthSq()>0 && player.onGround) ? Math.sin(t*(running?14:9))*0.04 : 0;
   const eyeH = player.crouch ? 1.05 : player.height;
-  camera.position.set(player.pos.x, player.feet+eyeH+bob, player.pos.z);
+  // tremor de câmera quando o monstro está perto (pânico)
+  const sh=dangerShake*0.07;
+  const shx=sh?(Math.random()-0.5)*sh:0, shy=sh?(Math.random()-0.5)*sh:0;
+  camera.position.set(player.pos.x+shx, player.feet+eyeH+bob+shy, player.pos.z);
   camera.rotation.order='YXZ';
-  camera.rotation.y=player.yaw;
-  camera.rotation.x=player.pitch;
+  camera.rotation.y=player.yaw + (sh?(Math.random()-0.5)*sh*0.15:0);
+  camera.rotation.x=player.pitch + (sh?(Math.random()-0.5)*sh*0.15:0);
 
   // porta pulsa (brilho azul)
   pulseDoor(t);
@@ -1926,8 +1971,7 @@ function updateEntity(dt){
       entity.position.set(net.monster.x,0,net.monster.z);
       entity.rotation.y=net.monster.rotY||0;
       entityActive=net.monster.active;
-      entity.userData.aura.intensity=entityActive?1.5:0;
-      entity.userData.head.rotation.z=Math.sin(clock.elapsedTime*8)*0.15;
+      if(entityActive) creepifyEntity(true); else entity.userData.aura.intensity=0;
     }
   } else if(entityActive){
     // host/solo: IA persegue o alvo mais próximo
@@ -1949,8 +1993,7 @@ function updateEntity(dt){
     next.y=0; collideBody(next, 0, 3.4, {skipPlayerOnly:true}); next.y=0;
     entity.position.copy(next);
     entity.rotation.y=ang;   // encara a direção do movimento
-    entity.userData.aura.intensity=1.5;
-    entity.userData.head.rotation.z=Math.sin(clock.elapsedTime*8)*0.15;
+    creepifyEntity(chasing); // olhos pulsando, cambaleio, tremor, luz piscando
     // transmite estado do monstro ao parceiro (throttle)
     if(isMP() && clock.elapsedTime-(net._mon||0)>0.05){ net._mon=clock.elapsedTime;
       netSend({t:'monster', x:entity.position.x, z:entity.position.z, rotY:entity.rotation.y, active:entityActive}); }
@@ -1966,11 +2009,13 @@ function updateEntity(dt){
     const intensity=Math.max(0,(vision-dist)/vision);
     danger.style.boxShadow=`inset 0 0 200px ${40+intensity*60}px rgba(200,0,40,${intensity*0.7})`;
     setAmbienceTension(intensity);
+    dangerShake=intensity*intensity;   // tremor de câmera cresce muito perto
     heartTime-=dt;
     if(heartTime<=0){ heartbeat(); heartTime=Math.max(0.32,dist/16); }
   } else {
     danger.style.boxShadow='inset 0 0 200px 40px rgba(200,0,40,0)';
     setAmbienceTension(hiding?0.05:(entityActive?0.15:0));
+    dangerShake=0;
   }
 
   // pegou o player (só se NÃO estiver escondido nem já morto)
