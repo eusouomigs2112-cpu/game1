@@ -117,6 +117,23 @@
     text-transform:uppercase; text-align:center; font-weight:700;
   }
   #connectBtn { margin:0; padding:10px 22px; font-size:15px; }
+  /* amigos online */
+  #onlineRow { margin-top:8px; display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap; }
+  #nickInput {
+    pointer-events:auto; padding:10px 14px; border-radius:10px; font-size:15px;
+    background:rgba(255,255,255,.1); border:1px solid rgba(124,92,255,.5); color:#fff; outline:none;
+    width:170px; text-align:center; font-weight:600;
+  }
+  #onlineBtn { margin:0; padding:10px 18px; font-size:14px; }
+  #friendList { display:flex; flex-direction:column; gap:8px; align-items:center; margin-top:12px; }
+  .friend {
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    background:rgba(124,92,255,.12); border:1px solid rgba(124,92,255,.4);
+    border-radius:12px; padding:8px 10px 8px 16px; min-width:250px;
+  }
+  .friend .fname { font-size:15px; font-weight:700; display:flex; align-items:center; gap:9px; }
+  .friend .fdot { width:9px; height:9px; border-radius:50%; background:#4ade80; box-shadow:0 0 9px #4ade80; }
+  .friend button { margin:0; padding:8px 18px; font-size:14px; box-shadow:none; }
 
   /* CONTROLES DE TOQUE (mobile) */
   #touch { position:fixed; inset:0; z-index:6; pointer-events:none; display:none; }
@@ -215,16 +232,18 @@
     <button class="diff" id="tpPlus" title="próxima fase">▶</button>
   </div>
   <button id="startBtn">▶ Jogar Sozinho</button>
-  <div style="margin:14px 0 4px; font-size:13px; opacity:.7; letter-spacing:1px;">CO-OP ONLINE (2 JOGADORES)</div>
-  <div class="mp">
-    <button id="hostBtn" class="ghost">🌐 Criar Sala</button>
-    <button id="joinBtn" class="ghost">🔑 Entrar em Sala</button>
+  <div style="margin:14px 0 4px; font-size:13px; opacity:.7; letter-spacing:1px;">👥 AMIGOS ONLINE (CO-OP · 2 JOGADORES)</div>
+  <div id="onlineRow">
+    <input id="nickInput" placeholder="Seu nome" maxlength="12" autocomplete="off"/>
+    <button id="onlineBtn" class="ghost">🟢 Ficar Online</button>
   </div>
+  <div id="friendList"></div>
   <div id="mpInfo" class="mpinfo"></div>
   <div id="joinRow" style="display:none">
     <input id="codeInput" placeholder="CÓDIGO" maxlength="5" autocomplete="off"/>
     <button id="connectBtn">Conectar</button>
   </div>
+  <button id="joinBtn" class="ghost" style="font-size:13px; padding:8px 16px; margin-top:8px;">🔑 Entrar com código (alternativa)</button>
   <div class="sub" id="startSub">PC: clique para travar o mouse · ESC para sair</div>
 </div>
 
@@ -720,6 +739,22 @@ function addBuildingWindows(cx,cz,bw,bd,h,litMats){
     }
   }
 }
+// prédio OCO (casca): 4 paredes com um vão de porta na frente -> dá pra entrar
+function addHollowBuilding(x,z,bw,bd,h,col,litMats){
+  const t=0.4, hw=bw/2, hd=bd/2, doorW=1.8, seg=(bw-doorW)/2;
+  const mat=new THREE.MeshStandardMaterial({color:col, roughness:0.85});
+  const piece=(cx,cz,w,d)=>{
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(cx,h/2,cz); scene.add(m);
+    walls.push({min:new THREE.Vector3(cx-w/2,0,cz-d/2),max:new THREE.Vector3(cx+w/2,h,cz+d/2)});
+  };
+  piece(x-(doorW/2+seg/2), z-hd, seg, t);   // frente esquerda (vão de porta no meio)
+  piece(x+(doorW/2+seg/2), z-hd, seg, t);   // frente direita
+  piece(x, z+hd, bw, t);                     // parede de trás
+  piece(x-hw, z, t, bd);                     // lateral esquerda
+  piece(x+hw, z, t, bd);                     // lateral direita
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(bw,0.2,bd),mat); roof.position.set(x,h,z); scene.add(roof); // teto (decor)
+  addBuildingWindows(x,z,bw,bd,h,litMats);
+}
 // obstáculo BAIXO (pular por cima) — só colide se seus pés estão abaixo do topo
 function addHurdle(x,z,w,color){
   const h=0.85;
@@ -767,7 +802,8 @@ function buildPhase(p){
   else if(TH.build==='waiting')   buildWaiting(p);
   else if(TH.build==='dreamcore') buildDreamcore(p);
 
-  // porta de saída no ponto definido pelo cenário
+  // porta de saída: posição aleatória a cada entrada (exceto fase 1, que é fixa)
+  if(p!==1) randomizeExit();
   buildExitDoor(levelExit.x, levelExit.z);
 
   // energia máxima: 2x nas fases de pular/abaixar (corredores de agilidade)
@@ -847,9 +883,7 @@ function buildCity(p){
       if((bx+bz)%3===0) continue;          // deixa cruzamentos abertos
       const x=-halfW+6+bx*11, z=-halfL+8+bz*7;
       const h=6+((bx*3+bz*5)%5)*2;
-      const b=deco(x,h/2,z,7,h,5,buildC[(bx+bz)%3]);
-      walls.push({min:new THREE.Vector3(x-3.5,0,z-2.5),max:new THREE.Vector3(x+3.5,h,z+2.5)});
-      addBuildingWindows(x,z,7,5,h,litMats);    // janelas nas 4 faces
+      addHollowBuilding(x,z,7,5,h,buildC[(bx+bz)%3],litMats);   // prédio oco (dá pra entrar) + janelas
     }
   }
   // postes de luz
@@ -1470,6 +1504,30 @@ function addDust(W,L,color){
   ps.name='dust'; scene.add(ps);
 }
 
+// sorteia uma posição livre p/ a porta de saída, sempre na metade mais distante
+// do início (pra exigir travessia) e fora de paredes. Mantém o padrão se não achar.
+function randomizeExit(){
+  let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
+  for(const w of walls){
+    if(w.playerOnly) continue;
+    minX=Math.min(minX,w.min.x); maxX=Math.max(maxX,w.max.x);
+    minZ=Math.min(minZ,w.min.z); maxZ=Math.max(maxZ,w.max.z);
+  }
+  if(minX>maxX) return;                         // sem paredes -> mantém padrão
+  const m=1.8;
+  const x0=minX+m, x1=maxX-m, z0=minZ+m, z1=maxZ-m;
+  if(x1<=x0 || z1<=z0) return;
+  const farZ0=z0+(z1-z0)*0.45;                  // só na metade longe do spawn (z baixo)
+  for(let i=0;i<80;i++){
+    const x=x0+Math.random()*(x1-x0);
+    const z=farZ0+Math.random()*(z1-farZ0);
+    if(pointBlocked(x,z,1.1)) continue;                                  // dentro de parede
+    if(Math.hypot(x-player.pos.x, z-player.pos.z) < 7) continue;          // perto demais do início
+    levelExit={x,z}; return;
+  }
+  // não achou ponto livre -> usa o levelExit padrão do cenário
+}
+
 function buildExitDoor(x,z){
   const g = new THREE.Group();
   // halo grande atrás/em volta (aditivo = brilho azul forte)
@@ -1938,6 +1996,7 @@ function flashTransition(){
 }
 function beginPlay(sp){
   const start = sp||1;
+  stopFriendPolling();   // já estamos numa partida; para de listar amigos
   initAudio();
   if(audioCtx.state==='suspended') audioCtx.resume();
   startAmbience();
@@ -1956,7 +2015,9 @@ function startPhaseFromURL(){
   return Math.max(1,Math.min(MAX_PHASE,n));
 }
 let testStartPhase = 1;                 // fase escolhida no seletor de teste
-function startGame(){ const sp=testStartPhase; net.role='solo'; checkpoint=sp; beginPlay(sp); } // jogo novo (ou fase de teste)
+function startGame(){ const sp=testStartPhase; net.role='solo';
+  stopFriendPolling(); if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }   // sai do modo online
+  checkpoint=sp; beginPlay(sp); }                                                          // jogo novo (ou fase de teste)
 function retryGame(){ net.role='solo'; beginPlay(checkpoint); }           // volta no checkpoint
 function die(){
   roar();
@@ -1985,12 +2046,15 @@ function winGame(){
 function backToLobby(){
   gameState='menu'; player.dead=false; checkpoint=1;
   stopAmbience(); silenceAudioSoon(500);   // silencia a trilha ao voltar pro lobby
+  stopFriendPolling();
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
-  net.role='solo'; net.peer=null; net.conn=null; net.remoteState=null; net.monster=null;
+  net.role='solo'; net.peer=null; net.conn=null; net.remoteState=null; net.monster=null; net.nick=null;
   if(document.pointerLockElement) document.exitPointerLock();
   document.getElementById('touch').classList.remove('on');
   ['death','win','start'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   document.getElementById('mpInfo').innerHTML='';
+  document.getElementById('friendList').innerHTML='';
+  document.getElementById('onlineBtn').textContent='🟢 Ficar Online';
   document.getElementById('joinRow').style.display='none';
   document.getElementById('device').classList.remove('hidden');
 }
@@ -2093,6 +2157,75 @@ function mpConnect(){
   net.peer.on('error', e=>mpStatus('❌ Erro: '+e.type+' (código certo?)'));
 }
 
+// ==================== AMIGOS ONLINE (lista de quem está online) ==========
+let friendTimer=null;
+function sanitizeNick(s){
+  return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'')   // tira acentos
+    .replace(/[^A-Za-z0-9]/g,'').slice(0,12) || 'Jogador';
+}
+function parseFriendName(id){ const p=id.split('-'); return p[1]||'Jogador'; }
+function stopFriendPolling(){ if(friendTimer){ clearInterval(friendTimer); friendTimer=null; } }
+
+// fica online e disponível: registra um peer com o nome no ID e espera convites
+function goOnline(){
+  if(typeof Peer==='undefined'){ mpStatus('❌ Rede indisponível (precisa de internet).'); return; }
+  const nick=sanitizeNick(document.getElementById('nickInput').value);
+  net.nick=nick; net.role='host';
+  const id='jdsf-'+nick+'-'+genCode().toLowerCase();   // prefixo jdsf- = "amigo" deste jogo
+  if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.peer=new Peer(id);
+  net.peer.on('open', ()=>{ net.id=id;
+    document.getElementById('onlineBtn').textContent='🟢 Online: '+nick;
+    mpStatus('🟢 Você está online como <code>'+nick+'</code>. Escolha um amigo na lista ou aguarde alguém te chamar.');
+    refreshFriends(); stopFriendPolling(); friendTimer=setInterval(refreshFriends, 3000);
+  });
+  // alguém entrou no SEU grupo -> você é o host, inicia a partida
+  net.peer.on('connection', conn=>{ wireConn(conn);
+    conn.on('open', ()=>{ stopFriendPolling(); mpStatus('✅ Parceiro entrou! Iniciando...');
+      netSend({t:'start', difficulty}); setTimeout(beginPlay,600); }); });
+  net.peer.on('error', e=>{
+    if(e.type==='unavailable-id'){ try{net.peer.destroy();}catch(_){} goOnline(); return; }
+    mpStatus('❌ Erro de rede: '+e.type); });
+}
+// pede a lista de peers ao broker e mostra só os jogadores deste jogo
+function refreshFriends(){
+  if(!net.peer || typeof net.peer.listAllPeers!=='function'){
+    renderFriends(null, 'Lista indisponível neste servidor — use “Entrar com código”.'); return; }
+  try{
+    net.peer.listAllPeers(function(ids){
+      const fr=(ids||[]).filter(id=>id.indexOf('jdsf-')===0 && id!==net.id);
+      renderFriends(fr);
+    });
+  }catch(e){ renderFriends(null, 'Não consegui listar os online — use o código.'); }
+}
+function renderFriends(ids, note){
+  const box=document.getElementById('friendList'); if(!box) return;
+  if(note){ box.innerHTML='<div style="opacity:.55;font-size:13px">'+note+'</div>'; return; }
+  if(!ids || !ids.length){
+    box.innerHTML='<div style="opacity:.55;font-size:13px">Ninguém online ainda. Deixe esta tela aberta — quem ficar online aparece aqui.</div>'; return; }
+  box.innerHTML='';
+  ids.forEach(id=>{
+    const row=document.createElement('div'); row.className='friend';
+    const nm=document.createElement('div'); nm.className='fname';
+    nm.innerHTML='<span class="fdot"></span>'+parseFriendName(id);
+    const b=document.createElement('button'); b.textContent='Entrar';
+    b.onclick=()=>joinFriend(id);
+    row.appendChild(nm); row.appendChild(b); box.appendChild(row);
+  });
+}
+// entra no grupo de um amigo -> vira cliente e conecta no peer dele
+function joinFriend(hostId){
+  if(typeof Peer==='undefined'){ mpStatus('❌ Rede indisponível.'); return; }
+  stopFriendPolling();
+  net.role='client'; mpStatus('Entrando no grupo de <b>'+parseFriendName(hostId)+'</b>...');
+  const connectVia=(peer)=>{ const conn=peer.connect(hostId,{reliable:true}); wireConn(conn);
+    conn.on('open', ()=>mpStatus('✅ Conectado a '+parseFriendName(hostId)+'! Aguardando início...'));
+    conn.on('error', ()=>mpStatus('❌ Não consegui entrar (o amigo saiu?).')); };
+  if(net.peer && net.id){ connectVia(net.peer); }    // reaproveita o peer (se já estávamos online)
+  else { net.peer=new Peer(); net.peer.on('open', ()=>connectVia(net.peer));
+    net.peer.on('error', e=>mpStatus('❌ Erro: '+e.type)); }
+}
+
 // ==================== CONTROLES DE TOQUE (mobile) ====================
 function setupTouch(){
   document.querySelectorAll('#touch .tbtn').forEach(el=>{
@@ -2143,7 +2276,7 @@ document.getElementById('retryBtn').onclick=retryGame;
 document.getElementById('winBtn').onclick=startGame;
 document.getElementById('lobbyBtn').onclick=backToLobby;
 document.getElementById('lobbyBtn2').onclick=backToLobby;
-document.getElementById('hostBtn').onclick=mpHost;
+document.getElementById('onlineBtn').onclick=goOnline;
 document.getElementById('joinBtn').onclick=mpJoin;
 document.getElementById('connectBtn').onclick=mpConnect;
 document.getElementById('exitBtn').onclick=pauseGame;
