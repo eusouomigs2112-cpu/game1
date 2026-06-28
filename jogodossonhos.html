@@ -395,6 +395,7 @@ let slime=[];                       // 🟢 rastro de gosma do monstro
 let minimapOn=true;                 // 🗺️ minimapa (tecla M)
 let qte={active:false,presses:0,need:6,until:0,cool:0};   // ⚡ escapar ao ser pego (apertar E)
 let slideTime=0, slideCool=0;       // 🤸 deslizar
+let speakCool=8;                    // 🗣️ monstro chama/"imita a voz" (síntese de fala)
 let audioCtx = null;
 
 // dificuldade
@@ -1873,6 +1874,19 @@ function spawnEntity(x,z){
   const baseSpeed=DIFF[difficulty].speed + phase*0.15 + ((key==='carmesim'||key==='devorador')?1.2:0);
   entity=g; entity.userData={speed:baseSpeed, aura, eyeL, eyeR, head, eyeGlows, auraColor};
 }
+// 🗣️ o monstro "chama" você com voz distorcida (imita o parceiro no co-op)
+function monsterSpeak(){
+  if(!('speechSynthesis' in window)) return;
+  try{
+    const nm=(isMP() && net.remoteState && net.remoteState.name) ? net.remoteState.name : null;
+    const lines = nm
+      ? [nm+'... vem cá', nm+', tô aqui', 'cadê você, '+nm+'?', nm+'... me ajuda', 'vem, '+nm+'...']
+      : ['vem cá...', 'tô te esperando', 'não corre', 'eu te achei', 'cadê você?', 'vem brincar comigo'];
+    const u=new SpeechSynthesisUtterance(lines[(Math.random()*lines.length)|0]);
+    u.lang='pt-BR'; u.pitch=0.15; u.rate=0.82; u.volume=0.95;
+    window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+  }catch(e){}
+}
 // animação assustadora do monstro (chamada todo frame quando ativo). chasing=perseguindo
 function creepifyEntity(chasing){
   if(!entity) return; const ud=entity.userData, tt=clock.elapsedTime;
@@ -1898,6 +1912,14 @@ function interact(){
 
   // ⚡ se está no QTE de escapar -> apertar E conta como debater-se
   if(qte.active){ qte.presses++; tone(420+qte.presses*30,0.05,'square',0.06); updateQteHud(); return; }
+
+  // ❤️ reviver o parceiro caído (chegar perto e apertar E)
+  if(isMP() && !player.dead && net.remoteState && net.remoteState.dead){
+    if(Math.hypot(player.pos.x-net.remoteState.x, player.pos.z-net.remoteState.z) < 2.2){
+      netSend({t:'revive'}); if(net.remoteState) net.remoteState.dead=false;
+      showMsg('❤️ Parceiro revivido!',1800); doorSound(); return;
+    }
+  }
 
   // se já está escondido -> sair do armário
   if(hiding){ exitHide(); return; }
@@ -2271,6 +2293,11 @@ function updateEntity(dt){
   // 🟢 RASTRO DE GOSMA: marcas no chão por onde o monstro passa
   if(entityActive){ net._slimeT=(net._slimeT||0)-dt;
     if(net._slimeT<=0){ dropSlime(entity.position.x, entity.position.z); net._slimeT=0.28; } }
+  // 🗣️ o monstro te chama de vez em quando quando está por perto (lure)
+  speakCool-=dt;
+  if(entityActive && !hiding && dist<vision && speakCool<=0){
+    monsterSpeak(); speakCool=9+Math.random()*9;
+  }
 
   // pegou o player -> dispara o QTE de escapar (ou morre se em cooldown / já em QTE falho)
   qte.cool-=dt;
@@ -2396,8 +2423,8 @@ function die(){
   if(isMP()){
     player.dead=true;
     netSend({t:'caught'});
-    document.getElementById('deathMsg').textContent='Você foi pego! Seu parceiro continua — você volta na próxima fase. (fase '+phase+')';
-    document.getElementById('death').classList.remove('hidden');
+    // sem tela de morte: você fica caído (espectador) e o parceiro pode te reviver (E)
+    showMsg('💀 Você caiu! Seu parceiro pode te reviver — ou você volta na próxima fase.',5000);
     // gameState segue 'playing' para o loop continuar pro parceiro
   } else {
     gameState='dead';
@@ -2549,11 +2576,17 @@ function createRemoteAvatar(){
 }
 function updateRemote(){
   const a=net.remoteAvatar, r=net.remoteState; if(!a||!r) return;
-  a.visible = !r.dead && !r.hiding;
-  const moved=Math.hypot(r.x-(a._lx??r.x), r.z-(a._lz??r.z))>0.003; a._lx=r.x; a._lz=r.z;
-  a.position.set(r.x, r.feet||0, r.z); a.rotation.y=(r.yaw||0)+Math.PI; // de frente p/ o movimento
-  const t=clock.elapsedTime, sw=moved?Math.sin(t*10)*0.5:0;
   const ud=a.userData;
+  a.visible = !r.hiding;                          // caído fica VISÍVEL pra dar pra reviver
+  if(r.dead){                                     // ❤️ parceiro caído (deitado no chão)
+    a.position.set(r.x, 0.25, r.z); a.rotation.set(Math.PI/2, (r.yaw||0)+Math.PI, 0);
+    ud.legL.rotation.x=ud.legR.rotation.x=ud.armL.rotation.x=ud.armR.rotation.x=0;
+    setSpriteText(ud.label, '💀 '+(r.name||'Parceiro')+' — reviver (E)');
+    return;
+  }
+  const moved=Math.hypot(r.x-(a._lx??r.x), r.z-(a._lz??r.z))>0.003; a._lx=r.x; a._lz=r.z;
+  a.position.set(r.x, r.feet||0, r.z); a.rotation.set(0, (r.yaw||0)+Math.PI, 0);
+  const t=clock.elapsedTime, sw=moved?Math.sin(t*10)*0.5:0;
   ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw; ud.armL.rotation.x=-sw; ud.armR.rotation.x=sw;
   setSpriteText(ud.label, r.name||'Parceiro');
 }
@@ -2565,7 +2598,9 @@ function onNetData(d){
     document.getElementById('death').classList.add('hidden'); flashTransition(); setTimeout(()=>buildPhase(phase),350); }
   else if(d.t==='win'){ winGame(); }
   else if(d.t==='reachExit'){ if(net.role==='host') hostAdvance(); }
-  else if(d.t==='caught'){ showMsg('💀 Seu parceiro foi pego!',3000); if(net.remoteState) net.remoteState.dead=true; }
+  else if(d.t==='caught'){ showMsg('💀 Seu parceiro caiu! Vá até ele e aperte E pra reviver.',4000); if(net.remoteState) net.remoteState.dead=true; }
+  else if(d.t==='revive'){ if(player.dead){ player.dead=false;
+    document.getElementById('death').classList.add('hidden'); showMsg('❤️ Seu parceiro te reviveu!',2500); } }
 }
 function hostAdvance(){
   if(phase>=MAX_PHASE){ netSend({t:'win'}); winGame(); return; }
