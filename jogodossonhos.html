@@ -463,17 +463,28 @@ function stopAmbience(){
   try{
     a.master.gain.cancelScheduledValues(t);
     a.master.gain.setValueAtTime(a.master.gain.value, t);
-    a.master.gain.linearRampToValueAtTime(0, t+0.25);
+    a.master.gain.linearRampToValueAtTime(0, t+0.06);   // corte rápido (sem clique nem cauda)
     a.tenseGain.gain.cancelScheduledValues(t);
     a.tenseGain.gain.setValueAtTime(a.tenseGain.gain.value, t);
-    a.tenseGain.gain.linearRampToValueAtTime(0, t+0.25);
+    a.tenseGain.gain.linearRampToValueAtTime(0, t+0.06);
   }catch(e){}
-  // depois do fade, para os osciladores e desconecta (libera CPU)
+  // logo após o corte, para os osciladores e desconecta (libera CPU)
   setTimeout(()=>{
     (a.stopList||[]).forEach(n=>{ try{ n.stop(); }catch(e){} try{ n.disconnect(); }catch(e){} });
     try{ a.master.disconnect(); }catch(e){}
     try{ a.tenseGain.disconnect(); }catch(e){}
-  }, 300);
+  }, 80);
+}
+// silêncio TOTAL garantido (suspende o áudio) se continuarmos fora do jogo.
+// cobre qualquer resíduo (rugido/batida). É retomado em beginPlay().
+function silenceAudioSoon(delay){
+  if(!audioCtx) return;
+  setTimeout(()=>{
+    if(audioCtx && audioCtx.state==='running' &&
+       (gameState==='dead' || gameState==='win' || gameState==='menu')){
+      audioCtx.suspend().catch(()=>{});
+    }
+  }, delay||1200);
 }
 // muda a trilha conforme a entidade se aproxima. level 0..1
 function setAmbienceTension(level){
@@ -1958,7 +1969,8 @@ function die(){
     // gameState segue 'playing' para o loop continuar pro parceiro
   } else {
     gameState='dead';
-    stopAmbience();   // silencia a trilha de suspense após a morte
+    stopAmbience();         // corta a música na hora
+    silenceAudioSoon(1300); // após o rugido de morte, silêncio TOTAL na tela de morte
     const msgs=['O pesadelo te alcançou no corredor.','Você nunca chegou na porta.','A criatura sorriu antes de te pegar.','Acordar? Talvez nunca.'];
     const cp = checkpoint>1 ? ' · Tentar de novo volta na fase '+checkpoint+' (checkpoint 🚩)' : '';
     document.getElementById('deathMsg').textContent=msgs[Math.floor(Math.random()*msgs.length)]+' (Chegou na fase '+phase+')'+cp;
@@ -1967,12 +1979,12 @@ function die(){
 }
 function winGame(){
   gameState='win'; if(document.pointerLockElement) document.exitPointerLock();
-  stopAmbience();   // silencia a trilha ao vencer
+  stopAmbience(); silenceAudioSoon(500);   // silencia a trilha ao vencer
   document.getElementById('win').classList.remove('hidden');
 }
 function backToLobby(){
   gameState='menu'; player.dead=false; checkpoint=1;
-  stopAmbience();   // silencia a trilha ao voltar pro lobby
+  stopAmbience(); silenceAudioSoon(500);   // silencia a trilha ao voltar pro lobby
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
   net.role='solo'; net.peer=null; net.conn=null; net.remoteState=null; net.monster=null;
   if(document.pointerLockElement) document.exitPointerLock();
