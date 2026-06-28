@@ -606,18 +606,19 @@ function init(){
   // resolução mais nítida (até 2x) — em telas hi-DPI melhora bastante as bordas
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   renderer.shadowMap.enabled = false;
-  // cores chapadas/vibrantes (estilo anime) — sem tom cinematográfico
+  // gerenciamento de cor + tom cinematográfico
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.55;      // mantém claro (pedido "mais luz")
 
   clock = new THREE.Clock();
 
-  // luzes p/ cel-shading: 1 direcional forte cria as faixas; ambiente moderado
-  const amb = new THREE.AmbientLight(0xbfb4e6, 1.15);
-  const moon = new THREE.DirectionalLight(0xffffff, 1.7); moon.position.set(8,20,8);
-  const fill = new THREE.HemisphereLight(0xb8c0ff, 0x3a3450, 0.6);
+  // luzes globais (criadas UMA vez, marcadas para nunca serem removidas)
+  const amb = new THREE.AmbientLight(0xb6a8e0, 2.8);
+  const moon = new THREE.DirectionalLight(0xdfe6ff, 2.4); moon.position.set(8,20,8);
+  const fill = new THREE.HemisphereLight(0xb0a8ff, 0x33304a, 1.6);
   // LANTERNA: luz que acompanha o jogador, ilumina sempre o redor
-  playerLight = new THREE.PointLight(0xfff0dd, 1.25, 16, 1.4);
+  playerLight = new THREE.PointLight(0xfff0dd, 1.6, 16, 1.4);
   [amb,moon,fill,playerLight].forEach(l=>{ l.userData.keep=true; scene.add(l); });
 
   window.addEventListener('resize', ()=>{
@@ -895,8 +896,6 @@ function buildPhase(p){
   entityActive=false;
   // avatar do parceiro (co-op)
   if(isMP()) createRemoteAvatar();
-  // estilo ANIME: converte tudo para cel-shading (monstro/avatar já existem aqui)
-  applyToonStyle();
   // só host/solo controla quando o monstro acorda (cliente recebe pela rede)
   if(net.role!=='client'){
     const spawnDelay=DIFF[difficulty].spawn + Math.random()*1500;
@@ -1658,40 +1657,6 @@ function buildExitDoor(x,z){
 
 // ---------- MONSTROS (um por fase, estilo Doors) ----------
 function meshAt(geo,mat,y){ const m=new THREE.Mesh(geo,mat); m.position.y=y; return m; }
-// ---------- ESTILO ANIME (cel-shading) ----------
-let TOON_GRAD=null;
-function toonGradient(){
-  if(TOON_GRAD) return TOON_GRAD;
-  const c=document.createElement('canvas'); c.width=4; c.height=1; const x=c.getContext('2d');
-  ['#3a3a3a','#7d7d7d','#c2c2c2','#ffffff'].forEach((col,i)=>{ x.fillStyle=col; x.fillRect(i,0,1,1); });
-  const t=new THREE.CanvasTexture(c); t.minFilter=THREE.NearestFilter; t.magFilter=THREE.NearestFilter; t.generateMipmaps=false;
-  TOON_GRAD=t; return t;
-}
-// contorno preto estilo anime (casca invertida) nos meshes de um grupo
-function addOutline(root){
-  const black=new THREE.MeshBasicMaterial({color:0x000000, side:THREE.BackSide});
-  const list=[]; root.traverse(o=>{ if(o.isMesh && o.geometry && o.material && o.material.isMeshStandardMaterial) list.push(o); });
-  list.forEach(o=>{ const out=new THREE.Mesh(o.geometry, black);
-    out.position.copy(o.position); out.quaternion.copy(o.quaternion);
-    out.scale.copy(o.scale).multiplyScalar(1.08); out.userData.outline=true; o.parent.add(out); });
-}
-// converte os materiais da cena para MeshToonMaterial (sombreamento em faixas)
-function applyToonStyle(){
-  const grad=toonGradient(), conv=new Map();
-  scene.traverse(o=>{
-    if(!o.isMesh || o.userData.keep || o.userData.outline) return;
-    const arr=Array.isArray(o.material)?o.material:[o.material];
-    const out=arr.map(m=>{
-      if(!m || !m.isMeshStandardMaterial) return m;
-      if(conv.has(m)) return conv.get(m);
-      const tm=new THREE.MeshToonMaterial({color:m.color.clone(),
-        emissive:m.emissive?m.emissive.clone():new THREE.Color(0), gradientMap:grad,
-        transparent:m.transparent, opacity:m.opacity, side:m.side});
-      tm.emissiveIntensity=m.emissiveIntensity||0; conv.set(m,tm); return tm;
-    });
-    o.material = Array.isArray(o.material)?out:out[0];
-  });
-}
 function eyePair(color,y,z,sep,r){
   const grp=new THREE.Group(); const mat=new THREE.MeshBasicMaterial({color});
   const l=new THREE.Mesh(new THREE.SphereGeometry(r||0.1,8,8),mat); l.position.set(-(sep||0.2),y,z);
@@ -1874,7 +1839,6 @@ function spawnEntity(x,z){
     gl.position.copy(eye.position); gl.scale.setScalar(1.5); eye.parent.add(gl); return gl;
   }
   const eyeGlows=[eyeGlow(eyeL), eyeGlow(eyeR)].filter(Boolean);
-  addOutline(g);   // contorno preto estilo anime
   g.position.set(x,0,z); scene.add(g);
   const baseSpeed=DIFF[difficulty].speed + phase*0.15 + ((key==='carmesim'||key==='devorador')?1.2:0);
   entity=g; entity.userData={speed:baseSpeed, aura, eyeL, eyeR, head, eyeGlows, auraColor};
@@ -2442,7 +2406,6 @@ function createRemoteAvatar(){
   g.add(new THREE.PointLight(0x33ddff,0.8,6));
   const label=makeNameSprite(); g.add(label);
   g.userData={legL,legR,armL,armR,label};
-  addOutline(g);   // contorno preto estilo anime
   g.visible=false; scene.add(g); net.remoteAvatar=g;
 }
 function updateRemote(){
