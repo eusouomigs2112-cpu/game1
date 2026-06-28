@@ -136,6 +136,18 @@
   #win h1 { background:linear-gradient(90deg,#7cff9b,#6cf); -webkit-background-clip:text; background-clip:text; color:transparent; }
   .sub { font-size:13px; opacity:.5; margin-top:20px; }
 
+  /* modo Porteiro */
+  #ptRule { max-width:520px; font-size:15px; line-height:1.5; opacity:.9; margin:6px 0; }
+  #ptResidents { font-size:15px; font-weight:700; color:#9fe8ff; margin:8px 0 14px; max-width:520px; }
+  #ptCard {
+    width:230px; padding:22px; border-radius:20px; margin:6px auto 18px;
+    background:rgba(124,92,255,.12); border:2px solid rgba(124,92,255,.5);
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  #ptFace { font-size:96px; line-height:1; }
+  #ptName { font-size:24px; font-weight:800; letter-spacing:.5px; }
+  #ptScore { font-size:16px; margin-top:14px; min-height:24px; }
+  #ptAccept { background:linear-gradient(90deg,#3ad07a,#2aa85f); }
   /* tela de dispositivo */
   .devicebtns { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:24px 0; }
   .devbtn {
@@ -280,7 +292,10 @@
     <div class="key" style="min-width:90px"><b id="tpVal">1</b> / 25</div>
     <button class="diff" id="tpPlus" title="próxima fase">▶</button>
   </div>
-  <button id="startBtn">▶ Jogar Sozinho</button>
+  <div class="btnrow">
+    <button id="startBtn">▶ Jogar Sozinho</button>
+    <button id="modesBtn" class="ghost">🎮 Modos</button>
+  </div>
   <div style="margin:14px 0 4px; font-size:13px; opacity:.7; letter-spacing:1px;">👥 AMIGOS ONLINE (CO-OP · 2 JOGADORES)</div>
   <div id="onlineRow">
     <input id="nickInput" placeholder="Seu nome" maxlength="12" autocomplete="off"/>
@@ -298,6 +313,37 @@
     <button id="joinBtn" class="ghost" style="font-size:14px; padding:9px 18px;">🔑 Entrar com código</button>
   </div>
   <div class="sub" id="startSub">PC: clique para travar o mouse · ESC para sair</div>
+</div>
+
+<div id="modes" class="overlay hidden">
+  <h1>Modos de Jogo</h1>
+  <p>Escolha um modo especial:</p>
+  <div class="devicebtns">
+    <div class="devbtn" id="modePorteiro">
+      <div class="ic">🚪</div><div class="lb">PORTEIRO</div>
+      <div class="ds">Estilo "Não é meu vizinho" — deixe entrar só os moradores certos e barre os monstros disfarçados</div>
+    </div>
+    <div class="devbtn" id="modeSpec">
+      <div class="ic">👁️</div><div class="lb">ESPECTADOR</div>
+      <div class="ds">Explore os 25 mundos com calma — o monstro não te pega</div>
+    </div>
+  </div>
+  <button class="ghost" id="modesBack">↩ Voltar</button>
+</div>
+
+<div id="porteiro" class="overlay hidden">
+  <h1>🚪 Porteiro</h1>
+  <div id="ptRule">Deixe entrar só <b>moradores da lista</b> com cara humana. Barre monstros e estranhos.</div>
+  <div id="ptResidents"></div>
+  <div id="ptStage">
+    <div id="ptCard"><div id="ptFace">🙂</div><div id="ptName">—</div></div>
+    <div class="btnrow">
+      <button id="ptDeny" class="ghost">✗ Mandar embora</button>
+      <button id="ptAccept">✓ Deixar entrar</button>
+    </div>
+  </div>
+  <div id="ptScore"></div>
+  <button class="ghost" id="ptQuit" style="font-size:14px; margin-top:18px;">↩ Sair pro menu</button>
 </div>
 
 <div id="death" class="overlay hidden">
@@ -396,6 +442,7 @@ let minimapOn=true;                 // 🗺️ minimapa (tecla M)
 let qte={active:false,presses:0,need:6,until:0,cool:0};   // ⚡ escapar ao ser pego (apertar E)
 let slideTime=0, slideCool=0;       // 🤸 deslizar
 let speakCool=8;                    // 🗣️ monstro chama/"imita a voz" (síntese de fala)
+let spectator=false;                // 👁️ modo espectador (monstro nunca pega)
 let audioCtx = null;
 
 // dificuldade
@@ -928,11 +975,13 @@ function buildPhase(p){
   // avatar do parceiro (co-op)
   if(isMP()) createRemoteAvatar();
   // só host/solo controla quando o monstro acorda (cliente recebe pela rede)
-  if(net.role!=='client'){
+  // 👁️ no modo espectador o monstro nunca acorda — você explora em paz
+  if(net.role!=='client' && !spectator){
     const spawnDelay=DIFF[difficulty].spawn + Math.random()*1500;
     setTimeout(()=>{ if(gameState==='playing'){ entityActive=true; roar();
       showMsg(TH.monster.name+' acordou... 👁️',2500);} }, spawnDelay);
   }
+  if(spectator) showMsg('👁️ Modo Espectador — explore sem medo (sem monstro)',3000);
 
   // CHECKPOINTS a cada 3 fases: salva o ponto de retorno
   [3,6,9,12,15,18,21,24].forEach(cp=>{ if(p>=cp && checkpoint<cp){ checkpoint=cp;
@@ -2301,7 +2350,7 @@ function updateEntity(dt){
 
   // pegou o player -> dispara o QTE de escapar (ou morre se em cooldown / já em QTE falho)
   qte.cool-=dt;
-  if(dist < DIFF[difficulty].catch && entityActive && !hiding && !player.dead){
+  if(dist < DIFF[difficulty].catch && entityActive && !hiding && !player.dead && !spectator){
     if(!qte.active && qte.cool<=0) startQTE();   // chance de se soltar
   }
 }
@@ -2382,7 +2431,7 @@ function startPhaseFromURL(){
   return Math.max(1,Math.min(MAX_PHASE,n));
 }
 let testStartPhase = 1;                 // fase escolhida no seletor de teste
-function startGame(){ const sp=testStartPhase; net.role='solo';
+function startGame(){ const sp=testStartPhase; net.role='solo'; spectator=false;
   stopFriendPolling(); if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }   // sai do modo online
   checkpoint=sp; beginPlay(sp); }                                                          // jogo novo (ou fase de teste)
 function retryGame(){ net.role='solo'; beginPlay(checkpoint); }           // volta no checkpoint
@@ -2441,7 +2490,7 @@ function winGame(){
   document.getElementById('win').classList.remove('hidden');
 }
 function backToLobby(){
-  gameState='menu'; player.dead=false; checkpoint=1;
+  gameState='menu'; player.dead=false; checkpoint=1; spectator=false;
   stopAmbience(); silenceAudioSoon(500);   // silencia a trilha ao voltar pro lobby
   stopVoice(); stopFriendPolling();
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
@@ -2793,6 +2842,56 @@ function setupTouch(){
   lz.addEventListener('touchend',endLook); lz.addEventListener('touchcancel',endLook);
 }
 
+// ==================== MODOS ESPECIAIS ====================
+// 👁️ Espectador: explora os mundos sem o monstro te pegar
+function startSpectator(){
+  spectator=true; net.role='solo'; checkpoint=testStartPhase;
+  document.getElementById('modes').classList.add('hidden');
+  beginPlay(testStartPhase);
+}
+// 🚪 Porteiro (estilo "Não é meu vizinho")
+const PT_RESID=['Ana','Beto','Caio','Duda','Edu','Fê','Gabi','Hugo','Íris','Léo','Mia','Nina'];
+const PT_FAKE=['Zorg','Krell','Nyx','Vorm','???','Mr. X','Sombra','Gtoo'];
+const PT_HUMAN=['🙂','😀','🧑','👩','👨','🧔','👵','👦','👧','🧓'];
+const PT_MONSTER=['👹','😈','💀','🧟','👺','👻','🤡','👽'];
+let pt={residents:[],lives:3,score:0,cur:null,over:false};
+function ptPick(a){ return a[(Math.random()*a.length)|0]; }
+function startPorteiro(){
+  pt.lives=3; pt.score=0; pt.over=false;
+  pt.residents=[]; const pool=PT_RESID.slice();
+  for(let i=0;i<4;i++) pt.residents.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
+  document.getElementById('modes').classList.add('hidden');
+  document.getElementById('porteiro').classList.remove('hidden');
+  document.getElementById('ptResidents').innerHTML='🏠 Moradores de hoje: '+pt.residents.join(' · ');
+  document.getElementById('ptStage').style.display='';
+  initAudio();
+  porteiroNext();
+}
+function porteiroNext(){
+  const humanFace=Math.random()<0.55;
+  const fromList=Math.random()<0.55;
+  const face = humanFace ? ptPick(PT_HUMAN) : ptPick(PT_MONSTER);
+  const name = fromList ? ptPick(pt.residents) : ptPick(PT_FAKE);
+  pt.cur={ ok: (humanFace && pt.residents.includes(name)) };   // aceitar só humano da lista
+  document.getElementById('ptFace').textContent=face;
+  document.getElementById('ptName').textContent=name;
+  document.getElementById('ptScore').innerHTML='❤️'.repeat(pt.lives)+'🖤'.repeat(Math.max(0,3-pt.lives))+'  ·  Pontos: <b>'+pt.score+'</b>';
+}
+function porteiroDecide(accept){
+  if(pt.over) return;
+  const correct = (accept===pt.cur.ok);
+  if(correct){ pt.score++; tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); }
+  else { pt.lives--; tone(160,0.3,'sawtooth',0.18); }
+  if(pt.lives<=0){ porteiroOver(); } else { porteiroNext(); }
+}
+function porteiroOver(){
+  pt.over=true;
+  document.getElementById('ptStage').style.display='none';
+  document.getElementById('ptScore').innerHTML='💀 Fim de turno! Você fez <b>'+pt.score+'</b> ponto(s).<br><br>'+
+    '<button id="ptAgain">🔁 Jogar de novo</button>';
+  document.getElementById('ptAgain').onclick=startPorteiro;
+}
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -2826,6 +2925,24 @@ document.getElementById('exitBtn').onclick=pauseGame;
 document.getElementById('voiceBtn').onclick=toggleMute;
 document.getElementById('resumeBtn').onclick=resumeGame;
 document.getElementById('quitBtn').onclick=quitToLobby;
+
+// ---------- MODOS ----------
+document.getElementById('modesBtn').onclick=()=>{
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('modes').classList.remove('hidden');
+};
+document.getElementById('modesBack').onclick=()=>{
+  document.getElementById('modes').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');
+};
+document.getElementById('modePorteiro').onclick=startPorteiro;
+document.getElementById('modeSpec').onclick=startSpectator;
+document.getElementById('ptAccept').onclick=()=>porteiroDecide(true);
+document.getElementById('ptDeny').onclick=()=>porteiroDecide(false);
+document.getElementById('ptQuit').onclick=()=>{
+  document.getElementById('porteiro').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');
+};
 
 // ---------- SELETOR DE FASE DE TESTE (◀ ▶) ----------
 function refreshTestPhase(){
