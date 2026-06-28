@@ -37,6 +37,17 @@
     background:radial-gradient(ellipse at center, rgba(0,0,0,0) 58%, rgba(0,0,0,.42) 100%);
     mix-blend-mode:multiply;
   }
+  /* animação de entrada: pálpebras (acordar) */
+  #intro { position:fixed; inset:0; pointer-events:none; z-index:8; }
+  #intro .lid { position:absolute; left:0; width:100%; height:0; background:#000; }
+  #intro .lid.top { top:0; }
+  #intro .lid.bot { bottom:0; }
+  #intro.waking .lid.top { animation:lidT 2.8s ease-in-out forwards; }
+  #intro.waking .lid.bot { animation:lidB 2.8s ease-in-out forwards; }
+  @keyframes lidT { /* segura fechado -> abre -> piscada -> abre total */
+    0%{height:60%} 12%{height:58%} 26%{height:8%} 36%{height:32%} 46%{height:5%} 100%{height:0%} }
+  @keyframes lidB {
+    0%{height:60%} 12%{height:58%} 26%{height:8%} 36%{height:32%} 46%{height:5%} 100%{height:0%} }
   /* grão de filme (textura granulada — clima de horror analógico) */
   #grain {
     position:fixed; inset:-60%; width:220%; height:220%; pointer-events:none; z-index:3;
@@ -171,6 +182,7 @@
 <canvas id="game"></canvas>
 <div id="grain"></div>
 <div id="vignette"></div>
+<div id="intro"><div class="lid top"></div><div class="lid bot"></div></div>
 
 <div id="hud">
   <div id="topbar">
@@ -351,6 +363,7 @@ let heartTime = 0;
 let dangerShake = 0;        // 0..1 — intensidade do tremor de câmera quando o monstro chega perto
 let moonLight = null;       // luz direcional que projeta as sombras (segue o jogador)
 let playerLight = null;     // lanterna que acompanha o jogador (ilumina o redor)
+let introActive=false, introStart=0; const introDur=2.8;   // animação de entrada ("acordar")
 let audioCtx = null;
 
 // dificuldade
@@ -633,6 +646,7 @@ function setupControls(){
   canvas.addEventListener('click', ()=>{ if(gameState==='playing') canvas.requestPointerLock(); });
 
   document.addEventListener('mousemove', e=>{
+    if(introActive) return;                       // trava o olhar durante a intro
     if(document.pointerLockElement===canvas){
       player.yaw   -= e.movementX * 0.0022;
       player.pitch -= e.movementY * 0.0022;
@@ -2003,6 +2017,21 @@ function updatePlayer(dt){
   // co-op: sincroniza posição e atualiza o avatar do parceiro
   if(isMP()){ sendPos(); updateRemote(); }
 
+  // ---- ANIMAÇÃO DE ENTRADA ("acordar no sonho"): câmera sobe e vira pra frente ----
+  if(introActive){
+    const p=Math.min(1, (performance.now()-introStart)/(introDur*1000));   // tempo real (sincroniza c/ as pálpebras)
+    const e=p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2;       // easeInOut
+    const eyeH=player.crouch?1.05:player.height;
+    camera.position.set(player.pos.x, player.feet+eyeH+(1-e)*1.4, player.pos.z);
+    camera.rotation.order='YXZ';
+    camera.rotation.y=player.yaw+(1-e)*0.9;               // termina virando pra frente
+    camera.rotation.x=player.pitch-(1-e)*0.55;            // começa olhando p/ baixo
+    pulseDoor(t0);
+    if(playerLight) playerLight.position.set(player.pos.x, player.feet+1.5, player.pos.z);
+    if(p>=1) introActive=false;
+    return;
+  }
+
   // morto no co-op: vira espectador (só olha, loop continua p/ o parceiro)
   if(player.dead){
     camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
@@ -2193,7 +2222,14 @@ function beginPlay(sp){
   ['device','start','death','win'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
   buildPhase(start);
+  playIntro();   // animação de "acordar no sonho"
   if(controlMode==='pc') renderer.domElement.requestPointerLock();
+}
+// dispara a animação de entrada (câmera + pálpebras abrindo)
+function playIntro(){
+  introActive=true; introStart=performance.now();
+  const el=document.getElementById('intro');
+  if(el){ el.classList.remove('waking'); void el.offsetWidth; el.classList.add('waking'); }
 }
 // fase inicial p/ TESTE: seletor na tela inicial (◀ ▶) ou ?fase=6 na URL.
 function startPhaseFromURL(){
@@ -2510,7 +2546,7 @@ function setupTouch(){
   });
   const lz=document.getElementById('lookzone');
   lz.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; lookTouchId=t.identifier; lz._x=t.clientX; lz._y=t.clientY; }, {passive:false});
-  lz.addEventListener('touchmove', e=>{ e.preventDefault();
+  lz.addEventListener('touchmove', e=>{ e.preventDefault(); if(introActive) return;
     for(const t of e.changedTouches){ if(t.identifier===lookTouchId){
       player.yaw -= (t.clientX-lz._x)*0.005;
       player.pitch -= (t.clientY-lz._y)*0.005;
