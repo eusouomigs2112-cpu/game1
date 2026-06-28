@@ -2181,13 +2181,16 @@ function updatePlayer(dt){
   const running = keys['ShiftLeft']||keys['ShiftRight']||autoRun;
   let speed = running && player.stamina>0 ? 7.2 : 3.6;
 
-  // stamina
-  if(running && (keys['KeyW']||keys['KeyS']||keys['KeyA']||keys['KeyD']) && player.stamina>0){
+  // stamina  (👁️ no modo Espectador é INFINITA: corre sem cansar)
+  if(spectator){
+    player.stamina=staminaMax;
+    if(running) speed=7.2;
+  } else if(running && (keys['KeyW']||keys['KeyS']||keys['KeyA']||keys['KeyD']) && player.stamina>0){
     player.stamina=Math.max(0,player.stamina-30*dt);
   } else {
     player.stamina=Math.min(staminaMax,player.stamina+18*dt);
   }
-  if(player.stamina<=0) speed=3.0;
+  if(player.stamina<=0 && !spectator) speed=3.0;
   document.getElementById('stamina').style.width=(player.stamina/staminaMax*100)+'%';
 
   // movimento relativo ao yaw
