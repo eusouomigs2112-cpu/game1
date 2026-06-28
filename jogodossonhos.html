@@ -820,6 +820,9 @@ function buildPhase(p){
   if(p!==1) randomizeExit();
   buildExitDoor(levelExit.x, levelExit.z);
 
+  // ARMÁRIOS (esconderijos) garantidos em TODAS as fases
+  addArmarios(5);
+
   // energia máxima: 2x nas fases de pular/abaixar (corredores de agilidade)
   staminaMax = ['red','sewer','factory','temple'].includes(TH.build) ? 200 : 100;
 
@@ -1540,6 +1543,29 @@ function randomizeExit(){
     levelExit={x,z}; return;
   }
   // não achou ponto livre -> usa o levelExit padrão do cenário
+}
+
+// garante ARMÁRIOS (esconderijos) em qualquer fase: encosta nas paredes laterais,
+// em pontos livres, longe do início e da porta. Validação evita sobrepor o cenário.
+function addArmarios(n){
+  let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
+  for(const w of walls){ if(w.playerOnly) continue;
+    minX=Math.min(minX,w.min.x); maxX=Math.max(maxX,w.max.x);
+    minZ=Math.min(minZ,w.min.z); maxZ=Math.max(maxZ,w.max.z); }
+  if(minX>maxX) return;
+  for(let i=0;i<n;i++){
+    const left=(i%2===0);
+    const x = left ? minX+1.0 : maxX-1.0;
+    const rotY = left ? Math.PI/2 : -Math.PI/2;
+    const baseZ = minZ+2 + ((i+0.5)/n)*Math.max(2,(maxZ-minZ)-4);
+    for(let a=0;a<6;a++){                      // tenta alguns z até achar um livre
+      const z = baseZ + (a? (Math.random()-0.5)*7 : 0);
+      if(pointBlocked(x,z,0.4)) continue;
+      if(Math.hypot(x-player.pos.x, z-player.pos.z) < 4) continue;
+      if(levelExit && Math.hypot(x-levelExit.x, z-levelExit.z) < 3) continue;
+      buildCloset(x,z,rotY); break;
+    }
+  }
 }
 
 function buildExitDoor(x,z){
