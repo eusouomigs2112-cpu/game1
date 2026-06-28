@@ -2198,6 +2198,7 @@ function backToLobby(){
   stopFriendPolling();
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
   net.role='solo'; net.peer=null; net.conn=null; net.remoteState=null; net.monster=null; net.nick=null;
+  net.roster={}; net.playerId=null; net.isCoord=false; net._joining=null;
   if(document.pointerLockElement) document.exitPointerLock();
   document.getElementById('touch').classList.remove('on');
   ['death','win','start'].forEach(id=>document.getElementById(id).classList.add('hidden'));
@@ -2306,73 +2307,113 @@ function mpConnect(){
   net.peer.on('error', e=>mpStatus('❌ Erro: '+e.type+' (código certo?)'));
 }
 
-// ==================== AMIGOS ONLINE (lista de quem está online) ==========
+// ==================== AMIGOS ONLINE (lobby coordenado por peer fixo) ========
+// O broker público do PeerJS não permite listar peers. Então usamos um "lobby":
+// o 1º a ficar online vira COORDENADOR (peer num ID fixo) e mantém/transmite a
+// lista de quem está online. Os demais se conectam a ele. Tudo via connect/host,
+// que funcionam normalmente no broker.
 let friendTimer=null;
+const LOBBY_ID='jdsf-lobby-v3';
 function sanitizeNick(s){
   return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'')   // tira acentos
     .replace(/[^A-Za-z0-9]/g,'').slice(0,12) || 'Jogador';
 }
-function parseFriendName(id){ const p=id.split('-'); return p[1]||'Jogador'; }
-function stopFriendPolling(){ if(friendTimer){ clearInterval(friendTimer); friendTimer=null; } }
+function leaveLobby(){
+  if(friendTimer){ clearInterval(friendTimer); friendTimer=null; }
+  if(net.lobbyConn){ try{net.lobbyConn.close();}catch(e){} net.lobbyConn=null; }
+  if(net.lobbyPeer){ try{net.lobbyPeer.destroy();}catch(e){} net.lobbyPeer=null; }
+  net.isCoord=false; net.lobbyClients=[]; net._joining=null;
+}
+function stopFriendPolling(){ leaveLobby(); }   // mantém o nome usado em outras partes
 
-// fica online e disponível: registra um peer com o nome no ID e espera convites
-function goOnline(){
-  if(typeof Peer==='undefined'){ mpStatus('❌ Rede indisponível (precisa de internet).'); return; }
-  const nick=sanitizeNick(document.getElementById('nickInput').value);
-  net.nick=nick; net.role='host';
-  const id='jdsf-'+nick+'-'+genCode().toLowerCase();   // prefixo jdsf- = "amigo" deste jogo
-  if(net.peer){ try{net.peer.destroy();}catch(e){} }
-  net.peer=new Peer(id);
-  net.peer.on('open', ()=>{ net.id=id;
-    document.getElementById('onlineBtn').textContent='🟢 Online: '+nick;
-    mpStatus('🟢 Você está online como <code>'+nick+'</code>. Escolha um amigo na lista ou aguarde alguém te chamar.');
-    refreshFriends(); stopFriendPolling(); friendTimer=setInterval(refreshFriends, 3000);
-  });
-  // alguém entrou no SEU grupo -> você é o host, inicia a partida
-  net.peer.on('connection', conn=>{ wireConn(conn);
-    conn.on('open', ()=>{ stopFriendPolling(); mpStatus('✅ Parceiro entrou! Iniciando...');
-      netSend({t:'start', difficulty}); setTimeout(beginPlay,600); }); });
-  net.peer.on('error', e=>{
-    if(e.type==='unavailable-id'){ try{net.peer.destroy();}catch(_){} goOnline(); return; }
-    mpStatus('❌ Erro de rede: '+e.type); });
-}
-// pede a lista de peers ao broker e mostra só os jogadores deste jogo
-function refreshFriends(){
-  if(!net.peer || typeof net.peer.listAllPeers!=='function'){
-    renderFriends(null, 'Lista indisponível neste servidor — use “Entrar com código”.'); return; }
-  try{
-    net.peer.listAllPeers(function(ids){
-      const fr=(ids||[]).filter(id=>id.indexOf('jdsf-')===0 && id!==net.id);
-      renderFriends(fr);
-    });
-  }catch(e){ renderFriends(null, 'Não consegui listar os online — use o código.'); }
-}
-function renderFriends(ids, note){
+function renderFriendsFromRoster(){
   const box=document.getElementById('friendList'); if(!box) return;
-  if(note){ box.innerHTML='<div style="opacity:.55;font-size:13px">'+note+'</div>'; return; }
-  if(!ids || !ids.length){
-    box.innerHTML='<div style="opacity:.55;font-size:13px">Ninguém online ainda. Deixe esta tela aberta — quem ficar online aparece aqui.</div>'; return; }
+  const list=Object.keys(net.roster||{}).filter(id=>id!==net.playerId).map(id=>({id,name:net.roster[id]}));
+  if(!list.length){
+    box.innerHTML='<div style="opacity:.55;font-size:13px">Ninguém mais online ainda. Deixe esta tela aberta — quem ficar online aparece aqui.</div>'; return; }
   box.innerHTML='';
-  ids.forEach(id=>{
+  list.forEach(e=>{
     const row=document.createElement('div'); row.className='friend';
     const nm=document.createElement('div'); nm.className='fname';
-    nm.innerHTML='<span class="fdot"></span>'+parseFriendName(id);
+    nm.innerHTML='<span class="fdot"></span>'+e.name;
     const b=document.createElement('button'); b.textContent='Entrar';
-    b.onclick=()=>joinFriend(id);
+    b.onclick=()=>joinFriend(e.id, e.name);
     row.appendChild(nm); row.appendChild(b); box.appendChild(row);
   });
 }
-// entra no grupo de um amigo -> vira cliente e conecta no peer dele
-function joinFriend(hostId){
-  if(typeof Peer==='undefined'){ mpStatus('❌ Rede indisponível.'); return; }
-  stopFriendPolling();
-  net.role='client'; mpStatus('Entrando no grupo de <b>'+parseFriendName(hostId)+'</b>...');
-  const connectVia=(peer)=>{ const conn=peer.connect(hostId,{reliable:true}); wireConn(conn);
-    conn.on('open', ()=>mpStatus('✅ Conectado a '+parseFriendName(hostId)+'! Aguardando início...'));
-    conn.on('error', ()=>mpStatus('❌ Não consegui entrar (o amigo saiu?).')); };
-  if(net.peer && net.id){ connectVia(net.peer); }    // reaproveita o peer (se já estávamos online)
-  else { net.peer=new Peer(); net.peer.on('open', ()=>connectVia(net.peer));
-    net.peer.on('error', e=>mpStatus('❌ Erro: '+e.type)); }
+function broadcastRoster(){
+  const msg={t:'roster', roster:net.roster};
+  (net.lobbyClients||[]).forEach(c=>{ try{ if(c.open) c.send(msg); }catch(e){} });
+}
+// fica online: cria o peer do jogador (joinável) e entra no lobby
+function goOnline(){
+  if(typeof Peer==='undefined'){ mpStatus('❌ Rede indisponível (precisa de internet).'); return; }
+  const nick=sanitizeNick(document.getElementById('nickInput').value);
+  net.nick=nick; net.role='host'; net.roster={}; net.isCoord=false;
+  net.playerId='jdsf-p-'+genCode().toLowerCase()+genCode().toLowerCase();
+  leaveLobby();
+  if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.peer=new Peer(net.playerId);
+  net.peer.on('open', ()=>{ net.id=net.playerId;
+    document.getElementById('onlineBtn').textContent='🟢 Online: '+nick;
+    mpStatus('🟢 Conectando ao lobby...');
+    joinLobby();
+  });
+  // alguém clicou "Entrar" em mim -> sou host do jogo
+  net.peer.on('connection', conn=>{ wireConn(conn);
+    conn.on('open', ()=>{ leaveLobby(); mpStatus('✅ Parceiro entrou! Iniciando...');
+      netSend({t:'start', difficulty}); setTimeout(beginPlay,600); }); });
+  net.peer.on('error', e=>{
+    if(e.type==='peer-unavailable'){
+      if(net._joining==='lobby' && !net.isCoord){ becomeCoordinator(); return; }   // não há coordenador -> viro um
+      if(net._joining && net._joining.indexOf('friend')===0){ mpStatus('❌ O amigo saiu. Veja a lista de novo.'); net._joining=null; return; }
+      return;
+    }
+    mpStatus('❌ Erro de rede: '+e.type);
+  });
+}
+// tenta entrar no lobby existente; se não houver coordenador, vira coordenador
+function joinLobby(){
+  if(!net.peer) return;
+  net._joining='lobby'; let opened=false;
+  const lc=net.peer.connect(LOBBY_ID,{reliable:true});
+  lc.on('open', ()=>{ opened=true; net._joining=null; net.isCoord=false; net.lobbyConn=lc;
+    lc.send({t:'hello', id:net.playerId, name:net.nick});
+    mpStatus('🟢 Online como <code>'+net.nick+'</code>. Veja os jogadores na lista 👇'); });
+  lc.on('data', d=>{ if(d&&d.t==='roster'){ net.roster=d.roster||{}; renderFriendsFromRoster(); } });
+  lc.on('close', ()=>{ if(net.role==='host' && !net.isCoord){     // coordenador caiu -> reassume
+      net.lobbyConn=null; net.roster={}; renderFriendsFromRoster();
+      setTimeout(()=>{ if(net.role==='host' && !net.isCoord && !net.lobbyConn) joinLobby(); }, 600); } });
+  // se em 3.5s não abriu nem virou coordenador, assume que não há lobby -> cria um
+  setTimeout(()=>{ if(!opened && net.role==='host' && !net.isCoord && !net.lobbyConn) becomeCoordinator(); }, 3500);
+}
+function becomeCoordinator(){
+  if(net.isCoord || net.lobbyPeer) return;
+  net.isCoord=true; net._joining=null; net.lobbyClients=[];
+  net.roster={}; net.roster[net.playerId]=net.nick; renderFriendsFromRoster();
+  net.lobbyPeer=new Peer(LOBBY_ID);
+  net.lobbyPeer.on('open', ()=> mpStatus('🟢 Online como <code>'+net.nick+'</code>. Aguardando jogadores... 👇'));
+  net.lobbyPeer.on('connection', conn=>{
+    conn.on('data', d=>{ if(d&&d.t==='hello'){ conn._pid=d.id; net.roster[d.id]=d.name;
+      if(net.lobbyClients.indexOf(conn)<0) net.lobbyClients.push(conn);
+      broadcastRoster(); renderFriendsFromRoster(); } });
+    conn.on('close', ()=>{ if(conn._pid) delete net.roster[conn._pid];
+      net.lobbyClients=(net.lobbyClients||[]).filter(c=>c!==conn);
+      broadcastRoster(); renderFriendsFromRoster(); });
+  });
+  net.lobbyPeer.on('error', e=>{
+    if(e.type==='unavailable-id'){     // já existe coordenador (corrida) -> viro cliente
+      try{net.lobbyPeer.destroy();}catch(_){} net.lobbyPeer=null; net.isCoord=false; joinLobby(); }
+  });
+}
+// entra no grupo de um amigo -> conecta no peer-jogador dele (vira cliente)
+function joinFriend(hostId, name){
+  if(typeof Peer==='undefined' || !net.peer){ mpStatus('❌ Rede indisponível.'); return; }
+  net.role='client'; net._joining='friend:'+hostId;
+  mpStatus('Entrando no grupo de <b>'+(name||'amigo')+'</b>...');
+  leaveLobby();                                  // sai do lobby (mantém net.peer p/ conectar)
+  const conn=net.peer.connect(hostId,{reliable:true}); wireConn(conn);
+  conn.on('open', ()=>{ net._joining=null; mpStatus('✅ Conectado! Aguardando início...'); });
 }
 
 // ==================== CONTROLES DE TOQUE (mobile) ====================
