@@ -34,7 +34,7 @@
   /* vinheta cinematográfica (escurece as bordas — clima de terror) */
   #vignette {
     position:fixed; inset:0; pointer-events:none; z-index:4;
-    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,.62) 100%);
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 58%, rgba(0,0,0,.42) 100%);
     mix-blend-mode:multiply;
   }
   /* grão de filme (textura granulada — clima de horror analógico) */
@@ -350,6 +350,7 @@ let gameState = 'menu';    // menu | playing | dead | win
 let heartTime = 0;
 let dangerShake = 0;        // 0..1 — intensidade do tremor de câmera quando o monstro chega perto
 let moonLight = null;       // luz direcional que projeta as sombras (segue o jogador)
+let playerLight = null;     // lanterna que acompanha o jogador (ilumina o redor)
 let audioCtx = null;
 
 // dificuldade
@@ -589,21 +590,22 @@ function init(){
   // gerenciamento de cor + tom cinematográfico (visual mais rico e com profundidade)
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.22;
+  renderer.toneMappingExposure = 1.55;     // mais claro
 
   clock = new THREE.Clock();
 
   // luzes globais (criadas UMA vez, marcadas para nunca serem removidas)
-  // intensidades reforçadas p/ compensar o tone mapping (que escurece os médios)
-  const amb = new THREE.AmbientLight(0x9a8acc, 1.7);
-  const moon = new THREE.DirectionalLight(0xcdd8ff, 1.7); moon.position.set(8,20,8);
-  const fill = new THREE.HemisphereLight(0x9988ff, 0x222233, 1.0);
+  const amb = new THREE.AmbientLight(0xb6a8e0, 2.8);                     // ambiente bem mais forte
+  const moon = new THREE.DirectionalLight(0xdfe6ff, 2.4); moon.position.set(8,20,8);
+  const fill = new THREE.HemisphereLight(0xb0a8ff, 0x33304a, 1.6);
   // sombra projetada pela lua (segue o jogador em updatePlayer p/ ficar nítida)
   moon.castShadow=true; moon.shadow.mapSize.set(2048,2048);
   const sc=moon.shadow.camera; sc.near=1; sc.far=80; sc.left=-26; sc.right=26; sc.top=26; sc.bottom=-26; sc.updateProjectionMatrix();
   moon.shadow.bias=-0.0006; moon.shadow.normalBias=0.03;
   moonLight=moon;
-  [amb,moon,moon.target,fill].forEach(l=>{ l.userData.keep=true; scene.add(l); });
+  // LANTERNA: luz que acompanha o jogador, ilumina sempre o redor
+  playerLight = new THREE.PointLight(0xfff0dd, 1.6, 16, 1.4);
+  [amb,moon,moon.target,fill,playerLight].forEach(l=>{ l.userData.keep=true; scene.add(l); });
 
   window.addEventListener('resize', ()=>{
     camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
@@ -843,7 +845,7 @@ function buildPhase(p){
   clearLevel();
   const TH=THEMES[p]||THEMES[1];
   scene.background=new THREE.Color(TH.fog);
-  scene.fog=new THREE.FogExp2(TH.fog, TH.fogD);
+  scene.fog=new THREE.FogExp2(TH.fog, TH.fogD*0.65);   // névoa mais leve = mais claro/visível
   wallMat=new THREE.MeshStandardMaterial({color:0x3a3450, roughness:0.85});
 
   if(TH.build==='maze')   buildMaze(p);
@@ -2111,6 +2113,8 @@ function updatePlayer(dt){
   // a lua (sombras) acompanha o jogador p/ manter as sombras nítidas por perto
   if(moonLight){ moonLight.position.set(player.pos.x+8, 22, player.pos.z+8);
     moonLight.target.position.set(player.pos.x, 0, player.pos.z); moonLight.target.updateMatrixWorld(); }
+  // a lanterna fica na altura dos olhos do jogador
+  if(playerLight) playerLight.position.set(player.pos.x, player.feet+1.5, player.pos.z);
 
   // porta pulsa (brilho azul)
   pulseDoor(t);
