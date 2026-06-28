@@ -311,6 +311,16 @@ let autoRun = false, wHeld = false, lastWtap = 0;  // duplo-W = correr
 const net = { role:'solo', peer:null, conn:null, id:null,
               remoteState:null, monster:null, remoteAvatar:null, lastSend:0 };
 function isMP(){ return net.role!=='solo'; }
+// ICE: STUN (acha IP público) + TURN (relay quando a conexão direta falha entre
+// redes diferentes/NAT). TURN grátis do projeto OpenRelay (metered). Se cair,
+// dá pra criar uma conta grátis em metered.ca e trocar as credenciais abaixo.
+const PEER_OPTS = { config: { iceServers: [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'turn:openrelay.metered.ca:80',                 username:'openrelayproject', credential:'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443',                username:'openrelayproject', credential:'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp',  username:'openrelayproject', credential:'openrelayproject' }
+] } };
 const keys = {};
 let phase = 1; const MAX_PHASE = 25;
 let walls = [];            // colisores AABB {min,max}
@@ -2286,7 +2296,7 @@ function mpHost(){
   leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }   // sai do modo online
   net.role='host'; mpStatus('Criando sala...');
   const code=genCode();
-  net.peer=new Peer('jds-'+code);   // prefixo evita colisão com outros apps no broker
+  net.peer=new Peer('jds-'+code, PEER_OPTS);   // prefixo evita colisão com outros apps no broker
   net.peer.on('open', ()=>{ net.id=code;
     mpStatus('Sala criada! Código: <code>'+code+'</code><br>Envie ao parceiro e aguarde...'); });
   net.peer.on('connection', conn=>{ wireConn(conn);
@@ -2307,7 +2317,7 @@ function mpConnect(){
   if(typeof Peer==='undefined'){ mpStatus('❌ Rede indisponível (precisa de internet).'); return; }
   leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }   // sai do modo online
   net.role='client'; mpStatus('Conectando...');
-  net.peer=new Peer();
+  net.peer=new Peer(undefined, PEER_OPTS);
   net.peer.on('open', ()=>{ const conn=net.peer.connect('jds-'+code,{reliable:true}); wireConn(conn);
     conn.on('open', ()=>mpStatus('✅ Conectado! Aguardando o host iniciar...')); });
   net.peer.on('error', e=>mpStatus('❌ Erro: '+e.type+' (código certo?)'));
@@ -2361,7 +2371,7 @@ function goOnline(){
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
   net._onlineOpened=false;
   mpStatus('🌐 Conectando ao servidor de rede...');
-  net.peer=new Peer(net.playerId);
+  net.peer=new Peer(net.playerId, PEER_OPTS);
   net.peer.on('open', ()=>{ net.id=net.playerId; net._onlineOpened=true;
     document.getElementById('onlineBtn').textContent='🟢 Online: '+nick;
     mpStatus('🟢 Conectado! Entrando no lobby...');
@@ -2402,7 +2412,7 @@ function becomeCoordinator(){
   if(net.isCoord || net.lobbyPeer) return;
   net.isCoord=true; net._joining=null; net.lobbyClients=[];
   net.roster={}; net.roster[net.playerId]=net.nick; renderFriendsFromRoster();
-  net.lobbyPeer=new Peer(LOBBY_ID);
+  net.lobbyPeer=new Peer(LOBBY_ID, PEER_OPTS);
   net.lobbyPeer.on('open', ()=> mpStatus('🟢 <b>'+net.nick+'</b> online! Você é o 1º — abra o jogo em <b>outro aparelho/aba</b> e fique online lá para aparecer na lista 👇'));
   net.lobbyPeer.on('connection', conn=>{
     conn.on('data', d=>{ if(d&&d.t==='hello'){ conn._pid=d.id; net.roster[d.id]=d.name;
