@@ -584,28 +584,21 @@ function init(){
   renderer.setSize(innerWidth, innerHeight);
   // resolução mais nítida (até 2x) — em telas hi-DPI melhora bastante as bordas
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  // SOMBRAS em tempo real (suaves) — profundidade e o monstro projetando sombra
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  // gerenciamento de cor + tom cinematográfico (visual mais rico e com profundidade)
+  renderer.shadowMap.enabled = false;       // (revertido) sem sombras em tempo real
+  // gerenciamento de cor + tom cinematográfico
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.55;     // mais claro
+  renderer.toneMappingExposure = 1.55;      // mantém claro (pedido "mais luz")
 
   clock = new THREE.Clock();
 
   // luzes globais (criadas UMA vez, marcadas para nunca serem removidas)
-  const amb = new THREE.AmbientLight(0xb6a8e0, 2.8);                     // ambiente bem mais forte
+  const amb = new THREE.AmbientLight(0xb6a8e0, 2.8);
   const moon = new THREE.DirectionalLight(0xdfe6ff, 2.4); moon.position.set(8,20,8);
   const fill = new THREE.HemisphereLight(0xb0a8ff, 0x33304a, 1.6);
-  // sombra projetada pela lua (segue o jogador em updatePlayer p/ ficar nítida)
-  moon.castShadow=true; moon.shadow.mapSize.set(2048,2048);
-  const sc=moon.shadow.camera; sc.near=1; sc.far=80; sc.left=-26; sc.right=26; sc.top=26; sc.bottom=-26; sc.updateProjectionMatrix();
-  moon.shadow.bias=-0.0006; moon.shadow.normalBias=0.03;
-  moonLight=moon;
   // LANTERNA: luz que acompanha o jogador, ilumina sempre o redor
   playerLight = new THREE.PointLight(0xfff0dd, 1.6, 16, 1.4);
-  [amb,moon,moon.target,fill,playerLight].forEach(l=>{ l.userData.keep=true; scene.add(l); });
+  [amb,moon,fill,playerLight].forEach(l=>{ l.userData.keep=true; scene.add(l); });
 
   window.addEventListener('resize', ()=>{
     camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
@@ -750,26 +743,11 @@ function addCarpet(x,z){
   b.rotation.x=-Math.PI/2; b.rotation.z=Math.PI/4; b.position.set(x,0.03,z); scene.add(b);
 }
 
-// ---------- TEXTURA procedural (grão/ruído) p/ dar superfície às coisas -----
-let NOISE_TEX=null;
-function noiseTexture(){
-  if(NOISE_TEX) return NOISE_TEX;
-  const s=128, cv=document.createElement('canvas'); cv.width=cv.height=s;
-  const c=cv.getContext('2d'); const img=c.createImageData(s,s);
-  for(let i=0;i<s*s;i++){ const v=170+(Math.random()*85|0);   // cinza claro variado
-    img.data[i*4]=v; img.data[i*4+1]=v; img.data[i*4+2]=v; img.data[i*4+3]=255; }
-  c.putImageData(img,0,0);
-  for(let k=0;k<60;k++){ c.fillStyle='rgba(0,0,0,'+(0.04+Math.random()*0.07).toFixed(3)+')';
-    c.beginPath(); c.arc(Math.random()*s,Math.random()*s,3+Math.random()*14,0,6.3); c.fill(); }
-  const tx=new THREE.CanvasTexture(cv); tx.wrapS=tx.wrapT=THREE.RepeatWrapping; tx.repeat.set(2,2);
-  NOISE_TEX=tx; return tx;
-}
 // helpers de cenário ------------------------------------------------------
 function addFloor(W,L,color){
-  const tx=noiseTexture().clone(); tx.needsUpdate=true; tx.repeat.set((W+8)/3,(L+8)/3);
   const m=new THREE.Mesh(new THREE.PlaneGeometry(W+8,L+8),
-    new THREE.MeshStandardMaterial({color, roughness:1, map:tx}));
-  m.rotation.x=-Math.PI/2; m.receiveShadow=true; scene.add(m); return m;
+    new THREE.MeshStandardMaterial({color, roughness:1}));
+  m.rotation.x=-Math.PI/2; scene.add(m); return m;
 }
 function addCeiling(W,L,color,y){
   const m=new THREE.Mesh(new THREE.PlaneGeometry(W+8,L+8),
@@ -883,18 +861,6 @@ function buildPhase(p){
 
   // grade de navegação p/ a IA achar o caminho (depois de todas as paredes prontas)
   buildNavGrid();
-
-  // ACABAMENTO: grão nas superfícies + sombras (deixa o visual bem mais rico)
-  const grain=noiseTexture();
-  scene.traverse(o=>{
-    if(!o.isMesh || o.userData.keep) return;
-    const mats=Array.isArray(o.material)?o.material:[o.material];
-    let standard=false;
-    mats.forEach(m=>{ if(m && m.isMeshStandardMaterial){ standard=true;
-      if(!m.map){ m.map=grain; m.needsUpdate=true; } } });
-    // só superfícies sólidas projetam/recebem sombra (glow/poeira ficam de fora)
-    if(standard){ o.castShadow=true; o.receiveShadow=true; }
-  });
 
   // energia máxima: 2x nas fases de pular/abaixar (corredores de agilidade)
   staminaMax = ['red','sewer','factory','temple'].includes(TH.build) ? 200 : 100;
@@ -2110,10 +2076,7 @@ function updatePlayer(dt){
   camera.rotation.y=player.yaw + (sh?(Math.random()-0.5)*sh*0.15:0);
   camera.rotation.x=player.pitch + (sh?(Math.random()-0.5)*sh*0.15:0);
 
-  // a lua (sombras) acompanha o jogador p/ manter as sombras nítidas por perto
-  if(moonLight){ moonLight.position.set(player.pos.x+8, 22, player.pos.z+8);
-    moonLight.target.position.set(player.pos.x, 0, player.pos.z); moonLight.target.updateMatrixWorld(); }
-  // a lanterna fica na altura dos olhos do jogador
+  // a lanterna fica na altura dos olhos do jogador (ilumina o redor)
   if(playerLight) playerLight.position.set(player.pos.x, player.feet+1.5, player.pos.z);
 
   // porta pulsa (brilho azul)
