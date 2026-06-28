@@ -625,7 +625,7 @@ function clearLevel(){
   }
   walls = []; exitDoor=null; entity=null; entityActive=false;
   hideSpots=[]; hiding=false; hideSpot=null; wanderTarget=null;
-  net.remoteAvatar=null;
+  net.remoteAvatar=null; navGrid=null;
 }
 
 function addBox(x,y,z,w,h,d,mat){
@@ -822,6 +822,9 @@ function buildPhase(p){
 
   // ARMÁRIOS (esconderijos) garantidos em TODAS as fases
   addArmarios(5);
+
+  // grade de navegação p/ a IA achar o caminho (depois de todas as paredes prontas)
+  buildNavGrid();
 
   // energia máxima: 2x nas fases de pular/abaixar (corredores de agilidade)
   staminaMax = ['red','sewer','factory','temple'].includes(TH.build) ? 200 : 100;
@@ -1874,6 +1877,71 @@ function steerToward(fromX, fromZ, desired, look){
   return desired;   // encurralado: segue reto (colisão resolve)
 }
 
+// ============== NAVEGAÇÃO (grade + campo de fluxo BFS) ==============
+// A criatura SABE onde estão as aberturas: BFS a partir do alvo dá o caminho
+// mais curto célula a célula, contornando paredes e passando pelas passagens.
+let navGrid=null;
+function buildNavGrid(){
+  navGrid=null;
+  let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
+  for(const w of walls){ if(w.playerOnly) continue;
+    minX=Math.min(minX,w.min.x);maxX=Math.max(maxX,w.max.x);
+    minZ=Math.min(minZ,w.min.z);maxZ=Math.max(maxZ,w.max.z); }
+  if(minX>maxX) return;
+  const cell=1.0;
+  const cols=Math.max(1,Math.ceil((maxX-minX)/cell));
+  const rows=Math.max(1,Math.ceil((maxZ-minZ)/cell));
+  if(cols*rows>40000) return;                 // grade absurda -> desiste (usa steering)
+  const blocked=new Uint8Array(cols*rows);
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const x=minX+(c+0.5)*cell, z=minZ+(r+0.5)*cell;
+    blocked[r*cols+c]=pointBlocked(x,z,0.45)?1:0;
+  }
+  navGrid={minX,minZ,cell,cols,rows,blocked,dist:null,seedCell:-1};
+}
+function navCell(x,z){ const g=navGrid; if(!g) return -1;
+  const c=Math.floor((x-g.minX)/g.cell), r=Math.floor((z-g.minZ)/g.cell);
+  if(c<0||c>=g.cols||r<0||r>=g.rows) return -1; return r*g.cols+c; }
+function navNearestFree(idx){ const g=navGrid; if(idx<0) return -1; if(!g.blocked[idx]) return idx;
+  const r0=Math.floor(idx/g.cols), c0=idx%g.cols;
+  for(let rad=1;rad<=4;rad++) for(let dr=-rad;dr<=rad;dr++) for(let dc=-rad;dc<=rad;dc++){
+    const r=r0+dr,c=c0+dc; if(r<0||c<0||r>=g.rows||c>=g.cols) continue;
+    const i=r*g.cols+c; if(!g.blocked[i]) return i; }
+  return -1;
+}
+function navComputeField(tx,tz){
+  const g=navGrid; if(!g) return;
+  const seed=navNearestFree(navCell(tx,tz)); if(seed<0){ g.dist=null; return; }
+  if(seed===g.seedCell && g.dist) return;     // alvo na mesma célula -> reaproveita BFS
+  g.seedCell=seed;
+  const dist=new Int32Array(g.cols*g.rows).fill(-1);
+  const q=[seed]; dist[seed]=0; let head=0; const cols=g.cols, rows=g.rows;
+  while(head<q.length){
+    const cur=q[head++], cr=(cur/cols)|0, cc=cur%cols, d=dist[cur];
+    const nb=[cur-cols,cur+cols,(cc>0?cur-1:-1),(cc<cols-1?cur+1:-1)];
+    for(let k=0;k<4;k++){ const i=nb[k];
+      if(i<0||i>=cols*rows) continue;
+      if(dist[i]!==-1||g.blocked[i]) continue;
+      dist[i]=d+1; q.push(i); }
+  }
+  g.dist=dist;
+}
+// próximo waypoint (centro da célula vizinha mais perto do alvo)
+function navNext(x,z){
+  const g=navGrid; if(!g||!g.dist) return null;
+  let idx=navCell(x,z); if(idx<0) return null;
+  if(g.blocked[idx]||g.dist[idx]<0){ const f=navNearestFree(idx); if(f<0) return null; idx=f; }
+  const cr=(idx/g.cols)|0, cc=idx%g.cols, here=g.dist[idx];
+  let best=-1, bestD=here<0?1e9:here;
+  const nb=[[cr-1,cc],[cr+1,cc],[cr,cc-1],[cr,cc+1]];
+  for(const [r,c] of nb){ if(r<0||c<0||r>=g.rows||c>=g.cols) continue;
+    const i=r*g.cols+c; if(g.blocked[i]||g.dist[i]<0) continue;
+    if(g.dist[i]<bestD){ bestD=g.dist[i]; best=i; } }
+  if(best<0) return null;
+  const bc=best%g.cols, br=(best/g.cols)|0;
+  return { x:g.minX+(bc+0.5)*g.cell, z:g.minZ+(br+0.5)*g.cell };
+}
+
 // ---------- LOOP ----------
 function animate(){
   requestAnimationFrame(animate);
@@ -2011,9 +2079,19 @@ function updateEntity(dt){
     const ddx=tx-entity.position.x, ddz=tz-entity.position.z;
     const desired=Math.atan2(ddx,ddz);
     const spd=entity.userData.speed * (chasing?1:0.55);
-    // IA com desvio: escolhe um rumo livre em direção ao alvo (contorna paredes)
     const look=Math.max(1.0, spd*dt+0.7);
-    const ang=steerToward(entity.position.x, entity.position.z, desired, look);
+    // PATHFINDING: segue o caminho BFS até o alvo (contorna paredes, acha as aberturas).
+    // Só vai reto quando o alvo está em linha de visão livre (aproximação final) ou no vaguear.
+    let ang;
+    const losClear = !pointBlocked(entity.position.x+Math.sin(desired)*look, entity.position.z+Math.cos(desired)*look, 0.45);
+    if(chasing){
+      navComputeField(tx,tz);
+      const wp = (losClear && Math.hypot(ddx,ddz)<3.5) ? null : navNext(entity.position.x, entity.position.z);
+      ang = wp ? Math.atan2(wp.x-entity.position.x, wp.z-entity.position.z)
+               : steerToward(entity.position.x, entity.position.z, desired, look);
+    } else {
+      ang = steerToward(entity.position.x, entity.position.z, desired, look);
+    }
     const dir=new THREE.Vector3(Math.sin(ang),0,Math.cos(ang));
     const next=entity.position.clone().addScaledVector(dir, spd*dt);
     next.y=0; collideBody(next, 0, 3.4, {skipPlayerOnly:true}); next.y=0;
