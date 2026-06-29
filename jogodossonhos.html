@@ -154,8 +154,14 @@
     background:rgba(10,8,24,.72); border:1px solid rgba(124,92,255,.4); border-radius:14px;
     padding:12px 14px; font-size:13px; line-height:1.7; backdrop-filter:blur(4px); }
   #ptList h4 { margin:0 0 6px; font-size:13px; color:#9fe8ff; letter-spacing:.5px; }
-  #ptList .res { display:flex; align-items:center; gap:8px; }
-  #ptList .sw { width:14px; height:14px; border-radius:4px; border:1px solid rgba(255,255,255,.4); flex:none; }
+  #ptList .res { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
+  #ptList .sw { width:12px; height:12px; border-radius:4px; border:1px solid rgba(255,255,255,.4); flex:none; }
+  #ptList .photo { width:34px; height:34px; border-radius:6px; border:1px solid rgba(255,255,255,.3); flex:none; }
+  #ptList .info { font-size:11px; line-height:1.35; }
+  #ptList .info .nm { font-weight:800; color:#cfeaff; }
+  #ptList .okmark { color:#7cff9b; font-weight:800; }
+  #ptDoc { font-size:15px; font-weight:700; margin:2px 0 10px; color:#dfe7ff; text-shadow:0 1px 6px #000; min-height:20px; }
+  #ptDoc .lbl { opacity:.6; font-weight:600; }
   #ptCenter { position:absolute; left:50%; bottom:26px; transform:translateX(-50%); text-align:center; width:min(92vw,560px); }
   #ptVisName { font-size:30px; font-weight:800; letter-spacing:.5px;
     text-shadow:0 2px 12px rgba(0,0,0,.9); min-height:38px; }
@@ -166,6 +172,7 @@
     border-radius:14px; cursor:pointer; color:#fff; box-shadow:0 6px 18px rgba(0,0,0,.5); }
   .ptbig.accept { background:linear-gradient(90deg,#3ad07a,#2aa85f); }
   .ptbig.deny   { background:linear-gradient(90deg,#ff5d6d,#d8384a); }
+  .ptbig.phone  { background:linear-gradient(90deg,#4a9fe0,#2f6fb0); }
   .ptbig:active { transform:translateY(2px); }
   #ptExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
   #ptFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .12s; }
@@ -361,14 +368,16 @@
   <h1>🚪 Porteiro do Prédio</h1>
   <p>Você é o porteiro do prédio dos sonhos. Os <b>moradores</b> chegam na guarita — mas <b>monstros disfarçados</b> e <b>impostores</b> tentam passar.</p>
   <div id="ptRule">
-    ✅ <b>Deixe entrar</b> só quem: está na <b>lista de moradores</b> de hoje, tem aparência <b>humana</b> e veste a <b>cor de camisa certa</b> do registro.<br>
-    ⛔ <b>Barre</b>: monstros (chifres, olhos brilhando, garras, pele cinza), nomes <b>fora da lista</b> e impostores com a <b>camisa trocada</b>.
+    Compare o <b>visitante</b> com o <b>registro</b> (à esquerda). ✅ <b>Deixe entrar</b> só o morador certo: nome na lista, <b>foto</b> igual, <b>CPF</b>, <b>nº da casa</b> e <b>andar</b> batendo — e aparência <b>humana</b>.<br>
+    🚪 <b>Feche o portão</b> para: monstros 👹, estranhos fora da lista, documentos trocados, e <b>anomalias</b> (a mesma pessoa só pode entrar <b>uma vez</b> 🌀).<br>
+    📞 Na dúvida, <b>ligue para a casa</b>: se <b>atenderem</b>, o morador já está em casa → é impostor!
   </div>
   <div class="keys" style="margin:4px 0 2px;">
-    <div class="key">🚶 <b>W A S D</b> andar na guarita</div>
+    <div class="key">🚶 <b>W A S D</b> andar</div>
     <div class="key">🖱️ <b>Mouse</b> olhar</div>
-    <div class="key">✅ <b>E</b> deixar entrar</div>
-    <div class="key">⛔ <b>Q</b> barrar</div>
+    <div class="key">✅ <b>E</b> entrar</div>
+    <div class="key">🚪 <b>Q</b> fechar portão</div>
+    <div class="key">📞 <b>C</b> ligar</div>
   </div>
   <div class="btnrow">
     <button id="ptStartSolo">🙂 Jogar Sozinho</button>
@@ -398,10 +407,12 @@
   <div id="ptList"></div>
   <div id="ptCenter">
     <div id="ptVisName">—</div>
-    <div id="ptHint">Olhe o visitante e o registro · <b>E</b> entrar · <b>Q</b> barrar</div>
+    <div id="ptDoc"></div>
+    <div id="ptHint">Confira documento + foto · <b>E</b> entrar · <b>Q</b> fechar portão · <b>C</b> ligar</div>
     <div id="ptBtns">
-      <button id="ptDeny" class="ptbig deny">⛔ Barrar</button>
-      <button id="ptAccept" class="ptbig accept">✅ Entrar</button>
+      <button id="ptPhoneBtn" class="ptbig phone">📞 Ligar</button>
+      <button id="ptDeny" class="ptbig deny">🚪 Fechar portão</button>
+      <button id="ptAccept" class="ptbig accept">✅ Deixar entrar</button>
     </div>
   </div>
   <div id="ptFlash"></div>
@@ -786,7 +797,8 @@ function setupControls(){
   const canvas = renderer.domElement;
   document.addEventListener('keydown', e=>{ keys[e.code]=true;
     if(e.code==='KeyE'){ if(gameState==='porteiro') ptDecide(true); else interact(); }   // 🚪 porteiro: E = deixar entrar
-    if(e.code==='KeyQ' && gameState==='porteiro') ptDecide(false);                       // 🚪 porteiro: Q = barrar
+    if(e.code==='KeyQ' && gameState==='porteiro') ptDecide(false);                       // 🚪 porteiro: Q = fechar portão
+    if(e.code==='KeyC' && gameState==='porteiro') ptPhone();                             // 📞 porteiro: C = ligar pra casa
     if(e.code==='KeyF'){ if(flashBat>0 && gameState!=='porteiro') flashOn=!flashOn; }     // 🔦 lanterna
     if(e.code==='KeyM'){ minimapOn=!minimapOn; const mm=document.getElementById('minimap'); if(mm) mm.style.display=minimapOn?'block':'none'; } // 🗺️
     if(e.code==='KeyW' && !wHeld){ wHeld=true; forwardPressed(); }  // 2x W = correr
@@ -2738,7 +2750,7 @@ function onNetData(d){
   else if(d.t==='pt_decide'){ if(net.role!=='client') ptApply(d.accept); }   // host processa a decisão do parceiro
   else if(d.t==='pt_state'){ Object.assign(pt, d.s); ptUpdateHud(); }
   else if(d.t==='pt_result'){ if(pt.cur && pt.cur.state==='waiting'){
-      if(d.accept){ pt.cur.state = d.monster?'attack':'entering'; } else pt.cur.state='leaving';
+      if(d.accept){ pt.cur.state = d.monster?'attack':'entering'; ptOpenGate(); } else { pt.cur.state='leaving'; ptCloseGate(); }
       ptFlash((pt.cur.ok===d.accept)?'good':'bad'); } }
   else if(d.t==='pt_over'){ ptOver(); }
 }
@@ -2956,8 +2968,24 @@ const HAIRS=[0x2a1a0c,0x4a2c12,0x111111,0x6b4a2a,0x9a9a9a,0xcc4422];
 const PANTS=[0x223047,0x2a2a2a,0x4a3a2a,0x303a4a,0x553a55];
 function ptPick(a){ return a[(Math.random()*a.length)|0]; }
 function hex6(c){ return '#'+c.toString(16).padStart(6,'0'); }
+function ptCpf(){ const d=()=>((Math.random()*10)|0); let s=''; for(let i=0;i<9;i++) s+=d();
+  return s.slice(0,3)+'.'+s.slice(3,6)+'.'+s.slice(6,9)+'-'+d()+d(); }
+// retrato 2D (a "foto" do registro) desenhado a partir da aparência
+function ptPortrait(d){
+  const cv=document.createElement('canvas'); cv.width=64; cv.height=64; const x=cv.getContext('2d');
+  x.fillStyle='#15132a'; x.fillRect(0,0,64,64);
+  x.fillStyle=hex6(d.shirt); x.beginPath(); x.arc(32,70,26,Math.PI,0); x.fill();           // ombros/camisa
+  x.fillStyle=hex6(d.hair);  x.beginPath(); x.arc(32,28,21,0,7); x.fill();                 // cabelo (atrás)
+  x.fillStyle=hex6(d.skin);  x.beginPath(); x.ellipse(32,33,15,18,0,0,7); x.fill();        // rosto
+  x.fillStyle=hex6(d.hair);  x.beginPath(); x.arc(32,21,17,Math.PI,0); x.fill();           // franja
+  x.fillStyle='#fff'; x.beginPath(); x.arc(26,34,3.4,0,7); x.arc(38,34,3.4,0,7); x.fill(); // olhos
+  x.fillStyle='#222'; x.beginPath(); x.arc(26,34,1.6,0,7); x.arc(38,34,1.6,0,7); x.fill(); // pupilas
+  x.strokeStyle='#8a3b2b'; x.lineWidth=1.6; x.beginPath(); x.arc(32,41,5,0.25,Math.PI-0.25); x.stroke(); // boca
+  return cv.toDataURL();
+}
 function ptFresh(){ return {residents:[],registry:{},lives:3,score:0,processed:0,correct:0,
-  wrong:0,streak:0,best:0,admitted:0,blocked:0,cur:null,cool:0.5,over:false,coop:false}; }
+  wrong:0,streak:0,best:0,admitted:0,blocked:0,cur:null,cool:0.5,over:false,coop:false,
+  admittedNames:[], phoneState:'idle', gate:null, gateTarget:2.2}; }
 let pt=ptFresh();
 
 // ---- personagem 3D (formas, sem emoji) ----
@@ -2987,16 +3015,34 @@ function makePerson(d){
     : new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8),skin);
   const armL=ptLimb(g,shirt,-0.34,1.48,0,0.09,0.66,handMesh());
   const armR=ptLimb(g,shirt, 0.34,1.48,0,0.09,0.66,handMesh());
+  // gola da camisa
+  const collar=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.2,0.1,12),shirt); collar.position.y=1.6; g.add(collar);
   // pescoço + cabeça
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.12,8),skin); neck.position.y=1.62; g.add(neck);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,16,16),skin); head.scale.set(1,1.12,1); head.position.y=1.86; g.add(head);
-  // olhos (vermelhos e brilhando se monstro)
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.12,8),skin); neck.position.y=1.64; g.add(neck);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,18,18),skin); head.scale.set(1,1.12,1); head.position.y=1.88; g.add(head);
+  // orelhas
+  [-0.21,0.21].forEach(x=>{ const ear=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,8),skin); ear.position.set(x,1.88,0); g.add(ear); });
+  // olhos: humano = branco + pupila; monstro = vermelho brilhando
   const glow=!!(mon&&mon.glow);
-  const eyeMat=new THREE.MeshStandardMaterial({color:glow?0xff2a2a:0x141414, emissive:glow?0xff0000:0x000000, emissiveIntensity:glow?1.6:0});
-  [-0.08,0.08].forEach(x=>{ const e=new THREE.Mesh(new THREE.SphereGeometry(0.042,8,8),eyeMat); e.position.set(x,1.9,0.19); g.add(e); });
-  if(mon&&mon.thirdEye){ const e=new THREE.Mesh(new THREE.SphereGeometry(0.04,8,8),eyeMat); e.position.set(0,2.0,0.19); g.add(e); }
-  // cabelo (humano)
-  if(!mon){ const hair=new THREE.Mesh(new THREE.SphereGeometry(0.23,12,12),hairMat); hair.scale.set(1,0.7,1); hair.position.y=1.99; g.add(hair); }
+  if(glow){
+    const eyeMat=new THREE.MeshStandardMaterial({color:0xff2a2a, emissive:0xff0000, emissiveIntensity:1.8});
+    [-0.08,0.08].forEach(x=>{ const e=new THREE.Mesh(new THREE.SphereGeometry(0.05,10,10),eyeMat); e.position.set(x,1.92,0.19); g.add(e); });
+    if(mon&&mon.thirdEye){ const e=new THREE.Mesh(new THREE.SphereGeometry(0.045,10,10),eyeMat); e.position.set(0,2.03,0.19); g.add(e); }
+  } else {
+    const white=new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.3});
+    const pup  =new THREE.MeshStandardMaterial({color:0x1a1410, roughness:0.4});
+    [-0.08,0.08].forEach(x=>{ const e=new THREE.Mesh(new THREE.SphereGeometry(0.045,10,10),white); e.position.set(x,1.92,0.17); g.add(e);
+      const p=new THREE.Mesh(new THREE.SphereGeometry(0.022,8,8),pup); p.position.set(x,1.92,0.205); g.add(p); });
+    // sobrancelhas
+    [-0.08,0.08].forEach(x=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.018,0.03),hairMat); b.position.set(x,1.99,0.2); g.add(b); });
+  }
+  // nariz + boca
+  const nose=new THREE.Mesh(new THREE.SphereGeometry(0.032,8,8),skin); nose.position.set(0,1.87,0.22); g.add(nose);
+  const mouth=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.02,0.02),new THREE.MeshStandardMaterial({color:0x7a3b2b})); mouth.position.set(0,1.8,0.2); g.add(mouth);
+  // cabelo (humano) — calota + topo
+  if(!mon){ const hair=new THREE.Mesh(new THREE.SphereGeometry(0.235,14,14),hairMat); hair.scale.set(1,0.78,1); hair.position.y=1.99;
+    hair.geometry.translate(0,0,0); g.add(hair);
+    const fringe=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.1,0.36),hairMat); fringe.position.set(0,2.02,0.04); g.add(fringe); }
   // traços de monstro
   if(mon){
     if(mon.horns){ const hm=new THREE.MeshStandardMaterial({color:0x20120a, roughness:0.5});
@@ -3014,16 +3060,21 @@ function makePerson(d){
 // ---- cena 3D da guarita ----
 function buildPorteiroScene(){
   clearLevel();
-  scene.background=new THREE.Color(0x10131f);
-  scene.fog=new THREE.FogExp2(0x10131f, 0.018);
+  scene.background=new THREE.Color(0x0c0f1a);
+  scene.fog=new THREE.FogExp2(0x0c0f1a, 0.016);
   wallMat=new THREE.MeshStandardMaterial({color:0x4a4660, roughness:0.85});
-  const floor=new THREE.Mesh(new THREE.PlaneGeometry(80,80), new THREE.MeshStandardMaterial({color:0x24263a, roughness:0.95}));
+  // chão + tapete de boas-vindas + calçada
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(90,90), new THREE.MeshStandardMaterial({color:0x202234, roughness:0.95}));
   floor.rotation.x=-Math.PI/2; scene.add(floor);
-  const path=new THREE.Mesh(new THREE.PlaneGeometry(2.6,18), new THREE.MeshStandardMaterial({color:0x383b52, roughness:0.9}));
-  path.rotation.x=-Math.PI/2; path.position.set(0,0.01,-8); scene.add(path);
+  const path=new THREE.Mesh(new THREE.PlaneGeometry(3.0,20), new THREE.MeshStandardMaterial({color:0x3a3d54, roughness:0.9}));
+  path.rotation.x=-Math.PI/2; path.position.set(0,0.01,-9); scene.add(path);
+  const rug=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1.2), new THREE.MeshStandardMaterial({color:0x7a2f3a, roughness:0.9}));
+  rug.rotation.x=-Math.PI/2; rug.position.set(0,0.02,-2.4); scene.add(rug);
   const booth=new THREE.MeshStandardMaterial({color:0x5b4a8a, roughness:0.7});
+  const boothDark=new THREE.MeshStandardMaterial({color:0x423566, roughness:0.75});
   // balcão (frente, baixo) — bloqueia o porteiro
   addBox(0,0.52,-0.75,3.0,1.05,0.3,booth);
+  addBox(0,1.06,-0.75,3.05,0.08,0.4,boothDark);   // tampo do balcão
   walls.push({min:new THREE.Vector3(-1.5,0,-0.92),max:new THREE.Vector3(1.5,1.05,-0.58)});
   // moldura da janela
   addBox(-1.45,1.95,-0.75,0.2,1.9,0.2,booth); addBox(1.45,1.95,-0.75,0.2,1.9,0.2,booth);
@@ -3031,46 +3082,89 @@ function buildPorteiroScene(){
   // paredes laterais + traseira + teto
   addWall(-1.6,0.9,0.2,3.4); addWall(1.6,0.9,0.2,3.4); addWall(0,2.5,3.4,0.2);
   addBox(0,3.0,0.9,3.6,0.18,3.6,booth);
-  // luzes da cena (recriadas a cada build; somem no próximo clearLevel)
-  const lamp=new THREE.PointLight(0xfff0cc,1.5,14,1.5); lamp.position.set(0,2.7,-0.4); scene.add(lamp);
-  const lamp2=new THREE.PointLight(0xcfe0ff,1.2,18,1.3); lamp2.position.set(0,4.2,-3.5); scene.add(lamp2);
+  // telefone no balcão (decorativo)
+  addBox(-1.1,1.16,-0.7,0.22,0.12,0.26,new THREE.MeshStandardMaterial({color:0x161616}));
+  // PRÉDIO ao fundo com janelas acesas
+  const wall=new THREE.Mesh(new THREE.BoxGeometry(26,16,1), new THREE.MeshStandardMaterial({color:0x2b2d44, roughness:0.9}));
+  wall.position.set(0,8,-17); scene.add(wall);
+  const winLit=new THREE.MeshStandardMaterial({color:0xffe9a8, emissive:0xffcf6a, emissiveIntensity:0.8});
+  const winOff=new THREE.MeshStandardMaterial({color:0x3a3d5a, roughness:0.8});
+  for(let r=0;r<5;r++) for(let cc=0;cc<9;cc++){
+    const w=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.6,0.2), Math.random()<0.55?winLit:winOff);
+    w.position.set(-9.6+cc*2.4, 3.4+r*2.6, -16.45); scene.add(w);
+  }
+  // luzes (recriadas a cada build; somem no próximo clearLevel)
+  const lamp=new THREE.PointLight(0xfff0cc,1.4,14,1.5); lamp.position.set(0,2.7,-0.4); scene.add(lamp);
+  // HOLOFOTE dramático sobre o visitante
+  const spot=new THREE.SpotLight(0xeaf0ff, 6.0, 18, 0.6, 0.5, 1.2);
+  spot.position.set(0,5.2,-1.5); spot.target.position.set(0,1,-2.6); scene.add(spot); scene.add(spot.target);
   // poste de luz lá fora
-  addBox(1.3,2.0,-3.5,0.12,4,0.12,new THREE.MeshStandardMaterial({color:0x222633}));
+  addBox(1.5,2.0,-3.5,0.12,4,0.12,new THREE.MeshStandardMaterial({color:0x222633}));
+  addBox(1.5,4.0,-3.2,0.6,0.12,0.6,new THREE.MeshStandardMaterial({color:0xffe9a8, emissive:0xffcf6a, emissiveIntensity:0.7}));
+  // PORTÃO de grade na frente da janela (desce ao "fechar")
+  const gate=new THREE.Group();
+  const barMat=new THREE.MeshStandardMaterial({color:0x9aa0b0, metalness:0.7, roughness:0.4});
+  for(let i=-3;i<=3;i++){ const b=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,1.8,8),barMat); b.position.set(i*0.22,0.9,0); gate.add(b); }
+  [0.2,1.6].forEach(yy=>{ const h=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.07,0.07),barMat); h.position.set(0,yy,0); gate.add(h); });
+  gate.position.set(0,3.0,-0.95);   // começa erguido (totalmente escondido acima)
+  scene.add(gate); pt.gate=gate; pt.gateTarget=3.0;
 }
+function ptOpenGate(){ pt.gateTarget=3.0; }
+function ptCloseGate(){ pt.gateTarget=1.0; }   // desce cobrindo a janela
+function ptUpdateGate(dt){ if(!pt.gate) return;
+  pt.gate.position.y += (pt.gateTarget - pt.gate.position.y) * Math.min(1, dt*7); }
 
 // ---- geração do dia e dos visitantes ----
 function ptGenDay(){
-  pt.registry={}; pt.residents=[];
-  const pool=PT_NAMES.slice();
+  pt.registry={}; pt.residents=[]; pt.admittedNames=[];
+  const pool=PT_NAMES.slice(); const usedApto=[];
   for(let i=0;i<6;i++){ const name=pool.splice((Math.random()*pool.length)|0,1)[0];
     pt.residents.push(name);
-    pt.registry[name]={ skin:ptPick(SKINS), shirt:(Math.random()*SHIRTS.length)|0, pants:ptPick(PANTS), hair:ptPick(HAIRS) }; }
+    let apto; do{ apto=1+((Math.random()*98)|0); }while(usedApto.includes(apto)); usedApto.push(apto);
+    const reg={ skin:ptPick(SKINS), shirt:(Math.random()*SHIRTS.length)|0, pants:ptPick(PANTS),
+                hair:ptPick(HAIRS), cpf:ptCpf(), apto, andar:1+((Math.random()*15)|0) };
+    reg.photo=ptPortrait({skin:reg.skin, hair:reg.hair, shirt:SHIRTS[reg.shirt].c});
+    pt.registry[name]=reg; }
 }
 function ptMakeDesc(){
-  const r=Math.random(); let type = r<0.42?'ok' : r<0.67?'monster' : r<0.85?'stranger' : 'impostor';
-  let name,skin,shirtIdx,pants,hair,monster=null,ok=false,reason='';
-  if(type==='ok'){ name=ptPick(pt.residents); const g=pt.registry[name];
-    skin=g.skin; shirtIdx=g.shirt; pants=g.pants; hair=g.hair; ok=true; reason='Morador certo ✅'; }
-  else if(type==='impostor'){ name=ptPick(pt.residents); const g=pt.registry[name];
-    skin=g.skin; pants=g.pants; hair=g.hair;
-    do{ shirtIdx=(Math.random()*SHIRTS.length)|0; }while(shirtIdx===g.shirt);
-    reason='Impostor: camisa trocada'; }
+  // tipos de anomalia — escolhe no máximo UM problema por visitante
+  let pool=['ok','ok','monster','stranger','wrongCpf','wrongApto','wrongAndar','wrongLook','phone'];
+  if(pt.admittedNames.length>0) pool.push('repeat');   // anomalia: já entrou hoje
+  const type=ptPick(pool);
+  let name,skin,shirtIdx,pants,hair,cpf,apto,andar, monster=null, phone=false, ok=false, reason='';
+  function fromReg(n){ const g=pt.registry[n]; name=n; skin=g.skin; shirtIdx=g.shirt; pants=g.pants;
+    hair=g.hair; cpf=g.cpf; apto=g.apto; andar=g.andar; }
+  function rndDocs(){ cpf=ptCpf(); apto=1+((Math.random()*98)|0); andar=1+((Math.random()*15)|0); }
+  if(type==='ok'){ const avail=pt.residents.filter(n=>!pt.admittedNames.includes(n));
+    if(avail.length){ fromReg(ptPick(avail)); ok=true; reason='Morador certo ✅'; }
+    else { fromReg(ptPick(pt.admittedNames)); reason='Anomalia: já entrou hoje 🌀'; } }
+  else if(type==='repeat'){ fromReg(ptPick(pt.admittedNames)); reason='Anomalia: essa pessoa JÁ entrou hoje 🌀'; }
+  else if(type==='wrongCpf'){ fromReg(ptPick(pt.residents)); const o=pt.registry[name].cpf; do{ cpf=ptCpf(); }while(cpf===o); reason='CPF não bate com o registro'; }
+  else if(type==='wrongApto'){ fromReg(ptPick(pt.residents)); const o=apto; do{ apto=1+((Math.random()*98)|0); }while(apto===o); reason='Número da casa errado'; }
+  else if(type==='wrongAndar'){ fromReg(ptPick(pt.residents)); const o=andar; do{ andar=1+((Math.random()*15)|0); }while(andar===o); reason='Andar errado'; }
+  else if(type==='wrongLook'){ fromReg(ptPick(pt.residents)); const reg=pt.registry[name]; const w=(Math.random()*3)|0;
+    if(w===0){ do{ shirtIdx=(Math.random()*SHIRTS.length)|0; }while(shirtIdx===reg.shirt); }
+    else if(w===1){ do{ hair=ptPick(HAIRS); }while(hair===reg.hair); }
+    else { do{ skin=ptPick(SKINS); }while(skin===reg.skin); }
+    reason='Aparência não confere com a foto 📷'; }
+  else if(type==='phone'){ fromReg(ptPick(pt.residents)); phone=true; reason='Atendeu o telefone: morador já está em casa 📞'; }
   else if(type==='stranger'){ name=ptPick(PT_FAKE); skin=ptPick(SKINS); shirtIdx=(Math.random()*SHIRTS.length)|0;
-    pants=ptPick(PANTS); hair=ptPick(HAIRS); reason='Estranho: fora da lista'; }
+    pants=ptPick(PANTS); hair=ptPick(HAIRS); rndDocs(); reason='Estranho: fora da lista'; }
   else { name = Math.random()<0.5?ptPick(pt.residents):ptPick(PT_FAKE);
-    skin=ptPick(SKINS); shirtIdx=(Math.random()*SHIRTS.length)|0; pants=ptPick(PANTS); hair=ptPick(HAIRS);
+    if(pt.registry[name]) fromReg(name); else { skin=ptPick(SKINS); shirtIdx=(Math.random()*SHIRTS.length)|0; pants=ptPick(PANTS); hair=ptPick(HAIRS); rndDocs(); }
     monster={ gray:Math.random()<0.6, glow:Math.random()<0.7, horns:Math.random()<0.6,
               claws:Math.random()<0.5, fangs:Math.random()<0.5, thirdEye:Math.random()<0.3, big:Math.random()<0.4 };
     if(!Object.values(monster).some(Boolean)) monster.glow=true;
     reason='MONSTRO disfarçado 👹'; }
-  return { name, skin, shirt:SHIRTS[shirtIdx].c, shirtIdx, pants, hair, monster, ok, reason };
+  return { name, skin, shirt:SHIRTS[shirtIdx].c, shirtIdx, pants, hair, cpf, apto, andar, monster, phone, ok, reason, phoneChecked:false };
 }
-function ptDescNet(c){ return {name:c.name,skin:c.skin,shirt:c.shirt,shirtIdx:c.shirtIdx,
-  pants:c.pants,hair:c.hair,monster:c.monster,ok:c.ok,reason:c.reason}; }
+function ptDescNet(c){ return {name:c.name,skin:c.skin,shirt:c.shirt,shirtIdx:c.shirtIdx,pants:c.pants,
+  hair:c.hair,cpf:c.cpf,apto:c.apto,andar:c.andar,monster:c.monster,phone:c.phone,ok:c.ok,reason:c.reason,phoneChecked:false}; }
 function ptClearVisitor(){ if(pt.cur&&pt.cur.group){ scene.remove(pt.cur.group); disposeObj(pt.cur.group); } }
 function ptSpawnVisitor(desc){
   ptClearVisitor();
-  pt.cur=desc; const g=makePerson(desc);
+  pt.cur=desc; pt.phoneState='idle'; ptOpenGate();
+  const g=makePerson(desc);
   g.position.set(0,0,-14); g.rotation.y=0;   // encara o porteiro (+Z) já andando
   pt.cur.group=g; pt.cur.state='walkin'; pt.cur.t=0; scene.add(g);
   ptUpdateHud();
@@ -3112,6 +3206,7 @@ function ptUpdateVisitor(dt){
 function updatePorteiro(dt){
   ptMovePlayer(dt);
   ptUpdateVisitor(dt);
+  ptUpdateGate(dt);
   if(pt.over) return;
   if(net.role!=='client' && !pt.cur){ pt.cool-=dt;
     if(pt.cool<=0){ const d=ptMakeDesc(); ptSpawnVisitor(d);
@@ -3129,21 +3224,34 @@ function ptDecide(accept){
   ptApply(accept);
 }
 function ptStateNet(){ return {lives:pt.lives,score:pt.score,processed:pt.processed,correct:pt.correct,
-  wrong:pt.wrong,streak:pt.streak,best:pt.best,admitted:pt.admitted,blocked:pt.blocked}; }
+  wrong:pt.wrong,streak:pt.streak,best:pt.best,admitted:pt.admitted,blocked:pt.blocked,admittedNames:pt.admittedNames}; }
 function ptApply(accept){
   const c=pt.cur; if(!c||c.state!=='waiting'||pt.over) return;
   const correct = (accept===c.ok);
   pt.processed++;
   if(correct){ pt.correct++; pt.streak++; if(pt.streak>pt.best) pt.best=pt.streak; pt.score+=10+(pt.streak-1)*2;
     tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); ptFlash('good'); }
-  else { pt.wrong++; pt.streak=0; pt.lives--; tone(150,0.32,'sawtooth',0.18); ptFlash('bad'); }
+  else { pt.wrong++; pt.streak=0; pt.lives--; tone(150,0.32,'sawtooth',0.18); ptFlash('bad');
+    showMsg('❌ '+c.reason, 2600); }
   if(c.ok&&accept) pt.admitted++;
   if(!c.ok&&!accept) pt.blocked++;
-  if(accept){ if(c.monster){ c.state='attack'; if(typeof roar==='function') roar(); } else c.state='entering'; }
-  else c.state='leaving';
+  if(accept && !pt.admittedNames.includes(c.name)) pt.admittedNames.push(c.name);   // entrou (só passa 1x)
+  if(accept){ if(c.monster){ c.state='attack'; if(typeof roar==='function') roar(); } else c.state='entering'; ptOpenGate(); }
+  else { c.state='leaving'; ptCloseGate(); }   // 🚪 fecha o portão ao barrar
   if(isMP()){ netSend({t:'pt_result', accept, monster:!!c.monster}); netSend({t:'pt_state', s:ptStateNet()}); }
   ptUpdateHud();
   if(pt.lives<=0) ptOver();
+}
+// 📞 ligar para a casa — se atender, o morador já está em casa (impostor)
+function ptPhone(){
+  const c=pt.cur; if(!c||c.state!=='waiting'||pt.phoneState==='calling'||c.phoneChecked) return;
+  pt.phoneState='calling'; showMsg('📞 Ligando para o apto '+c.apto+'...',1300);
+  tone(480,0.18,'sine',0.08); setTimeout(()=>tone(480,0.18,'sine',0.08),450);
+  setTimeout(()=>{ pt.phoneState='idle'; c.phoneChecked=true;
+    if(c.phone){ showMsg('📞 ATENDERAM! O morador já está em casa — FECHE O PORTÃO!',4200); tone(220,0.4,'sawtooth',0.12); }
+    else { showMsg('📞 Ninguém atendeu (a casa está vazia).',2400); }
+    ptUpdateHud();
+  }, 1250);
 }
 
 // ---- HUD ----
@@ -3157,13 +3265,20 @@ function ptUpdateHud(){
     `<span class="s">🎯 <b>${acc}%</b></span>`+
     `<span class="s">🔥 <b>${pt.streak}</b></span>`+
     `<span class="s">🏅 <b>${pt.best}</b></span>`;
-  let list='<h4>📋 Moradores de hoje</h4>';
+  let list='<h4>📋 Registro de moradores</h4>';
   pt.residents.forEach(n=>{ const reg=pt.registry[n]; if(!reg) return; const c=SHIRTS[reg.shirt];
-    list+=`<div class="res"><span class="sw" style="background:${hex6(c.c)}"></span>${n} <span style="opacity:.55">(${c.n})</span></div>`; });
+    const entered = pt.admittedNames.includes(n) ? ' <span class="okmark">✓ entrou</span>' : '';
+    list+=`<div class="res"><img class="photo" src="${reg.photo}"><div class="info">`+
+      `<span class="nm">${n}</span>${entered}<br>`+
+      `📇 ${reg.cpf}<br>🏠 Apto ${reg.apto} · 🏢 ${reg.andar}º · <span class="sw" style="display:inline-block;vertical-align:middle;background:${hex6(c.c)}"></span></div></div>`; });
   document.getElementById('ptList').innerHTML=list;
   const vis=document.getElementById('ptVisName');
-  if(pt.cur && pt.cur.state==='waiting') vis.innerHTML=`<span class="claim">"${pt.cur.name}"</span> quer entrar`;
-  else vis.textContent='—';
+  const doc=document.getElementById('ptDoc');
+  if(pt.cur && pt.cur.state==='waiting'){
+    vis.innerHTML=`<span class="claim">"${pt.cur.name}"</span> quer entrar`;
+    const phoneTag = pt.cur.phoneChecked ? (pt.cur.phone?' · 📞 <b style="color:#ff7a7a">atenderam!</b>':' · 📞 ninguém em casa') : '';
+    doc.innerHTML=`<span class="lbl">📇</span> ${pt.cur.cpf} · <span class="lbl">🏠 Apto</span> ${pt.cur.apto} · <span class="lbl">🏢</span> ${pt.cur.andar}º${phoneTag}`;
+  } else { vis.textContent='—'; doc.innerHTML=''; }
 }
 function ptOver(){
   if(pt.over) return; pt.over=true;
@@ -3324,6 +3439,7 @@ document.getElementById('ptQuit').onclick=()=>{
 // HUD do jogo Porteiro
 document.getElementById('ptAccept').onclick=()=>ptDecide(true);
 document.getElementById('ptDeny').onclick=()=>ptDecide(false);
+document.getElementById('ptPhoneBtn').onclick=ptPhone;
 document.getElementById('ptExit').onclick=ptExitGame;
 document.getElementById('ptAgain').onclick=ptAgain;
 document.getElementById('ptOverMenu').onclick=ptExitGame;
