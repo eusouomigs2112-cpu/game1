@@ -283,6 +283,33 @@
   #trFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.5); opacity:1; }
   #trFlash.bad { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.55); opacity:1; }
   #trOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #trOverStats b { color:#9fe8ff; }
+  /* Modos de decisão (bancada) */
+  #qHud { position:fixed; inset:0; z-index:7; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
+  #qHud.hidden { display:none; }
+  #qStats { position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; gap:18px; flex-wrap:wrap; justify-content:center;
+    background:rgba(16,12,26,.72); padding:9px 18px; border-radius:14px; border:1px solid rgba(124,92,255,.35); font-size:15px; }
+  #qStats b { color:#caa8ff; }
+  #qRule { position:absolute; top:64px; left:50%; transform:translateX(-50%); text-align:center; font-size:14px; line-height:1.5;
+    background:rgba(16,12,26,.6); padding:7px 16px; border-radius:12px; max-width:88vw; }
+  #qCard { position:absolute; left:50%; bottom:88px; transform:translateX(-50%); width:min(560px,92vw);
+    background:rgba(20,15,34,.92); border:1px solid rgba(124,92,255,.45); border-radius:18px; padding:18px 20px 20px;
+    box-shadow:0 18px 50px rgba(0,0,0,.5); text-align:center; }
+  #qPatWrap { height:8px; border-radius:6px; background:rgba(255,255,255,.12); overflow:hidden; margin-bottom:14px; }
+  #qPat { height:100%; width:100%; background:linear-gradient(90deg,#ffce5b,#ff7b5b); transition:width .12s linear; }
+  #qPrompt { font-size:22px; line-height:1.4; margin-bottom:16px; }
+  #qOpts { display:flex; flex-direction:column; gap:10px; }
+  .qopt { font-size:17px; font-weight:700; padding:13px 18px; border:1px solid rgba(124,92,255,.5);
+    background:rgba(124,92,255,.16); color:#fff; border-radius:12px; cursor:pointer; text-align:left; transition:.12s; }
+  .qopt:hover { background:rgba(124,92,255,.34); transform:translateY(-1px); }
+  .qopt:active { transform:translateY(1px); }
+  .qopt .k { display:inline-block; width:24px; height:24px; line-height:24px; text-align:center; border-radius:7px;
+    background:rgba(255,255,255,.18); font-size:13px; margin-right:10px; }
+  #qTip { font-size:12px; opacity:.6; margin-top:12px; }
+  #qFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .12s; }
+  #qFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.5); opacity:1; }
+  #qFlash.bad { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.55); opacity:1; }
+  #qExit { position:absolute; top:14px; right:16px; font-size:13px; }
+  #qOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #qOverStats b { color:#caa8ff; }
   /* Esconde-esconde */
   #hideHud { position:fixed; inset:0; z-index:7; pointer-events:none; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
   #hideHud.hidden { display:none; }
@@ -503,6 +530,34 @@
       <div class="ic">👤</div><div class="lb">CAÇADOR (CO-OP)</div>
       <div class="ds">Versus online: um controla o monstro, o outro foge até a porta</div>
     </div>
+    <div class="devbtn" id="modeBomba">
+      <div class="ic">🧨</div><div class="lb">BOMBA RELÓGIO</div>
+      <div class="ds">Corte o fio certo conforme o código — par é azul, ímpar é vermelho</div>
+    </div>
+    <div class="devbtn" id="modeHospital">
+      <div class="ic">🏥</div><div class="lb">TRIAGEM DO HOSPITAL</div>
+      <div class="ds">Mande cada paciente pra sala certa pelos sintomas</div>
+    </div>
+    <div class="devbtn" id="modeBagagem">
+      <div class="ic">📦</div><div class="lb">INSPETOR DE BAGAGEM</div>
+      <div class="ds">Libere itens comuns e barre objetos perigosos no raio-x</div>
+    </div>
+    <div class="devbtn" id="modeVoo">
+      <div class="ic">✈️</div><div class="lb">CONTROLADOR DE VOO</div>
+      <div class="ds">Autorize o pouso só quando a pista estiver livre e segura</div>
+    </div>
+    <div class="devbtn" id="modeImig">
+      <div class="ic">🛂</div><div class="lb">IMIGRAÇÃO</div>
+      <div class="ds">Carimbe os passaportes válidos e negue os irregulares</div>
+    </div>
+    <div class="devbtn" id="modeTele">
+      <div class="ic">📞</div><div class="lb">TELEMARKETING</div>
+      <div class="ds">Encaminhe cada cliente pro setor certo da empresa</div>
+    </div>
+    <div class="devbtn" id="modeJuiz">
+      <div class="ic">⚖️</div><div class="lb">JUIZ</div>
+      <div class="ds">Decida culpado ou inocente pelo que as provas mostram</div>
+    </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
 </div>
@@ -614,6 +669,25 @@
   <h1 id="hunterOverTitle">Fim</h1>
   <div id="hunterOverStats"></div>
   <div class="btnrow"><button id="hunterOverMenu" class="ghost">↩ Menu</button></div>
+</div>
+
+<!-- HUD genérico dos modos de decisão (bomba/hospital/bagagem/voo/imig/tele/juiz) -->
+<div id="qHud" class="hidden">
+  <div id="qStats"></div>
+  <div id="qRule"></div>
+  <div id="qCard">
+    <div id="qPatWrap"><div id="qPat"></div></div>
+    <div id="qPrompt"></div>
+    <div id="qOpts"></div>
+    <div id="qTip">Clique numa opção ou use as teclas <b>1</b>–<b>4</b></div>
+  </div>
+  <div id="qFlash"></div>
+  <button id="qExit" class="ghost">↩ Sair</button>
+</div>
+<div id="qOver" class="overlay hidden">
+  <h1 id="qOverTitle">Fim</h1>
+  <div id="qOverStats"></div>
+  <div class="btnrow"><button id="qAgain">🔁 Jogar de novo</button><button id="qOverMenu" class="ghost">↩ Menu</button></div>
 </div>
 
 <!-- MENU da Pizzaria (Solo / Co-op) -->
@@ -1181,6 +1255,7 @@ function setupControls(){
     if(gameState==='pizza'){ const di={Digit1:0,Digit2:1,Digit3:2,Digit4:3,Digit5:4,Digit6:5,Digit7:6,Digit8:7}[e.code];
       if(di!=null && PZ_ING[di]) pzAdd(PZ_ING[di].id);
       if(e.code==='KeyE'||e.code==='Enter') pzDeliver(); if(e.code==='Backspace') pzClearTray(); }   // 🍕 pizzaria (ingredientes)
+    if(gameState==='quiz'){ const qi={Digit1:0,Digit2:1,Digit3:2,Digit4:3}[e.code]; if(qi!=null) qPick(qi); } // 🧠 modos de decisão (1-4)
     if(e.code==='KeyF'){ if(flashBat>0 && gameState!=='porteiro') flashOn=!flashOn; }     // 🔦 lanterna
     if(e.code==='KeyM'){ minimapOn=!minimapOn; const mm=document.getElementById('minimap'); if(mm) mm.style.display=minimapOn?'block':'none'; } // 🗺️
     if(e.code==='KeyW' && !wHeld){ wHeld=true; forwardPressed(); }  // 2x W = correr
@@ -2602,6 +2677,8 @@ function animate(){
     hideUpdate(dt);
   } else if(gameState==='hunter'){
     updateHunter(dt);
+  } else if(gameState==='quiz'){
+    updateQuiz(dt);
   }
   renderer.render(scene,camera);
 }
@@ -5195,6 +5272,121 @@ function hunterExit(){
   gameState='menu'; clearLevel(); document.getElementById('modes').classList.remove('hidden');
 }
 
+// 🧠 ============ MOTOR DE DECISÃO (modos de bancada: escolha a opção certa) ============
+function qPick1(a){ return a[(Math.random()*a.length)|0]; }
+const QGAMES={
+  bomba:{ name:'Bomba Relógio', ic:'🧨', bg:0x161015, pat:6,
+    rule:'💣 Número PAR → corte o fio AZUL. ÍMPAR → o VERMELHO.',
+    gen(){ const n=1+((Math.random()*99)|0), par=n%2===0;
+      return {prompt:`💣 Código da bomba:<br><b style="font-size:52px">${n}</b>`,
+        options:[{l:'✂️ Fio Azul',ok:par},{l:'✂️ Fio Vermelho',ok:!par}], why:par?'era PAR (azul)':'era ÍMPAR (vermelho)'}; } },
+  hospital:{ name:'Triagem do Hospital', ic:'🏥', bg:0x12202a, pat:9,
+    rule:'Mande o paciente pra sala certa pelos sintomas.',
+    _d:[['🦴 Quebrou o braço','Ortopedia'],['🦴 Torceu o tornozelo','Ortopedia'],['❤️ Dor no peito','Cardiologia'],['❤️ Coração disparado','Cardiologia'],['🩹 Mancha na pele','Dermatologia'],['🩹 Coceira e alergia','Dermatologia']],
+    gen(){ const [s,r]=qPick1(this._d), rooms=['Ortopedia','Cardiologia','Dermatologia'];
+      return {prompt:`🏥 Paciente: <b>${s}</b><br><span style="font-size:14px;opacity:.7">Pra qual sala?</span>`,
+        options:rooms.map(x=>({l:x,ok:x===r})), why:'era '+r}; } },
+  bagagem:{ name:'Inspetor de Bagagem', ic:'📦', bg:0x101820, pat:7,
+    rule:'Libere itens comuns. Barre objetos perigosos.',
+    _a:['👕 Roupa','📚 Livro','🧴 Shampoo','🎧 Fone','🍫 Chocolate','🧸 Pelúcia','📱 Celular'],
+    _f:['🔪 Faca','💣 Explosivo','🔫 Arma','🧨 Fogos','⛏️ Picareta','🪓 Machado'],
+    gen(){ const allow=Math.random()<0.5, it=allow?qPick1(this._a):qPick1(this._f);
+      return {prompt:`📦 Na mala:<br><b style="font-size:30px">${it}</b>`,
+        options:[{l:'✅ Liberar',ok:allow},{l:'🚫 Barrar',ok:!allow}], why:allow?'era comum':'era proibido'}; } },
+  voo:{ name:'Controlador de Voo', ic:'✈️', bg:0x0e1626, pat:7,
+    rule:'Autorize o pouso só com a pista livre e tempo bom.',
+    _d:[['🛬 Pista livre, tempo bom',true],['⛈️ Tempestade na pista',false],['✈️ Outro avião pousando',false],['🛫 Pista totalmente livre',true],['🚧 Pista em manutenção',false]],
+    gen(){ const [s,ok]=qPick1(this._d);
+      return {prompt:`✈️ Torre informa:<br><b>${s}</b>`, options:[{l:'🛬 Autorizar pouso',ok},{l:'⏳ Mandar esperar',ok:!ok}], why:ok?'estava livre':'NÃO estava seguro'}; } },
+  imig:{ name:'Imigração', ic:'🛂', bg:0x141022, pat:8,
+    rule:'Carimbe só passaportes válidos. Negue os irregulares.',
+    _d:[['Tudo em ordem ✅',true],['Passaporte vencido',false],['Foto não confere',false],['Sem visto',false],['Documentos ok ✅',true]],
+    gen(){ const [s,ok]=qPick1(this._d);
+      return {prompt:`🛂 Passaporte: <b>${s}</b>`, options:[{l:'🟢 Carimbar',ok},{l:'🔴 Negar',ok:!ok}], why:ok?'estava válido':'estava irregular'}; } },
+  tele:{ name:'Telemarketing', ic:'📞', bg:0x101a16, pat:9,
+    rule:'Encaminhe o cliente pro setor certo.',
+    _d:[['Quero cancelar o plano','Cancelamento'],['Minha internet caiu','Suporte Técnico'],['Dúvida na minha fatura','Financeiro'],['Quero contratar mais','Vendas'],['Sinal sem funcionar','Suporte Técnico'],['Cobrança errada','Financeiro']],
+    gen(){ const [s,d]=qPick1(this._d), all=['Suporte Técnico','Financeiro','Cancelamento','Vendas'];
+      const others=all.filter(x=>x!==d), opt=[d, others.splice((Math.random()*others.length)|0,1)[0], others.splice((Math.random()*others.length)|0,1)[0]];
+      for(let i=opt.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [opt[i],opt[j]]=[opt[j],opt[i]]; }
+      return {prompt:`📞 Cliente: "<b>${s}</b>"<br><span style="font-size:14px;opacity:.7">Qual setor?</span>`, options:opt.map(x=>({l:x,ok:x===d})), why:'era '+d}; } },
+  juiz:{ name:'Juiz', ic:'⚖️', bg:0x1a1410, pat:9,
+    rule:'Decida pelo que as provas mostram.',
+    _d:[['Digitais na arma + álibi falso','Culpado'],['Câmera filmou o crime','Culpado'],['Confessou com provas','Culpado'],['Álibi confirmado, sem provas','Inocente'],['Outra pessoa confessou','Inocente'],['Nenhuma prova contra ele','Inocente']],
+    gen(){ const [s,v]=qPick1(this._d);
+      return {prompt:`⚖️ Provas: <b>${s}</b>`, options:[{l:'🔨 Culpado',ok:v==='Culpado'},{l:'🕊️ Inocente',ok:v==='Inocente'}], why:'era '+v}; } }
+};
+let q={ key:null, cfg:null, lives:3, score:0, processed:0, correct:0, streak:0, best:0, cur:null, cool:0.4, over:false };
+function qFresh(){ return { key:q.key, cfg:q.cfg, lives:3, score:0, processed:0, correct:0, streak:0, best:0, cur:null, cool:0.4, over:false }; }
+function qScene(bg){
+  clearLevel();
+  scene.background=new THREE.Color(bg); scene.fog=new THREE.FogExp2(bg,0.02);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(40,40), new THREE.MeshStandardMaterial({color:0x222230, roughness:0.95}));
+  floor.rotation.x=-Math.PI/2; scene.add(floor);
+  const wall=new THREE.Mesh(new THREE.BoxGeometry(20,10,0.5), new THREE.MeshStandardMaterial({color:0x33334a, roughness:0.9})); wall.position.set(0,5,-6); scene.add(wall);
+  const desk=new THREE.Mesh(new THREE.BoxGeometry(4,1,1.4), new THREE.MeshStandardMaterial({color:0x5b4a8a, roughness:0.7})); desk.position.set(0,0.5,-1.6); scene.add(desk);
+  // ícone grande na parede
+  const sp=makeNameSprite(); sp.scale.set(4,2,1); sp.position.set(0,5.5,-5.7); setSpriteText(sp, q.cfg.ic); scene.add(sp);
+  scene.add(new THREE.HemisphereLight(0xb6a8e0,0x33304a,1.6));
+  const l=new THREE.PointLight(0xfff0dd,1.2,30); l.position.set(0,6,0); scene.add(l);
+}
+function qNext(){
+  q.cur=q.cfg.gen(); q.cur.patience=1;
+  document.getElementById('qPrompt').innerHTML=q.cur.prompt;
+  const box=document.getElementById('qOpts'); box.innerHTML='';
+  q.cur.options.forEach((o,i)=>{ const b=document.createElement('button'); b.className='qopt'; b.innerHTML='<span class="k">'+(i+1)+'</span> '+o.l; b.onclick=()=>qPick(i); box.appendChild(b); });
+}
+function qFlash(k){ const f=document.getElementById('qFlash'); if(!f)return; f.className=k; setTimeout(()=>{f.className='';},260); }
+function qPick(i){ if(!q.cur||q.over) return; const o=q.cur.options[i]; if(!o) return; qResolve(o.ok); }
+function qResolve(ok){
+  if(!q.cur) return; const why=q.cur.why; q.processed++;
+  if(ok){ q.correct++; q.streak++; if(q.streak>q.best)q.best=q.streak; q.score+=10+(q.streak-1)*2;
+    tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); qFlash('good'); }
+  else { q.lives--; q.streak=0; tone(150,0.3,'sawtooth',0.16); qFlash('bad'); showMsg('❌ Errado — '+why,2000); }
+  q.cur=null; q.cool=0.5; qUpdateHud();
+  if(q.lives<=0) qOver();
+}
+function updateQuiz(dt){
+  camera.position.set(0,1.6,2.2); camera.rotation.order='YXZ'; camera.rotation.y=player.yaw*0.3; camera.rotation.x=-0.05;
+  if(q.over) return;
+  if(q.cur){ q.cur.patience-=dt/q.cfg.pat; const bar=document.getElementById('qPat'); if(bar) bar.style.width=Math.max(0,q.cur.patience*100)+'%';
+    if(q.cur.patience<=0) qResolve(false); }
+  else { q.cool-=dt; if(q.cool<=0) qNext(); }
+}
+function qUpdateHud(){
+  if(document.getElementById('qHud').classList.contains('hidden')) return;
+  const hearts='❤️'.repeat(Math.max(0,q.lives))+'🖤'.repeat(Math.max(0,3-q.lives));
+  const acc=q.processed?Math.round(q.correct/q.processed*100):100;
+  document.getElementById('qStats').innerHTML=`<span>${hearts}</span><span>⭐ <b>${q.score}</b></span><span>🎯 ${acc}%</span><span>🔥 ${q.streak} (rec ${q.best})</span>`;
+  document.getElementById('qRule').innerHTML='<b>'+q.cfg.ic+' '+q.cfg.name+'</b><br>'+q.cfg.rule;
+}
+function qOver(){
+  if(q.over)return; q.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  const acc=q.processed?Math.round(q.correct/q.processed*100):100;
+  document.getElementById('qOverTitle').textContent='🏁 Fim — '+q.cfg.name;
+  document.getElementById('qOverStats').innerHTML=`Decisões: <b>${q.processed}</b><br>Acertos: <b>${q.correct}</b> · Precisão: <b>${acc}%</b><br>Melhor sequência: <b>${q.best}</b> · Pontos: <b>${q.score}</b>`;
+  document.getElementById('qHud').classList.add('hidden'); document.getElementById('qOver').classList.remove('hidden');
+}
+function qStart(key){
+  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
+  spectator=false; q.key=key; q.cfg=QGAMES[key]; q=qFresh();
+  ['modes','start','device','qOver','death','win'].forEach(id=>{const el=document.getElementById(id); if(el) el.classList.add('hidden');});
+  initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
+  qScene(q.cfg.bg);
+  player.yaw=0; player.pitch=0; gameState='quiz'; introActive=false; hiding=false; player.dead=false; qte.active=false;
+  ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('qHud').classList.remove('hidden');
+  q.cool=0.4; qUpdateHud();
+  showMsg(q.cfg.ic+' '+q.cfg.name+' — '+q.cfg.rule,4500);
+}
+function qExit(){
+  q.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('qHud').classList.add('hidden'); document.getElementById('qOver').classList.add('hidden');
+  document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
+  document.getElementById('minimap').style.display = minimapOn?'block':'none';
+  gameState='menu'; clearLevel(); document.getElementById('modes').classList.remove('hidden');
+}
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -5292,6 +5484,14 @@ document.getElementById('hunterConnectBtn').onclick=hunterConnect;
 document.getElementById('hunterBack').onclick=()=>{ document.getElementById('hunterMenu').classList.add('hidden'); document.getElementById('modes').classList.remove('hidden'); };
 document.getElementById('hunterExit').onclick=hunterExit;
 document.getElementById('hunterOverMenu').onclick=hunterExit;
+// modos de decisão (bancada)
+['bomba','hospital','bagagem','voo','imig','tele','juiz'].forEach(k=>{
+  const cap=k.charAt(0).toUpperCase()+k.slice(1);
+  const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>qStart(k);
+});
+document.getElementById('qExit').onclick=qExit;
+document.getElementById('qAgain').onclick=()=>qStart(q.key);
+document.getElementById('qOverMenu').onclick=qExit;
 document.getElementById('pzAgain').onclick=pzStart;
 document.getElementById('pzOverMenu').onclick=pzExit;
 // menu Sobrevivência
