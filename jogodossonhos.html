@@ -310,6 +310,21 @@
   #qFlash.bad { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.55); opacity:1; }
   #qExit { position:absolute; top:14px; right:16px; font-size:13px; }
   #qOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #qOverStats b { color:#caa8ff; }
+  /* Modos arcade (mira/clique) */
+  #aHud { position:fixed; inset:0; z-index:7; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; cursor:crosshair; }
+  #aHud.hidden { display:none; }
+  #aStats { position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; gap:18px; flex-wrap:wrap; justify-content:center;
+    background:rgba(16,12,26,.72); padding:9px 18px; border-radius:14px; border:1px solid rgba(124,92,255,.35); font-size:15px; pointer-events:none; }
+  #aStats b { color:#caa8ff; }
+  #aRule { position:absolute; bottom:18px; left:50%; transform:translateX(-50%); text-align:center; font-size:13px; line-height:1.5;
+    background:rgba(16,12,26,.6); padding:7px 16px; border-radius:12px; max-width:88vw; pointer-events:none; }
+  #aGoalBox { position:absolute; top:62px; left:50%; transform:translateX(-50%); pointer-events:none; }
+  #aGoal { font-size:20px; background:rgba(16,12,26,.78); padding:8px 20px; border-radius:14px; border:1px solid rgba(124,92,255,.5); }
+  #aFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .14s; }
+  #aFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.45); opacity:1; }
+  #aFlash.bad { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.5); opacity:1; }
+  #aExit { position:absolute; top:14px; right:16px; font-size:13px; }
+  #aOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #aOverStats b { color:#caa8ff; }
   /* Esconde-esconde */
   #hideHud { position:fixed; inset:0; z-index:7; pointer-events:none; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
   #hideHud.hidden { display:none; }
@@ -558,6 +573,22 @@
       <div class="ic">⚖️</div><div class="lb">JUIZ</div>
       <div class="ds">Decida culpado ou inocente pelo que as provas mostram</div>
     </div>
+    <div class="devbtn" id="modeDefesa">
+      <div class="ic">🚁</div><div class="lb">DEFESA ANTIAÉREA</div>
+      <div class="ds">Clique nos aviões e helicópteros inimigos antes que cruzem o céu</div>
+    </div>
+    <div class="devbtn" id="modeFantasma">
+      <div class="ic">👻</div><div class="lb">CAÇA-FANTASMAS</div>
+      <div class="ds">Clique nos fantasmas antes deles sumirem — e poupe os gatinhos</div>
+    </div>
+    <div class="devbtn" id="modeNinja">
+      <div class="ic">🥷</div><div class="lb">NINJA</div>
+      <div class="ds">Corte as frutas no ar com o mouse — mas cuidado com as bombas</div>
+    </div>
+    <div class="devbtn" id="modePintor">
+      <div class="ic">🎨</div><div class="lb">PINTOR</div>
+      <div class="ds">Estoure só as bolhas da cor que for pedida no topo da tela</div>
+    </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
 </div>
@@ -688,6 +719,20 @@
   <h1 id="qOverTitle">Fim</h1>
   <div id="qOverStats"></div>
   <div class="btnrow"><button id="qAgain">🔁 Jogar de novo</button><button id="qOverMenu" class="ghost">↩ Menu</button></div>
+</div>
+
+<!-- HUD genérico dos modos arcade (defesa/fantasma/ninja/pintor) -->
+<div id="aHud" class="hidden">
+  <div id="aStats"></div>
+  <div id="aRule"></div>
+  <div id="aGoalBox" style="display:none"><div id="aGoal"></div></div>
+  <div id="aFlash"></div>
+  <button id="aExit" class="ghost">↩ Sair</button>
+</div>
+<div id="aOver" class="overlay hidden">
+  <h1 id="aOverTitle">Fim</h1>
+  <div id="aOverStats"></div>
+  <div class="btnrow"><button id="aAgain">🔁 Jogar de novo</button><button id="aOverMenu" class="ghost">↩ Menu</button></div>
 </div>
 
 <!-- MENU da Pizzaria (Solo / Co-op) -->
@@ -1268,6 +1313,8 @@ function setupControls(){
 
   canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='pizza'||gameState==='transito'||gameState==='hide'||gameState==='hunter') && controlMode==='pc') canvas.requestPointerLock(); });
   canvas.addEventListener('contextmenu', e=>{ if(gameState==='survival') e.preventDefault(); });
+  // 🎯 modos arcade: clique/toque mira nos alvos (cursor livre, sem pointer lock)
+  window.addEventListener('pointerdown', e=>{ if(gameState!=='arcade') return; if(e.target&&e.target.closest&&e.target.closest('button')) return; agClickAt(e.clientX, e.clientY); });
   // 🧟 sobrevivência: clique atira (ou coloca barricada se construindo); botão direito alterna construir
   document.addEventListener('mousedown', e=>{
     if(gameState!=='survival' || document.pointerLockElement!==canvas) return;
@@ -2679,6 +2726,8 @@ function animate(){
     updateHunter(dt);
   } else if(gameState==='quiz'){
     updateQuiz(dt);
+  } else if(gameState==='arcade'){
+    updateArcade(dt);
   }
   renderer.render(scene,camera);
 }
@@ -5387,6 +5436,138 @@ function qExit(){
   gameState='menu'; clearLevel(); document.getElementById('modes').classList.remove('hidden');
 }
 
+// 🎯 ====== MOTOR ARCADE (mira/clique): alvos 3D que você clica/toca a tempo ======
+const AGAMES={
+  defesa:{ name:'Defesa Antiaérea', ic:'🚁', bg:0x0a1424, dur:75, spawn:1.1,
+    rule:'Clique nos inimigos ✈️🚁 antes deles cruzarem o céu! NÃO atire nos 🪂 aliados.',
+    motion:'cross',
+    spawnOne(a){ const enemy=Math.random()<0.78; const fromL=Math.random()<0.5;
+      return { emoji: enemy?(Math.random()<0.5?'✈️':'🚁'):'🪂', good:enemy, color:0,
+        x:fromL?-8.5:8.5, y:1+Math.random()*5.5, vx:(fromL?1:-1)*(2.4+Math.random()*1.8), vy:0, life:99 }; } },
+  fantasma:{ name:'Caça-Fantasmas', ic:'👻', bg:0x080610, dur:70, spawn:1.0,
+    rule:'Clique nos 👻 fantasmas antes deles sumirem! NÃO mire nos 🐱 gatinhos.',
+    motion:'hover',
+    spawnOne(a){ const ghost=Math.random()<0.8;
+      return { emoji: ghost?(Math.random()<0.5?'👻':'👹'):'🐱', good:ghost, color:0,
+        x:-6+Math.random()*12, y:1+Math.random()*5, vx:(Math.random()-0.5)*0.8, vy:(Math.random()-0.5)*0.6, life:1.6+Math.random()*1.0 }; } },
+  ninja:{ name:'Ninja', ic:'🥷', bg:0x140a14, dur:75, spawn:0.85,
+    rule:'Corte as frutas 🍉🍎🍊 no ar! NÃO corte as bombas 💣.',
+    motion:'toss',
+    spawnOne(a){ const bomb=Math.random()<0.22; const fr=['🍉','🍎','🍊','🍋','🥝','🍇'];
+      return { emoji: bomb?'💣':fr[(Math.random()*fr.length)|0], good:!bomb, color:0,
+        x:-5+Math.random()*10, y:-0.5, vx:(Math.random()-0.5)*2.2, vy:7.5+Math.random()*1.8, life:99 }; } },
+  pintor:{ name:'Pintor', ic:'🎨', bg:0x10131c, dur:70, spawn:0.95, dynamic:true,
+    rule:'Estoure só as bolhas da COR pedida no topo!',
+    _cols:[['🔴','Vermelho',0xff4d4d],['🟢','Verde',0x4dd06a],['🔵','Azul',0x5b8cff],['🟡','Amarelo',0xffd84d],['🟣','Roxo',0xb06bff]],
+    motion:'hover',
+    spawnOne(a){ const c=this._cols[(Math.random()*this._cols.length)|0];
+      return { emoji:c[0], cname:c[1], color:0, x:-6+Math.random()*12, y:1+Math.random()*5,
+        vx:(Math.random()-0.5)*0.7, vy:(Math.random()-0.5)*0.5, life:2.4+Math.random()*1.4 }; },
+    newGoal(a){ const c=this._cols[(Math.random()*this._cols.length)|0]; a.goal=c[1]; a.goalIc=c[0];
+      const el=document.getElementById('aGoal'); if(el) el.innerHTML='Pinte de '+c[0]+' <b>'+c[1]+'</b>'; },
+    isGood(t,a){ return t.cname===a.goal; } }
+};
+let ag={ key:null, cfg:null, lives:3, score:0, hits:0, miss:0, streak:0, best:0, timer:0, over:false, items:[], spawnT:0, goalT:0, goal:null, goalIc:null };
+function agFresh(){ return { key:ag.key, cfg:ag.cfg, lives:3, score:0, hits:0, miss:0, streak:0, best:0, timer:ag.cfg.dur, over:false, items:[], spawnT:0.6, goalT:0, goal:null, goalIc:null }; }
+let agRay=null, agMouse={x:0,y:0};
+function agScene(bg){
+  clearLevel();
+  scene.background=new THREE.Color(bg); scene.fog=new THREE.FogExp2(bg,0.012);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({color:0x161824, roughness:0.95}));
+  floor.rotation.x=-Math.PI/2; floor.position.y=-2.2; scene.add(floor);
+  scene.add(new THREE.HemisphereLight(0x9fb0e0,0x202436,1.7));
+  const l=new THREE.PointLight(0xffffff,1.0,60); l.position.set(0,8,10); scene.add(l);
+  // estrelas/decoração de fundo
+  const g=new THREE.BufferGeometry(); const pts=[]; for(let i=0;i<260;i++){ pts.push((Math.random()-0.5)*60,(Math.random()*16-2),-12-Math.random()*8); }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts,3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({color:0xbcd0ff,size:0.08})));
+}
+function agMakeSprite(emoji){ const sp=makeNameSprite(); sp.scale.set(1.3,1.3,1); setSpriteText(sp,emoji); return sp; }
+function agSpawn(){
+  const d=ag.cfg.spawnOne(ag); const sp=agMakeSprite(d.emoji); sp.position.set(d.x,d.y,0); scene.add(sp);
+  ag.items.push({...d, sp, age:0});
+}
+function agRemove(it,burst){
+  if(it.sp){ if(burst) agBurst(it.sp.position, burst); scene.remove(it.sp); if(it.sp.material.map) it.sp.material.map.dispose(); it.sp.material.dispose(); it.sp=null; }
+}
+function agBurst(pos,color){ const sp=makeNameSprite(); sp.scale.set(1.6,1.6,1); setSpriteText(sp,'💥'); sp.position.copy(pos); scene.add(sp);
+  let t=0; const iv=setInterval(()=>{ t+=0.05; sp.scale.setScalar(1.6+t*4); sp.material.opacity=Math.max(0,1-t*3); if(t>0.34){ clearInterval(iv); scene.remove(sp); sp.material.dispose(); } },16); }
+function agHit(it){
+  const good = ag.cfg.isGood ? ag.cfg.isGood(it,ag) : it.good;
+  if(good){ ag.hits++; ag.streak++; if(ag.streak>ag.best)ag.best=ag.streak; ag.score+=10+(ag.streak-1)*2;
+    tone(720,0.08,'square',0.12); setTimeout(()=>tone(1040,0.08,'square',0.1),60); agBurstAt(it.sp.position,'good'); agRemove(it,0xffd84d); }
+  else { ag.lives--; ag.streak=0; tone(150,0.3,'sawtooth',0.16); agBurstAt(it.sp.position,'bad'); agRemove(it); showMsg('❌ Esse não!',900); if(ag.lives<=0) agOver(); }
+  agHud();
+}
+function agBurstAt(pos,k){ const f=document.getElementById('aFlash'); if(f){ f.className=k; setTimeout(()=>f.className='',180); } }
+function agClickAt(cx,cy){
+  if(ag.over) return; if(!agRay) agRay=new THREE.Raycaster();
+  const r=renderer.domElement.getBoundingClientRect();
+  agMouse.x=((cx-r.left)/r.width)*2-1; agMouse.y=-((cy-r.top)/r.height)*2+1;
+  agRay.setFromCamera(agMouse, camera);
+  const sprites=ag.items.filter(i=>i.sp).map(i=>i.sp);
+  const hit=agRay.intersectObjects(sprites,false);
+  if(hit.length){ const it=ag.items.find(i=>i.sp===hit[0].object); if(it) agHit(it); }
+}
+function updateArcade(dt){
+  camera.position.set(0,2.5,9.5); camera.lookAt(0,3,0); camera.rotation.z=0;
+  if(ag.over) return;
+  ag.timer-=dt; if(ag.timer<=0){ agOver(); return; }
+  // meta dinâmica (pintor)
+  if(ag.cfg.dynamic){ ag.goalT-=dt; if(ag.goalT<=0){ ag.goalT=6; ag.cfg.newGoal(ag); } }
+  // spawn
+  ag.spawnT-=dt; if(ag.spawnT<=0){ ag.spawnT=ag.cfg.spawn*(0.7+Math.random()*0.6); agSpawn(); }
+  // movimento
+  const grav = ag.cfg.motion==='toss' ? 9.0 : 0;
+  for(const it of ag.items){ if(!it.sp) continue; it.age+=dt;
+    it.vy-=grav*dt; it.x+=it.vx*dt; it.y+=it.vy*dt; it.sp.position.set(it.x,it.y,0);
+    let escaped=false;
+    if(ag.cfg.motion==='cross'){ if(it.x<-9.2||it.x>9.2) escaped=true; }
+    else if(ag.cfg.motion==='toss'){ if(it.vy<0 && it.y<-1.6) escaped=true; }
+    else { if(it.age>=it.life) escaped=true; if(it.y<0.3||it.y>7.5) it.vy*=-1; if(it.x<-7||it.x>7) it.vx*=-1; }
+    if(escaped){ const wasGood = ag.cfg.isGood?false:it.good;  // alvo "bom" que escapou = erro
+      if(wasGood){ ag.lives--; ag.streak=0; tone(170,0.18,'sawtooth',0.12); if(ag.lives<=0){ agRemove(it); agOver(); agHud(); return; } }
+      agRemove(it); }
+  }
+  ag.items=ag.items.filter(i=>i.sp);
+  agHud();
+}
+function agHud(){
+  const h=document.getElementById('aHud'); if(!h||h.classList.contains('hidden')) return;
+  const hearts='❤️'.repeat(Math.max(0,ag.lives))+'🖤'.repeat(Math.max(0,3-ag.lives));
+  document.getElementById('aStats').innerHTML=`<span>${hearts}</span><span>⭐ <b>${ag.score}</b></span><span>⏱️ ${Math.max(0,Math.ceil(ag.timer))}s</span><span>🔥 ${ag.streak} (rec ${ag.best})</span>`;
+  document.getElementById('aRule').innerHTML='<b>'+ag.cfg.ic+' '+ag.cfg.name+'</b><br>'+ag.cfg.rule;
+}
+function agOver(){
+  if(ag.over)return; ag.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  for(const it of ag.items) agRemove(it); ag.items=[];
+  const total=ag.hits+ag.miss; const won=ag.lives>0;
+  document.getElementById('aOverTitle').textContent=(won?'🏁 Tempo! — ':'💀 Fim — ')+ag.cfg.name;
+  document.getElementById('aOverStats').innerHTML=`Acertos: <b>${ag.hits}</b><br>Melhor sequência: <b>${ag.best}</b><br>Pontos: <b>${ag.score}</b>`;
+  document.getElementById('aHud').classList.add('hidden'); document.getElementById('aOver').classList.remove('hidden');
+}
+function agStart(key){
+  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
+  spectator=false; ag.key=key; ag.cfg=AGAMES[key]; ag=agFresh();
+  ['modes','start','device','aOver','death','win'].forEach(id=>{const el=document.getElementById(id); if(el) el.classList.add('hidden');});
+  initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
+  agScene(ag.cfg.bg);
+  player.yaw=0; player.pitch=0; gameState='arcade'; introActive=false; hiding=false; player.dead=false; qte.active=false;
+  ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('aHud').classList.remove('hidden');
+  document.getElementById('aGoalBox').style.display = ag.cfg.dynamic?'block':'none';
+  if(ag.cfg.dynamic){ ag.goalT=0; }
+  agHud(); showMsg(ag.cfg.ic+' '+ag.cfg.name+' — '+ag.cfg.rule,4500);
+}
+function agExit(){
+  ag.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  for(const it of ag.items) agRemove(it); ag.items=[];
+  document.getElementById('aHud').classList.add('hidden'); document.getElementById('aOver').classList.add('hidden');
+  document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
+  document.getElementById('minimap').style.display = minimapOn?'block':'none';
+  gameState='menu'; clearLevel(); document.getElementById('modes').classList.remove('hidden');
+}
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -5492,6 +5673,14 @@ document.getElementById('hunterOverMenu').onclick=hunterExit;
 document.getElementById('qExit').onclick=qExit;
 document.getElementById('qAgain').onclick=()=>qStart(q.key);
 document.getElementById('qOverMenu').onclick=qExit;
+// modos arcade (mira/clique)
+['defesa','fantasma','ninja','pintor'].forEach(k=>{
+  const cap=k.charAt(0).toUpperCase()+k.slice(1);
+  const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>agStart(k);
+});
+document.getElementById('aExit').onclick=agExit;
+document.getElementById('aAgain').onclick=()=>agStart(ag.key);
+document.getElementById('aOverMenu').onclick=agExit;
 document.getElementById('pzAgain').onclick=pzStart;
 document.getElementById('pzOverMenu').onclick=pzExit;
 // menu Sobrevivência
