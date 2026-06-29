@@ -208,6 +208,29 @@
   #svFlash.hurt { box-shadow:inset 0 0 170px 60px rgba(220,30,40,.6); opacity:1; }
   #svOverStats { font-size:16px; line-height:1.9; margin:14px 0; }
   #svOverStats b { color:#9fe8ff; }
+  #svShopBtn { position:absolute; left:14px; bottom:24px; pointer-events:auto; font-size:16px; font-weight:800;
+    padding:12px 20px; border:none; border-radius:14px; cursor:pointer; color:#fff;
+    background:linear-gradient(160deg,#d6a93a,#b07f1f); box-shadow:0 5px 14px rgba(0,0,0,.5); }
+  #svShopBtn:active { transform:translateY(2px); }
+  #svShop { position:fixed; inset:0; z-index:9; display:flex; align-items:center; justify-content:center;
+    background:rgba(6,5,12,.7); backdrop-filter:blur(3px); font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
+  #svShop.hidden { display:none; }
+  #svShopCard { width:min(94vw,520px); background:rgba(20,16,30,.96); border:2px solid rgba(214,169,58,.6);
+    border-radius:20px; padding:22px; text-align:center; }
+  #svShopCard h2 { margin:0 0 4px; color:#ffd86b; }
+  #svShopKills { font-size:15px; color:#9fe8ff; font-weight:700; margin-bottom:14px; }
+  .witem { display:flex; align-items:center; gap:14px; text-align:left; padding:11px 12px; margin-bottom:9px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:14px; }
+  .witem .wic { font-size:36px; flex:none; width:46px; text-align:center; }
+  .witem .winfo { flex:1; font-size:15px; } .witem .winfo .wd { font-size:12px; opacity:.7; }
+  .witem .wbtn { flex:none; }
+  .witem .buy { font-size:14px; font-weight:700; padding:9px 14px; border:none; border-radius:10px; cursor:pointer;
+    color:#fff; background:linear-gradient(90deg,#3ad07a,#2aa85f); }
+  .witem .buy:active { transform:translateY(1px); }
+  .witem .eqp { color:#7cff9b; font-weight:800; font-size:14px; }
+  .witem .no { color:#ff8a8a; font-weight:700; font-size:13px; }
+  #svShopClose { margin-top:8px; font-size:16px; font-weight:800; padding:11px 26px; border:none; border-radius:12px;
+    cursor:pointer; color:#10131f; background:#ffd86b; }
   /* tela de dispositivo */
   .devicebtns { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:24px 0; }
   .devbtn {
@@ -437,8 +460,19 @@
     <button id="svShootBtn" class="svbig shoot">🔫</button>
     <button id="svBuildBtn" class="svbig build">🔨</button>
   </div>
+  <button id="svShopBtn">🛒 Loja</button>
   <div id="svFlash"></div>
   <button id="svExit" class="ghost">↩ Sair</button>
+</div>
+
+<!-- Loja de Armas -->
+<div id="svShop" class="hidden">
+  <div id="svShopCard">
+    <h2>🛒 Loja de Armas</h2>
+    <div id="svShopKills"></div>
+    <div id="svShopList"></div>
+    <button id="svShopClose">✓ Fechar</button>
+  </div>
 </div>
 
 <!-- Tela de fim do modo Sobrevivência -->
@@ -903,7 +937,7 @@ function setupControls(){
   // 🧟 sobrevivência: clique atira (ou coloca barricada se construindo); botão direito alterna construir
   document.addEventListener('mousedown', e=>{
     if(gameState!=='survival' || document.pointerLockElement!==canvas) return;
-    if(e.button===0){ if(sv.building) svPlaceWall(); else svShoot(); }
+    if(e.button===0){ if(sv.building) svPlaceWall(); else svFire(); }
     else if(e.button===2){ svToggleBuild(); }
   });
 
@@ -2853,7 +2887,14 @@ function onNetData(d){
   else if(d.t==='pt_over'){ ptOver(); }
   // ---- modo Sobrevivência (co-op) ----
   else if(d.t==='sv_begin'){ sv=svFresh(); svEnter(); }
-  else if(d.t==='sv_shoot'){ if(net.role==='host') svSpawnBullet(d.ox,d.oy,d.oz,d.dx,d.dy,d.dz,'dmg'); }
+  else if(d.t==='sv_shoot'){ if(net.role==='host'){ for(const dd of (d.dirs||[])) svSpawnBullet(d.ox,d.oy,d.oz,dd.x,dd.y,dd.z,'dmg',d.dmg,d.splash); } }
+  else if(d.t==='sv_melee'){ if(net.role==='host') svMeleeApply(d.x,d.z,d.fx,d.fz,d.dmg); }
+  else if(d.t==='sv_buy'){ if(net.role==='host'){ const W=WEAPONS[d.id];
+      if(W && sv.kills>=W.cost){ sv.kills-=W.cost; svUpdateHud(); netSend({t:'sv_buyok', id:d.id}); svSendState(); }
+      else netSend({t:'sv_buyfail'}); } }
+  else if(d.t==='sv_buyok'){ const W=WEAPONS[d.id]; if(W){ if(!sv.owned.includes(d.id)) sv.owned.push(d.id); sv.weapon=d.id;
+      tone(880,0.1,'square',0.1); showMsg(W.ic+' '+W.name+' comprada!',2200); svRenderShop(); svUpdateHud(); } }
+  else if(d.t==='sv_buyfail'){ showMsg('🧟 Faltam kills!',1800); }
   else if(d.t==='sv_build'){ if(net.role==='host') svDoPlace(d.x,d.z,d.horiz); }
   else if(d.t==='sv_zoms'){ if(net.role==='client') svClientSetZoms(d.z); }
   else if(d.t==='sv_boxes'){ if(net.role==='client') svClientSetBoxes(d.b); }
@@ -3487,10 +3528,19 @@ function ptAgain(){
 // Fim do mundo: ondas de zumbis te perseguem. Colete madeira (🪵), construa
 // barricadas (B) pra fazer sua base e atire (🖱️) pra sobreviver o máximo de ondas.
 const SV_WALL_COST=15;
-function svFresh(){ return { hp:100, wood:30, wave:0, kills:0, zombies:[], box:[], barr:[],
+const SV_ZHP=50;                 // 🧟 vida dos zumbis
+// 🛒 loja de armas — preço em KILLS; dano por arma; bazuca atinge em ÁREA
+const WEAPONS={
+  pistol:  {name:'Pistola',  ic:'🔫', cost:0,  dmg:10, cool:0.28, kind:'single', desc:'Inicial · 1 tiro'},
+  axe:     {name:'Machado',  ic:'🪓', cost:10, dmg:10, cool:0.5,  kind:'melee',  desc:'Corpo a corpo · ilimitado'},
+  shotgun: {name:'Escopeta', ic:'💥', cost:30, dmg:15, cool:0.7,  kind:'spread', pellets:6, desc:'6 chumbos de perto'},
+  bazooka: {name:'Bazuca',   ic:'🚀', cost:50, dmg:30, cool:1.1,  kind:'rocket', splash:3.4, desc:'Explode em ÁREA'}
+};
+const SV_SHOP_ORDER=['axe','shotgun','bazooka'];
+function svFresh(){ return { hp:100, wood:30, wave:0, kills:0, killsTotal:0, zombies:[], box:[], barr:[],
   over:false, building:false, ghost:null, between:false, waveT:0, shootCool:0,
-  fire:null, flame:null, slabs:[], ramps:[], bullets:[], zid:0, bid:0,
-  netZ:{}, netT:0, boxId:0 }; }
+  fire:null, flame:null, slabs:[], ramps:[], bullets:[], fx:[], zid:0, bid:0,
+  netZ:{}, netT:0, boxId:0, weapon:'pistol', owned:['pistol'], shopOpen:false }; }
 let sv=svFresh();
 
 function makeZombie(){
@@ -3657,7 +3707,8 @@ function svSpawnZombie(){
   const a=Math.random()*6.28, r=24, x=Math.cos(a)*r, z=Math.sin(a)*r;
   const g=makeZombie(); g.position.set(x,0,z); scene.add(g);
   const speed=Math.min(4.2, 1.5+sv.wave*0.12+Math.random()*0.4);
-  sv.zombies.push({group:g, hp:2+Math.floor(sv.wave/3), speed, atk:0, t:Math.random()*6, id:sv.zid++});
+  const hp=SV_ZHP + (sv.wave-1)*5;     // 50 de vida (sobe um pouco por onda)
+  sv.zombies.push({group:g, hp, hpMax:hp, speed, atk:0, t:Math.random()*6, id:sv.zid++});
 }
 function svStartWave(){
   sv.wave++; sv.between=false;
@@ -3668,10 +3719,10 @@ function svStartWave(){
   document.getElementById('svWave').innerHTML='🧟 ONDA '+sv.wave;
 }
 function svBetweenWaves(){
-  sv.between=true; sv.waveT=14; sv.wood+=10;
+  sv.between=true; sv.waveT=30; sv.wood+=10;     // ⏱️ 30s de preparação entre as ondas
   for(let i=0;i<3;i++) svSpawnBox();
   svSendBoxes();
-  showMsg('✅ Onda '+sv.wave+' resistida! +10 🪵. Reforce a base!',3500);
+  showMsg('✅ Onda '+sv.wave+' resistida! +10 🪵 · 30s pra reforçar a base / comprar armas (🛒)',4000);
   tone(660,0.12,'square',0.1); setTimeout(()=>tone(990,0.12,'square',0.08),120);
 }
 function svSendBoxes(){ if(isMP() && net.role!=='client') netSend({t:'sv_boxes', b:sv.box.map(b=>({id:b.id,x:+b.x.toFixed(2),z:+b.z.toFixed(2)}))}); }
@@ -3681,41 +3732,72 @@ function svFlash(){ const f=document.getElementById('svFlash'); if(!f) return;
 function svHurt(d){ if(sv.over) return; sv.hp-=d; svFlash(); tone(140,0.16,'sawtooth',0.12);
   if(sv.hp<=0){ sv.hp=0; svOver(); } svUpdateHud(); }
 function svKill(z){ scene.remove(z.group); disposeObj(z.group);
-  sv.zombies=sv.zombies.filter(o=>o!==z); sv.kills++; sv.wood+=5;
+  sv.zombies=sv.zombies.filter(o=>o!==z); sv.kills++; sv.killsTotal++; sv.wood+=5;
   tone(120,0.16,'sawtooth',0.1); svUpdateHud(); }
 function svMuzzle(){ if(playerLight) playerLight.intensity=3.2; }
-// 🔫 tiro VISÍVEL: dispara um projétil que voa na direção da mira
-function svSpawnBullet(ox,oy,oz,dx,dy,dz,mode){
+function svRotY(d,a){ const c=Math.cos(a), s=Math.sin(a); return {x:d.x*c - d.z*s, y:d.y, z:d.x*s + d.z*c}; }
+// 🔫 projétil VISÍVEL (com dano e raio de explosão opcional)
+function svSpawnBullet(ox,oy,oz,dx,dy,dz,mode,dmg,splash){
   const len=Math.hypot(dx,dy,dz)||1; dx/=len; dy/=len; dz/=len;
-  const m=new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8),
-    new THREE.MeshStandardMaterial({color:0xfff2a0, emissive:0xffd040, emissiveIntensity:2.2}));
+  const rocket=splash>0;
+  const m=new THREE.Mesh(rocket?new THREE.SphereGeometry(0.18,10,10):new THREE.SphereGeometry(0.1,8,8),
+    new THREE.MeshStandardMaterial({color:rocket?0xff7a30:0xfff2a0, emissive:rocket?0xff5500:0xffd040, emissiveIntensity:2.2}));
   m.position.set(ox,oy,oz); scene.add(m);
-  // rastro alongado atrás da bala
-  const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.8,6),
-    new THREE.MeshBasicMaterial({color:0xffe070, transparent:true, opacity:0.6}));
-  tr.rotation.x=Math.PI/2; tr.position.z=-0.4; m.add(tr);
-  m.lookAt(ox+dx,oy+dy,oz+dz);
-  sv.bullets.push({mesh:m, x:ox,y:oy,z:oz, dx,dy,dz, dist:0, mode:mode||'dmg'});
+  const tr=new THREE.Mesh(new THREE.CylinderGeometry(rocket?0.06:0.03,0.02,rocket?1.1:0.8,6),
+    new THREE.MeshBasicMaterial({color:rocket?0xffa050:0xffe070, transparent:true, opacity:0.6}));
+  tr.rotation.x=Math.PI/2; tr.position.z=-0.5; m.add(tr); m.lookAt(ox+dx,oy+dy,oz+dz);
+  sv.bullets.push({mesh:m, x:ox,y:oy,z:oz, dx,dy,dz, dist:0, mode:mode||'dmg', dmg:dmg||10, splash:splash||0, rocket});
+}
+function svExplosion(x,y,z){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(1,14,14), new THREE.MeshBasicMaterial({color:0xffb24a, transparent:true, opacity:0.85}));
+  m.position.set(x,y,z); scene.add(m); sv.fx.push({mesh:m,t:0,max:3.4});
+  if(sv.fire){ /* clarão */ } tone(70,0.4,'sawtooth',0.16); setTimeout(()=>tone(50,0.3,'sawtooth',0.12),60);
+}
+function svUpdateFx(dt){
+  for(let i=sv.fx.length-1;i>=0;i--){ const f=sv.fx[i]; f.t+=dt; const k=f.t/0.4;
+    f.mesh.scale.setScalar(0.4+ (f.max||3)*k); f.mesh.material.opacity=Math.max(0,0.85*(1-k));
+    if(k>=1){ scene.remove(f.mesh); disposeObj(f.mesh); sv.fx.splice(i,1); } }
 }
 function svUpdateBullets(dt){
-  const SPD=70, RANGE=64;
+  const SPD=68, RANGE=64;
   for(let i=sv.bullets.length-1;i>=0;i--){ const b=sv.bullets[i], step=SPD*dt;
     b.x+=b.dx*step; b.y+=b.dy*step; b.z+=b.dz*step; b.dist+=step; b.mesh.position.set(b.x,b.y,b.z);
     let done=false;
     if(b.mode==='dmg'){ for(const z of sv.zombies){
-      if(Math.hypot(b.x-z.group.position.x, b.z-z.group.position.z)<0.7 && b.y>0.2 && b.y<2.3){
-        z.hp--; tone(900,0.04,'square',0.06); if(z.hp<=0) svKill(z); done=true; break; } } }
-    if(done || b.dist>RANGE || b.y<0.03){ scene.remove(b.mesh); disposeObj(b.mesh); sv.bullets.splice(i,1); }
+      if(Math.hypot(b.x-z.group.position.x, b.z-z.group.position.z)<0.7 && b.y>0.2 && b.y<2.4){ done=true;
+        if(b.splash>0){ // 🚀 explosão em ÁREA
+          for(const o of [...sv.zombies]){ if(Math.hypot(b.x-o.group.position.x,b.z-o.group.position.z)<=b.splash){ o.hp-=b.dmg; if(o.hp<=0) svKill(o); } }
+        } else { z.hp-=b.dmg; tone(900,0.04,'square',0.06); if(z.hp<=0) svKill(z); }
+        break; } } }
+    const end = done || b.dist>RANGE || b.y<0.03;
+    if(end){ if(b.rocket) svExplosion(b.x,b.y,b.z);   // visual de explosão (com ou sem dano)
+      scene.remove(b.mesh); disposeObj(b.mesh); sv.bullets.splice(i,1); }
   }
 }
-function svShoot(){
-  if(sv.over || sv.building || sv.shootCool>0) return;
-  sv.shootCool=0.28; svMuzzle();
-  tone(330,0.05,'square',0.13); setTimeout(()=>tone(170,0.05,'square',0.07),35);
+// ataque conforme a arma equipada
+function svFire(){
+  if(sv.over || sv.building || sv.shopOpen || sv.shootCool>0) return;
+  const W=WEAPONS[sv.weapon]||WEAPONS.pistol; sv.shootCool=W.cool; svMuzzle();
+  if(W.kind==='melee'){ svMelee(W.dmg); return; }
   const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
   const ox=player.pos.x, oy=player.feet+player.height-0.1, oz=player.pos.z;
-  svSpawnBullet(ox,oy,oz, dir.x,dir.y,dir.z, net.role==='client'?'vis':'dmg');
-  if(net.role==='client') netSend({t:'sv_shoot', ox,oy,oz, dx:dir.x,dy:dir.y,dz:dir.z});
+  let dirs=[{x:dir.x,y:dir.y,z:dir.z}];
+  if(W.kind==='spread'){ dirs=[]; for(let i=0;i<W.pellets;i++){ dirs.push(svRotY({x:dir.x,y:dir.y,z:dir.z}, (i-(W.pellets-1)/2)*0.06)); } }
+  const splash = W.kind==='rocket'?W.splash:0;
+  const mode = (net.role==='client')?'vis':'dmg';
+  for(const d of dirs) svSpawnBullet(ox,oy,oz, d.x,d.y,d.z, mode, W.dmg, splash);
+  tone(330,0.05,'square',0.12); setTimeout(()=>tone(170,0.05,'square',0.06),32);
+  if(net.role==='client') netSend({t:'sv_shoot', ox,oy,oz, dirs, dmg:W.dmg, splash});
+}
+function svMelee(dmg){
+  tone(220,0.08,'square',0.1); if(playerLight) playerLight.intensity=2.0;
+  const fx=-Math.sin(player.yaw), fz=-Math.cos(player.yaw);
+  if(net.role==='client'){ netSend({t:'sv_melee', x:player.pos.x, z:player.pos.z, fx, fz, dmg}); return; }
+  svMeleeApply(player.pos.x, player.pos.z, fx, fz, dmg);
+}
+function svMeleeApply(px,pz,fx,fz,dmg){
+  for(const z of [...sv.zombies]){ const dx=z.group.position.x-px, dz=z.group.position.z-pz, d=Math.hypot(dx,dz);
+    if(d<2.4 && (dx*fx+dz*fz)/(d||1)>0.35){ z.hp-=dmg; tone(160,0.05,'square',0.07); if(z.hp<=0) svKill(z); } }
 }
 function svCollect(){
   const pts=[{x:player.pos.x,z:player.pos.z}];
@@ -3788,9 +3870,10 @@ function svClientSetBarr(list){
     walls.push(wall); sv.barr.push({mesh,x:it.x,z:it.z,wall,horiz:it.horiz}); }
   svUpdateHud();
 }
+function svSendState(){ if(isMP() && net.role!=='client') netSend({t:'sv_state', hp:Math.round(sv.hp), wood:sv.wood, wave:sv.wave, kills:sv.kills, between:sv.between, waveT:Math.max(0,Math.ceil(sv.waveT))}); }
 function svBroadcast(){
   netSend({t:'sv_zoms', z: sv.zombies.map(z=>({id:z.id, x:+z.group.position.x.toFixed(2), z:+z.group.position.z.toFixed(2), r:+z.group.rotation.y.toFixed(2)})) });
-  netSend({t:'sv_state', hp:Math.round(sv.hp), wood:sv.wood, wave:sv.wave, kills:sv.kills, between:sv.between, waveT:Math.max(0,Math.ceil(sv.waveT))});
+  svSendState();
 }
 function svClientAnim(dt){
   for(const id in sv.netZ){ const z=sv.netZ[id]; z._t=(z._t||0)+dt;
@@ -3867,7 +3950,7 @@ function updateSurvival(dt){
   svMovePlayer(dt);
   if(sv.over) return;
   sv.shootCool-=dt;
-  svUpdateBullets(dt); svUpdateBuild();
+  svUpdateBullets(dt); svUpdateFx(dt); svUpdateBuild();
   if(net.role==='client'){ svClientAnim(dt); return; }   // cliente: host manda os zumbis/estado
   // host / solo:
   svCollect(); svUpdateZombies(dt);
@@ -3880,14 +3963,59 @@ function updateSurvival(dt){
 }
 function svUpdateHud(){
   if(document.getElementById('svHud').classList.contains('hidden')) return;
+  const W=WEAPONS[sv.weapon]||WEAPONS.pistol;
   document.getElementById('svStats').innerHTML=
     `❤️ Vida <div class="bar"><i style="width:${Math.max(0,sv.hp)}%"></i></div>`+
     `<span class="wood">🪵 Madeira: ${sv.wood}</span>`+
-    `<span class="kills">🧟 Mortos: ${sv.kills}</span>`+
+    `<span class="kills">🧟 Kills: ${sv.kills}</span>`+
+    `<span>🔫 Arma: ${W.ic} ${W.name}</span>`+
     `<span>🛡️ Barricadas: ${sv.barr.length}</span>`;
   document.getElementById('svBuildTip').innerHTML = sv.building
     ? `🔨 <b>Construindo</b> — mire e toque 🧱 pra colocar (custa ${SV_WALL_COST} 🪵) · B sai`
-    : `🪵 ande sobre as caixas pra coletar · 🔨/B construir · 🖱️ atirar`;
+    : `🪵 caixas = madeira · 🔨/B construir · 🖱️ atirar · 🛒 loja de armas`;
+  if(sv.shopOpen) svRenderShop();
+}
+// 🛒 LOJA DE ARMAS — preço em kills
+function svOpenShop(){
+  if(sv.over) return; sv.shopOpen=true; svRenderShop();
+  document.getElementById('svShop').classList.remove('hidden');
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+function svCloseShop(){
+  sv.shopOpen=false; document.getElementById('svShop').classList.add('hidden');
+  if(controlMode==='pc' && gameState==='survival' && !sv.over) renderer.domElement.requestPointerLock();
+}
+function svRenderShop(){
+  const box=document.getElementById('svShopList'); if(!box) return;
+  document.getElementById('svShopKills').textContent='🧟 Kills disponíveis: '+sv.kills;
+  let html='';
+  for(const id of ['pistol',...SV_SHOP_ORDER]){ const W=WEAPONS[id];
+    const owned=sv.owned.includes(id), equipped=sv.weapon===id;
+    let btn;
+    if(equipped) btn=`<span class="eqp">✓ Equipada</span>`;
+    else if(owned) btn=`<button class="buy" data-eq="${id}">Equipar</button>`;
+    else if(sv.kills>=W.cost) btn=`<button class="buy" data-buy="${id}">Comprar (${W.cost} kills)</button>`;
+    else btn=`<span class="no">🔒 ${W.cost} kills</span>`;
+    const extra = W.kind==='melee'?'corpo a corpo' : W.kind==='spread'?(W.pellets+' chumbos') : W.kind==='rocket'?'dano em área':'1 tiro';
+    html+=`<div class="witem"><div class="wic">${W.ic}</div><div class="winfo"><b>${W.name}</b><br>`+
+      `<span class="wd">💥 dano ${W.dmg} · ${extra}</span></div><div class="wbtn">${btn}</div></div>`;
+  }
+  box.innerHTML=html;
+  box.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>svBuy(b.dataset.buy));
+  box.querySelectorAll('[data-eq]').forEach(b=>b.onclick=()=>{ sv.weapon=b.dataset.eq; tone(700,0.08,'square',0.08); svRenderShop(); svUpdateHud(); });
+}
+function svBuy(id){
+  const W=WEAPONS[id]; if(!W) return;
+  if(sv.owned.includes(id)){ sv.weapon=id; svRenderShop(); svUpdateHud(); return; }
+  if(net.role==='client'){ netSend({t:'sv_buy', id}); return; }   // host valida e debita os kills (saldo compartilhado)
+  svDoBuy(id);
+}
+function svDoBuy(id){
+  const W=WEAPONS[id]; if(!W || sv.owned.includes(id)) return;
+  if(sv.kills<W.cost){ showMsg('🧟 Faltam kills! Precisa de '+W.cost,1800); return; }
+  sv.kills-=W.cost; sv.owned.push(id); sv.weapon=id;
+  tone(880,0.1,'square',0.1); setTimeout(()=>tone(1240,0.1,'square',0.08),90);
+  showMsg(W.ic+' '+W.name+' comprada!',2200); svRenderShop(); svUpdateHud(); svSendState();
 }
 function svOver(){
   if(sv.over) return; sv.over=true;
@@ -3896,13 +4024,14 @@ function svOver(){
     `Você resistiu até a <b>onda ${sv.wave}</b>.<br>`+
     `🧟 Zumbis eliminados: <b>${sv.kills}</b><br>`+
     `🛡️ Barricadas de pé: <b>${sv.barr.length}</b> · 🪵 Madeira: <b>${sv.wood}</b>`;
+  sv.shopOpen=false; document.getElementById('svShop').classList.add('hidden');
   document.getElementById('svHud').classList.add('hidden');
   document.getElementById('svOver').classList.remove('hidden');
   if(isMP() && net.role!=='client') netSend({t:'sv_over'});
 }
 function svEnter(){
-  spectator=false;
-  ['modes','survMenu','start','device','svOver','death','win','porteiro','ptOver'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  spectator=false; sv.shopOpen=false;
+  ['modes','survMenu','start','device','svOver','svShop','death','win','porteiro','ptOver'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   document.getElementById('ptHud').classList.add('hidden');
   initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
   buildSurvivalScene();
@@ -3961,6 +4090,7 @@ function svExit(){
   net.role='solo'; net.conn=null; net.remoteState=null; net.remoteAvatar=null;
   try{ stopVoice(); }catch(e){}
   if(document.pointerLockElement) document.exitPointerLock();
+  sv.shopOpen=false; document.getElementById('svShop').classList.add('hidden');
   document.getElementById('svHud').classList.add('hidden');
   document.getElementById('svOver').classList.add('hidden');
   document.getElementById('touch').classList.remove('on');
@@ -4043,8 +4173,10 @@ document.getElementById('survBack').onclick=()=>{
   document.getElementById('modes').classList.remove('hidden');
 };
 // HUD Sobrevivência
-document.getElementById('svShootBtn').onclick=()=>{ if(sv.building) svPlaceWall(); else svShoot(); };
+document.getElementById('svShootBtn').onclick=()=>{ if(sv.building) svPlaceWall(); else svFire(); };
 document.getElementById('svBuildBtn').onclick=svToggleBuild;
+document.getElementById('svShopBtn').onclick=svOpenShop;
+document.getElementById('svShopClose').onclick=svCloseShop;
 document.getElementById('svExit').onclick=svExit;
 document.getElementById('svAgain').onclick=svAgain;
 document.getElementById('svOverMenu').onclick=svExit;
