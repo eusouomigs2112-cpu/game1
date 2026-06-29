@@ -241,7 +241,9 @@
   #pzOrderBox { position:absolute; top:14px; left:50%; transform:translateX(-50%); text-align:center;
     background:rgba(10,8,20,.78); border:2px solid rgba(255,180,90,.55); border-radius:16px; padding:10px 20px; backdrop-filter:blur(4px); }
   #pzOrderLbl { font-size:13px; opacity:.8; }
-  #pzOrder { font-size:40px; line-height:1.1; min-height:46px; letter-spacing:4px; }
+  #pzOrder { font-size:24px; font-weight:800; line-height:1.1; min-height:30px; }
+  #pzRecipe { font-size:14px; opacity:.92; margin-top:4px; color:#ffd86b; }
+  .pzitem .lb { display:block; font-size:10px; font-weight:700; opacity:.85; margin-top:-2px; }
   #pzPatWrap { height:8px; border-radius:5px; background:rgba(255,255,255,.15); overflow:hidden; margin-top:6px; }
   #pzPat { height:100%; width:100%; background:linear-gradient(90deg,#7cff9b,#ffd86b,#ff5d6d); }
   #pzCenter { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); width:min(94vw,560px); text-align:center; pointer-events:none; }
@@ -249,8 +251,8 @@
   #pzTray { font-size:34px; min-height:44px; letter-spacing:4px; text-shadow:0 2px 8px #000;
     background:rgba(10,8,20,.5); border-radius:12px; margin:4px 0 10px; }
   #pzMenuBtns { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
-  .pzitem { pointer-events:auto; font-size:30px; width:64px; height:64px; border-radius:14px; cursor:pointer; border:2px solid rgba(255,255,255,.25);
-    background:rgba(40,32,60,.92); box-shadow:0 4px 12px rgba(0,0,0,.5); }
+  .pzitem { pointer-events:auto; font-size:26px; width:62px; height:62px; border-radius:14px; cursor:pointer; border:2px solid rgba(255,255,255,.25);
+    background:rgba(40,32,60,.92); box-shadow:0 4px 12px rgba(0,0,0,.5); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; line-height:1; }
   .pzitem:active { transform:translateY(2px); }
   #pzActions { display:flex; gap:14px; justify-content:center; margin-top:12px; }
   #pzActions button { pointer-events:auto; font-size:17px; font-weight:800; padding:12px 22px; border:none; border-radius:13px; cursor:pointer; color:#fff; }
@@ -457,6 +459,7 @@
   <div id="pzOrderBox">
     <div id="pzOrderLbl">Pedido do cliente:</div>
     <div id="pzOrder"></div>
+    <div id="pzRecipe"></div>
     <div id="pzPatWrap"><div id="pzPat"></div></div>
   </div>
   <div id="pzCenter">
@@ -988,9 +991,9 @@ function setupControls(){
     if(e.code==='KeyC' && gameState==='porteiro') ptPhone();                             // 📞 porteiro: C = ligar pra casa
     if(e.code==='KeyB' && gameState==='survival') svToggleBuild();                       // 🧟 sobrevivência: B = construir
     if(gameState==='survival'){ const wk={Digit1:'pistol',Digit2:'axe',Digit3:'shotgun',Digit4:'bazooka'}[e.code]; if(wk) svEquip(wk); } // trocar arma (1-4)
-    if(gameState==='pizza'){ const di={Digit1:0,Digit2:1,Digit3:2,Digit4:3,Digit5:4,Digit6:5}[e.code];
-      if(di!=null && PZ_MENU[di]) pzAdd(PZ_MENU[di].id);
-      if(e.code==='KeyE'||e.code==='Enter') pzDeliver(); if(e.code==='Backspace') pzClearTray(); }   // 🍕 pizzaria
+    if(gameState==='pizza'){ const di={Digit1:0,Digit2:1,Digit3:2,Digit4:3,Digit5:4,Digit6:5,Digit7:6,Digit8:7}[e.code];
+      if(di!=null && PZ_ING[di]) pzAdd(PZ_ING[di].id);
+      if(e.code==='KeyE'||e.code==='Enter') pzDeliver(); if(e.code==='Backspace') pzClearTray(); }   // 🍕 pizzaria (ingredientes)
     if(e.code==='KeyF'){ if(flashBat>0 && gameState!=='porteiro') flashOn=!flashOn; }     // 🔦 lanterna
     if(e.code==='KeyM'){ minimapOn=!minimapOn; const mm=document.getElementById('minimap'); if(mm) mm.style.display=minimapOn?'block':'none'; } // 🗺️
     if(e.code==='KeyW' && !wHeld){ wHeld=true; forwardPressed(); }  // 2x W = correr
@@ -4297,49 +4300,63 @@ function svAgain(){
   else svStartSolo();
 }
 
-// 🍕 ============ PIZZARIA / LANCHONETE ============
-const PZ_MENU=[ {id:'pizza',ic:'🍕'},{id:'burger',ic:'🍔'},{id:'hotdog',ic:'🌭'},
-  {id:'fries',ic:'🍟'},{id:'soda',ic:'🥤'},{id:'icecream',ic:'🍦'} ];
-const PZ_PAT=14;   // segundos de paciência do cliente
-function pzFresh(){ return { lives:3, score:0, served:0, correct:0, streak:0, best:0, cur:null, tray:[], cool:0.6, over:false }; }
+// 🍕 ============ PIZZARIA / LANCHONETE (fazer a comida + fila de clientes) ============
+const PZ_ING=[ {id:'pao',ic:'🍞',n:'Pão'},{id:'carne',ic:'🥩',n:'Carne'},{id:'queijo',ic:'🧀',n:'Queijo'},
+  {id:'molho',ic:'🍅',n:'Molho'},{id:'salsicha',ic:'🍖',n:'Salsicha'},{id:'batata',ic:'🥔',n:'Batata'},
+  {id:'massa',ic:'🫓',n:'Massa'},{id:'refri',ic:'🥤',n:'Refri'} ];
+const PZ_DISH=[
+  {id:'hotdog',ic:'🌭',n:'Cachorro-quente',r:['pao','salsicha']},
+  {id:'burger',ic:'🍔',n:'Hambúrguer',r:['pao','carne','queijo']},
+  {id:'pizza', ic:'🍕',n:'Pizza',r:['massa','queijo','molho']},
+  {id:'sanduiche',ic:'🥪',n:'Sanduíche',r:['pao','queijo']},
+  {id:'fries', ic:'🍟',n:'Batata frita',r:['batata']},
+  {id:'refresco',ic:'🥤',n:'Refrigerante',r:['refri']} ];
+const PZ_PAT=16;   // segundos de paciência do cliente da frente
+function pzFresh(){ return { lives:3, score:0, served:0, correct:0, streak:0, best:0, queue:[], leaving:[], tray:[], cool:0.6, maxQ:4, over:false }; }
 let pz=pzFresh();
-function pzIc(id){ const m=PZ_MENU.find(x=>x.id===id); return m?m.ic:'?'; }
-function pzGenOrder(){ const n=1+((Math.random()*3)|0), items=[];
-  for(let i=0;i<n;i++) items.push(PZ_MENU[(Math.random()*PZ_MENU.length)|0].id); return items; }
-function pzClearCustomer(){ if(pz.cur&&pz.cur.group){ scene.remove(pz.cur.group); disposeObj(pz.cur.group); } }
-function pzSpawnCustomer(){
-  pzClearCustomer(); pz.tray=[];
+function pzIng(id){ return PZ_ING.find(x=>x.id===id); }
+function pzIngIc(id){ const m=pzIng(id); return m?m.ic:'?'; }
+function pzGenOrder(){ const d=PZ_DISH[(Math.random()*PZ_DISH.length)|0], arr=[d];
+  if(d.id!=='refresco' && Math.random()<0.3) arr.push(PZ_DISH.find(x=>x.id==='refresco')); return arr; }
+function pzRecipe(order){ const r=[]; for(const d of order) r.push(...d.r); return r; }
+function pzZSlot(i){ return -2.6 - i*1.9; }
+function pzXSlot(i){ return i===0?0 : (i%2? 0.8:-0.8)*Math.ceil(i/2)*0.55+ (i%2?0.5:-0.5); }
+function pzSpawnIntoQueue(){
+  if(pz.queue.length>=pz.maxQ) return;
   const desc={ skin:ptPick(SKINS), shirt:SHIRTS[(Math.random()*SHIRTS.length)|0].c, pants:ptPick(PANTS), hair:ptPick(HAIRS), monster:null };
-  const g=makePerson(desc); g.position.set(0,0,-14); g.rotation.y=0; scene.add(g);
-  setSpriteText(g.userData.label,'🙂 Cliente');
-  pz.cur={ order:pzGenOrder(), group:g, state:'walkin', t:0, patience:1 };
-  pzUpdateHud();
+  const g=makePerson(desc); g.position.set(0,0,-16 - pz.queue.length*1.4); g.rotation.y=0; scene.add(g);
+  const c={ order:pzGenOrder(), group:g, state:'walk', t:Math.random()*6, patience:1 };
+  setSpriteText(g.userData.label, c.order.map(d=>d.ic).join(''));
+  pz.queue.push(c);
 }
-function pzUpdateCustomer(dt){
-  const c=pz.cur; if(!c||!c.group) return;
-  const g=c.group, ud=g.userData; c.t+=dt;
-  const walking=c.state==='walkin'||c.state==='leaving';
-  const sw=walking?Math.sin(c.t*9)*0.5:Math.sin(clock.elapsedTime*1.8)*0.04;
-  ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw; ud.armL.rotation.x=-sw; ud.armR.rotation.x=sw;
-  if(c.state==='walkin'){ g.position.z+=3.0*dt;
-    if(g.position.z>=-2.5){ g.position.z=-2.5; c.state='order'; tone(880,0.07,'sine',0.07); setTimeout(()=>tone(1200,0.07,'sine',0.05),90); pzUpdateHud(); } }
-  else if(c.state==='order'){ c.patience-=dt/PZ_PAT; if(c.patience<=0) pzResolve(false,'demorou'); }
-  else if(c.state==='leaving'){ g.rotation.y=Math.PI; g.position.z-=3.4*dt; if(g.position.z<-14){ pzClearCustomer(); pz.cur=null; pz.cool=0.4; } }
+function pzAnimWalk(c,moving){ const ud=c.group.userData; const sw=moving?Math.sin(c.t*9)*0.5:Math.sin(c.t*1.8)*0.04;
+  ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw; ud.armL.rotation.x=-sw; ud.armR.rotation.x=sw; }
+function pzUpdateQueue(dt){
+  for(let i=0;i<pz.queue.length;i++){ const c=pz.queue[i], g=c.group; c.t+=dt;
+    const tz=pzZSlot(i), tx=pzXSlot(i), dz=tz-g.position.z, dxx=tx-g.position.x, moving=Math.abs(dz)>0.05||Math.abs(dxx)>0.05;
+    if(moving){ g.position.z += Math.sign(dz)*Math.min(Math.abs(dz), 3.0*dt); g.position.x += Math.sign(dxx)*Math.min(Math.abs(dxx), 2.0*dt); }
+    pzAnimWalk(c,moving);
+    if(i===0 && !moving && c.state!=='order'){ c.state='order'; tone(880,0.07,'sine',0.07); setTimeout(()=>tone(1200,0.07,'sine',0.05),90); pzUpdateHud(); }
+    if(i===0 && c.state==='order'){ c.patience-=dt/PZ_PAT; if(c.patience<=0) pzResolve(false,'demorou'); }
+  }
+  for(let i=pz.leaving.length-1;i>=0;i--){ const c=pz.leaving[i], g=c.group; c.t+=dt;
+    g.rotation.y=Math.PI; g.position.z-=3.5*dt; pzAnimWalk(c,true);
+    if(g.position.z<-17){ scene.remove(g); disposeObj(g); pz.leaving.splice(i,1); } }
 }
-function pzAdd(id){ if(!pz.cur||pz.cur.state!=='order'||pz.over||pz.tray.length>=6) return;
+function pzAdd(id){ const c=pz.queue[0]; if(!c||c.state!=='order'||pz.over||pz.tray.length>=8) return;
   pz.tray.push(id); tone(520,0.05,'square',0.06); pzUpdateHud(); }
 function pzClearTray(){ pz.tray=[]; tone(200,0.06,'square',0.05); pzUpdateHud(); }
-function pzDeliver(){ if(!pz.cur||pz.cur.state!=='order'||pz.over) return;
-  const a=[...pz.cur.order].sort().join(','), b=[...pz.tray].sort().join(',');
+function pzDeliver(){ const c=pz.queue[0]; if(!c||c.state!=='order'||pz.over) return;
+  const a=pzRecipe(c.order).slice().sort().join(','), b=pz.tray.slice().sort().join(',');
   pzResolve(a===b, 'pedido errado');
 }
 function pzResolve(ok, reason){
-  const c=pz.cur; if(!c||c.state!=='order') return;
+  const c=pz.queue[0]; if(!c||c.state!=='order') return;
   pz.served++;
   if(ok){ pz.correct++; pz.streak++; if(pz.streak>pz.best)pz.best=pz.streak; pz.score+=10+(pz.streak-1)*2;
     tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); pzFlash('good'); setSpriteText(c.group.userData.label,'😋 Valeu!'); }
   else { pz.lives--; pz.streak=0; tone(150,0.3,'sawtooth',0.16); pzFlash('bad'); setSpriteText(c.group.userData.label,'😡 '+(reason||'errado')); }
-  c.state='leaving'; pz.tray=[]; pzUpdateHud();
+  c.state='leaving'; pz.queue.shift(); pz.leaving.push(c); pz.tray=[]; pzUpdateHud();
   if(pz.lives<=0) pzOver();
 }
 function pzFlash(k){ const f=document.getElementById('pzFlash'); if(!f)return; f.className=k; setTimeout(()=>{f.className='';},260); }
@@ -4347,11 +4364,13 @@ function pzUpdateHud(){
   if(document.getElementById('pzHud').classList.contains('hidden')) return;
   const hearts='❤️'.repeat(Math.max(0,pz.lives))+'🖤'.repeat(Math.max(0,3-pz.lives));
   const acc=pz.served?Math.round(pz.correct/pz.served*100):100;
-  document.getElementById('pzStats').innerHTML=`<span>${hearts}</span><span>⭐ Pontos: <b>${pz.score}</b></span><span>🎯 ${acc}%</span><span>🔥 ${pz.streak} (rec ${pz.best})</span>`;
-  const ord=document.getElementById('pzOrder');
-  if(pz.cur && pz.cur.state==='order'){ ord.textContent=pz.cur.order.map(pzIc).join(' '); document.getElementById('pzOrderBox').style.opacity=1; }
-  else { ord.textContent='—'; document.getElementById('pzOrderBox').style.opacity=0.5; }
-  document.getElementById('pzTray').textContent=pz.tray.length?pz.tray.map(pzIc).join(' '):'(vazia)';
+  document.getElementById('pzStats').innerHTML=`<span>${hearts}</span><span>⭐ Pontos: <b>${pz.score}</b></span><span>🎯 ${acc}%</span><span>🔥 ${pz.streak} (rec ${pz.best})</span><span>🧍 Fila: ${pz.queue.length}</span>`;
+  const c=pz.queue[0]; const ord=document.getElementById('pzOrder'), rec=document.getElementById('pzRecipe');
+  if(c && c.state==='order'){ ord.innerHTML=c.order.map(d=>d.ic+' '+d.n).join('  +  ');
+    rec.innerHTML='👨‍🍳 Junte: '+pzRecipe(c.order).map(id=>pzIngIc(id)+' '+pzIng(id).n).join(' + ');
+    document.getElementById('pzOrderBox').style.opacity=1; }
+  else { ord.textContent='—'; rec.textContent=''; document.getElementById('pzOrderBox').style.opacity=0.5; }
+  document.getElementById('pzTray').innerHTML=pz.tray.length?pz.tray.map(pzIngIc).join(' '):'<span style="opacity:.5;font-size:18px">(vazia — junte os ingredientes)</span>';
 }
 function pzMovePlayer(dt){
   camera.position.set(player.pos.x, player.feet+player.height, player.pos.z);
@@ -4359,13 +4378,13 @@ function pzMovePlayer(dt){
   if(playerLight){ playerLight.intensity += (0.7-playerLight.intensity)*0.2; playerLight.position.set(player.pos.x,player.feet+1.6,player.pos.z); }
 }
 function updatePizza(dt){
-  pzMovePlayer(dt); pzUpdateCustomer(dt);
+  pzMovePlayer(dt); pzUpdateQueue(dt);
   if(pz.over) return;
-  if(!pz.cur){ pz.cool-=dt; if(pz.cool<=0) pzSpawnCustomer(); }
-  if(pz.cur && pz.cur.state==='order'){ const pat=document.getElementById('pzPat'); if(pat) pat.style.width=Math.max(0,pz.cur.patience*100)+'%'; }
+  pz.cool-=dt; if(pz.cool<=0 && pz.queue.length<pz.maxQ){ pzSpawnIntoQueue(); pz.cool=2.4; }
+  const c=pz.queue[0]; const pat=document.getElementById('pzPat'); if(pat) pat.style.width=(c&&c.state==='order'?Math.max(0,c.patience*100):0)+'%';
 }
 function pzMakeMenuBtns(){ const box=document.getElementById('pzMenuBtns'); box.innerHTML='';
-  for(const m of PZ_MENU){ const b=document.createElement('button'); b.className='pzitem'; b.textContent=m.ic; b.onclick=()=>pzAdd(m.id); box.appendChild(b); } }
+  for(const m of PZ_ING){ const b=document.createElement('button'); b.className='pzitem'; b.innerHTML=m.ic+'<span class="lb">'+m.n+'</span>'; b.onclick=()=>pzAdd(m.id); box.appendChild(b); } }
 function pzOver(){
   if(pz.over)return; pz.over=true;
   if(document.pointerLockElement) document.exitPointerLock();
@@ -4388,10 +4407,12 @@ function pzStart(){
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
   if(controlMode==='pc') renderer.domElement.requestPointerLock();
   pz.cool=0.6; pzUpdateHud();
-  showMsg('🍕 Lanchonete aberta! Monte o pedido (botões) e ✅ entregue antes da paciência acabar.',4500);
+  showMsg('🍕 Lanchonete aberta! FAÇA a comida juntando os ingredientes (ex: 🍞 Pão + 🍖 Salsicha = 🌭) e ✅ entregue.',5500);
 }
 function pzExit(){
-  pz.over=true; pzClearCustomer(); pz.cur=null;
+  pz.over=true;
+  for(const c of [...pz.queue, ...pz.leaving]){ if(c.group){ scene.remove(c.group); disposeObj(c.group); } }
+  pz.queue=[]; pz.leaving=[];
   if(document.pointerLockElement) document.exitPointerLock();
   document.getElementById('pzHud').classList.add('hidden');
   document.getElementById('pzOver').classList.add('hidden');
