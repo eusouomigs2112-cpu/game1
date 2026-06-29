@@ -350,6 +350,17 @@
   .mDoor.closed { background:rgba(70,40,40,.95); border-color:#ff6d6d; }
   .mFeed { position:absolute; top:30%; left:50%; transform:translateX(-50%); font-size:18px; background:rgba(10,10,16,.8);
     padding:10px 22px; border-radius:12px; border:1px solid rgba(124,92,255,.3); pointer-events:none; }
+  .mGrid { position:absolute; left:50%; top:52%; transform:translate(-50%,-50%); display:grid; gap:6px; }
+  .mGridBig { width:min(440px,86vw); }
+  .mCell { aspect-ratio:1/1; border-radius:9px; background:rgba(255,255,255,.05); border:1px solid rgba(124,92,255,.25);
+    font-size:min(5vw,26px); cursor:pointer; transition:.1s; }
+  .mCell:hover { background:rgba(124,92,255,.18); }
+  .mCell.road { background:#4a4a55; border-color:#777; }
+  .mCell.built { background:rgba(124,92,255,.3); }
+  .mBridge { position:absolute; left:50%; top:52%; transform:translate(-50%,-50%); display:flex; gap:6px; }
+  .mBeam { width:min(58px,13vw); height:min(58px,13vw); border-radius:10px; background:rgba(255,255,255,.05);
+    border:1px solid rgba(124,92,255,.3); font-size:26px; cursor:pointer; }
+  .mBeam.done { background:#7a5a38; border-color:#a87b4d; }
   #mFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .14s; }
   #mFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.45); opacity:1; }
   #mFlash.bad { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.5); opacity:1; }
@@ -638,6 +649,18 @@
     <div class="devbtn" id="modePesadelo">
       <div class="ic">🛏️</div><div class="lb">PESADELO</div>
       <div class="ds">Sobreviva no escuro banindo pesadelos e mantendo a sanidade</div>
+    </div>
+    <div class="devbtn" id="modeEstrada">
+      <div class="ic">🛣️</div><div class="lb">ESTRADA</div>
+      <div class="ds">Construa o caminho ligando o carro à bandeira de chegada</div>
+    </div>
+    <div class="devbtn" id="modeEngenheiro">
+      <div class="ic">🌉</div><div class="lb">ENGENHEIRO</div>
+      <div class="ds">Vença o vão preenchendo os buracos de água com vigas</div>
+    </div>
+    <div class="devbtn" id="modePrefeito">
+      <div class="ic">🏙️</div><div class="lb">PREFEITO</div>
+      <div class="ds">Construa o que a cidade pede e alcance a meta de felicidade</div>
     </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
@@ -5860,6 +5883,93 @@ miniRegister('pesadelo',{
   exit(){ const c=mCenter(); if(c)c.innerHTML=''; this.s=null; }
 });
 
+// 🛣️🌉🏙️ ====== LOTE BUILDERS: Estrada, Engenheiro, Prefeito ======
+function mGrid(cols,rows){ const g=document.createElement('div'); g.className='mGrid';
+  g.style.gridTemplateColumns='repeat('+cols+',1fr)';
+  const cells=[]; for(let j=0;j<rows;j++) for(let i=0;i<cols;i++){ const b=document.createElement('button'); b.className='mCell'; b.dataset.x=i; b.dataset.y=j; g.appendChild(b); cells.push(b); }
+  return {g,cells,cols,rows,at(i,j){ return cells[j*cols+i]; }}; }
+
+// 🛣️ ---- ESTRADA (ligue o carro 🚗 à bandeira 🏁 com ruas) ----
+miniRegister('estrada',{
+  name:'Estrada', ic:'🛣️', tip:'Toque nas células pra construir a estrada do carro até a bandeira',
+  enter(){ mDarkScene(0x10160f,0.02);
+    const s=this.s={ cols:6, rows:5, road:null, start:null, end:null, solved:0, time:90, over:false, lockT:0 };
+    const c=mCenter(); c.innerHTML=''; const grid=mGrid(s.cols,s.rows); this.grid=grid;
+    grid.g.classList.add('mGridBig'); c.appendChild(grid.g);
+    grid.cells.forEach(b=>{ b.onclick=(e)=>{ e.stopPropagation(); this.toggle(+b.dataset.x,+b.dataset.y); }; });
+    this.newLevel(); this.hud();
+  },
+  newLevel(){ const s=this.s; s.road=new Set(); s.start={x:0,y:(Math.random()*s.rows)|0}; s.end={x:s.cols-1,y:(Math.random()*s.rows)|0};
+    s.road.add(this.key(s.start)); s.road.add(this.key(s.end)); this.render(); },
+  key(p){ return p.x+','+p.y; },
+  toggle(x,y){ const s=this.s; if(s.over||s.lockT>0) return; const k=x+','+y;
+    if((x===s.start.x&&y===s.start.y)||(x===s.end.x&&y===s.end.y)) return;
+    if(s.road.has(k)) s.road.delete(k); else { s.road.add(k); tone(360,0.05,'square',0.08); }
+    this.render(); if(this.connected()){ this.win(); } },
+  connected(){ const s=this.s; const seen=new Set([this.key(s.start)]); const q=[s.start];
+    while(q.length){ const p=q.shift(); if(p.x===s.end.x&&p.y===s.end.y) return true;
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=p.x+dx,ny=p.y+dy,nk=nx+','+ny;
+        if(nx<0||ny<0||nx>=s.cols||ny>=s.rows) continue; if(s.road.has(nk)&&!seen.has(nk)){ seen.add(nk); q.push({x:nx,y:ny}); } } }
+    return false; },
+  win(){ const s=this.s; s.solved++; s.lockT=0.8; tone(660,0.12,'sine',0.12); setTimeout(()=>tone(990,0.12,'sine',0.1),120); mFlash('good');
+    showMsg('🚗💨 Caminho aberto!',900); setTimeout(()=>{ if(this.s){ this.s.lockT=0; this.newLevel(); } },820); this.hud(); },
+  render(){ const s=this.s; this.grid.cells.forEach(b=>{ const x=+b.dataset.x,y=+b.dataset.y,k=x+','+y;
+    let t='', cls='mCell'; if(x===s.start.x&&y===s.start.y){ t='🚗'; cls+=' road'; } else if(x===s.end.x&&y===s.end.y){ t='🏁'; cls+=' road'; }
+    else if(s.road.has(k)){ t=''; cls+=' road'; } b.textContent=t; b.className=cls; }); },
+  update(dt){ const s=this.s; if(!s||s.over)return; s.time-=dt; if(s.time<=0){ s.over=true; miniOver('⏱️ Acabou o tempo','Estradas concluídas: <b>'+s.solved+'</b>'); return; } this.hud(); },
+  hud(){ const s=this.s; mStats('<span>🛣️ <b>'+s.solved+'</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>');
+    mRule('🚗 Ligue o carro à 🏁 bandeira tocando nas células. Toque de novo pra remover.'); },
+  onClick(){}, onKey(){}, exit(){ const c=mCenter(); if(c)c.innerHTML=''; this.s=null; }
+});
+
+// 🌉 ---- ENGENHEIRO (vença o vão: ponha vigas só onde há água 💧) ----
+miniRegister('engenheiro',{
+  name:'Engenheiro', ic:'🌉', tip:'Ponha vigas só nos vãos de água 💧 — não desperdice em rocha 🪨',
+  enter(){ mDarkScene(0x0c1622,0.02);
+    const s=this.s={ len:5, built:0, over:false, time:90, cells:[], lockT:0 };
+    this.row=document.createElement('div'); this.row.className='mBridge'; mCenter().appendChild(this.row); this.newLevel(); this.hud();
+  },
+  newLevel(){ const s=this.s; s.cells=[]; this.row.innerHTML='';
+    for(let i=0;i<s.len;i++){ const gap=Math.random()<0.62; const cell={gap, filled:!gap};
+      const b=document.createElement('button'); b.className='mBeam'; b.dataset.i=i;
+      b.onclick=(e)=>{ e.stopPropagation(); this.place(i); }; cell.el=b; this.row.appendChild(b); s.cells.push(cell); }
+    // garante ao menos 1 vão
+    if(!s.cells.some(c=>c.gap)){ const k=(Math.random()*s.len)|0; s.cells[k].gap=true; s.cells[k].filled=false; }
+    this.render(); },
+  place(i){ const s=this.s; if(s.over||s.lockT>0)return; const c=s.cells[i];
+    if(!c.gap){ tone(140,0.2,'sawtooth',0.12); mFlash('bad'); showMsg('🪨 Aí já tem rocha! Só preencha a água 💧',1100); return; }
+    if(c.filled) return; c.filled=true; tone(420,0.06,'square',0.1); this.render();
+    if(s.cells.every(x=>x.filled)){ this.cross(); } },
+  cross(){ const s=this.s; s.built++; s.lockT=1; tone(660,0.14,'sine',0.12); mFlash('good'); showMsg('🚛 Ponte completa! Atravessou!',1000);
+    setTimeout(()=>{ if(this.s){ this.s.lockT=0; this.s.len=Math.min(9,this.s.len+1); this.newLevel(); } },950); this.hud(); },
+  render(){ const s=this.s; s.cells.forEach(c=>{ c.el.textContent = c.gap?(c.filled?'🟫':'💧'):'🪨'; c.el.classList.toggle('done',c.filled); }); },
+  update(dt){ const s=this.s; if(!s||s.over)return; s.time-=dt; if(s.time<=0){ s.over=true; miniOver('⏱️ Fim do turno','Pontes construídas: <b>'+s.built+'</b>'); return; } this.hud(); },
+  hud(){ const s=this.s; mStats('<span>🌉 <b>'+s.built+'</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>');
+    mRule('💧 Preencha cada vão de água com vigas pra completar a ponte. 🪨 já é firme.'); },
+  onClick(){}, onKey(){}, exit(){ const c=mCenter(); if(c)c.innerHTML=''; this.s=null; }
+});
+
+// 🏙️ ---- PREFEITO (construa o que a cidade pede e alcance a meta) ----
+miniRegister('prefeito',{
+  name:'Prefeito', ic:'🏙️', tip:'Construa o prédio pedido nos terrenos vazios e alcance a felicidade',
+  enter(){ mDarkScene(0x141022,0.02);
+    const s=this.s={ cols:5, rows:4, happy:0, goal:200, time:90, over:false, need:null, built:0 };
+    const c=mCenter(); c.innerHTML=''; const grid=mGrid(s.cols,s.rows); this.grid=grid; grid.g.classList.add('mGridBig'); c.appendChild(grid.g);
+    grid.cells.forEach(b=>{ b.onclick=(e)=>{ e.stopPropagation(); this.build(b); }; });
+    this.TYPES=['🏠','🏥','🏫','🌳','🏭','🏪']; this.newNeed(); this.hud();
+  },
+  newNeed(){ this.s.need=this.TYPES[(Math.random()*this.TYPES.length)|0]; this.hud(); },
+  build(b){ const s=this.s; if(s.over) return; if(b.textContent){ tone(160,0.12,'sawtooth',0.1); return; }
+    b.textContent=s.need; b.classList.add('built'); s.built++; s.happy+=12; tone(520,0.06,'square',0.1); mFlash('good');
+    if(s.happy>=s.goal){ s.over=true; miniOver('🏆 Cidade próspera!','Prédios: <b>'+s.built+'</b> · Felicidade: <b>'+s.happy+'</b>'); return; }
+    if(this.grid.cells.every(x=>x.textContent)){ s.over=true; miniOver('🏙️ Cidade lotada!','Prédios: <b>'+s.built+'</b> · Felicidade: <b>'+s.happy+'</b>'); return; }
+    this.newNeed(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; s.time-=dt; if(s.time<=0){ s.over=true; miniOver('⏱️ Fim do mandato','Prédios: <b>'+s.built+'</b> · Felicidade: <b>'+s.happy+'</b>'); return; } this.hud(); },
+  hud(){ const s=this.s; mStats('<span>😊 <b>'+s.happy+'</b>/'+s.goal+'</span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>'+(s.need?'<span>Pedido: <b style="font-size:20px">'+s.need+'</b></span>':''));
+    mRule('🏗️ A cidade pede '+(s.need||'')+' — toque num terreno vazio pra construir!'); },
+  onClick(){}, onKey(){}, exit(){ const c=mCenter(); if(c)c.innerHTML=''; this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -5974,7 +6084,7 @@ document.getElementById('aExit').onclick=agExit;
 document.getElementById('aAgain').onclick=()=>agStart(ag.key);
 document.getElementById('aOverMenu').onclick=agExit;
 // minigames (framework)
-[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo']].forEach(([k,cap])=>{
+[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito']].forEach(([k,cap])=>{
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>miniStart(k);
 });
 document.getElementById('mExit').onclick=miniExit;
