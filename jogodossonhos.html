@@ -270,6 +270,18 @@
   #trFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.5); opacity:1; }
   #trFlash.bad { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.55); opacity:1; }
   #trOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #trOverStats b { color:#9fe8ff; }
+  /* Esconde-esconde */
+  #hideHud { position:fixed; inset:0; z-index:7; pointer-events:none; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
+  #hideHud.hidden { display:none; }
+  #hideStats { position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; gap:16px;
+    background:rgba(10,8,16,.72); border:1px solid rgba(120,200,120,.4); border-radius:14px; padding:9px 18px; font-size:15px; font-weight:700; backdrop-filter:blur(4px); }
+  #hideSuspBox { position:absolute; top:14px; left:14px; width:200px; background:rgba(10,8,16,.72); border:1px solid rgba(255,180,90,.4); border-radius:14px; padding:10px 14px; }
+  .hideBar { height:12px; border-radius:6px; background:rgba(255,255,255,.15); overflow:hidden; }
+  .hideBar > #hideSusp { height:100%; width:0%; background:#7cff9b; transition:width .1s,background .2s; }
+  #hideState { font-size:12px; margin-top:6px; opacity:.9; }
+  #hideCross { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:20px; opacity:.5; }
+  #hideExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
+  #hideOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #hideOverStats b { color:#9fe8ff; }
   /* tela de dispositivo */
   .devicebtns { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:24px 0; }
   .devbtn {
@@ -492,6 +504,19 @@
   <h1 id="trOverTitle">🚦 Fim do plantão</h1>
   <div id="trOverStats"></div>
   <div class="btnrow"><button id="trAgain">🔁 Jogar de novo</button><button id="trOverMenu" class="ghost">↩ Menu</button></div>
+</div>
+
+<!-- HUD do Esconde-esconde -->
+<div id="hideHud" class="hidden">
+  <div id="hideStats"></div>
+  <div id="hideSuspBox"><div style="font-size:12px;opacity:.85;margin-bottom:3px">👁️ Suspeita</div><div class="hideBar"><div id="hideSusp"></div></div><div id="hideState"></div></div>
+  <div id="hideCross">📦</div>
+  <button id="hideExit" class="ghost">↩ Sair</button>
+</div>
+<div id="hideOver" class="overlay hidden">
+  <h1 id="hideOverTitle">💀 Você foi descoberto</h1>
+  <div id="hideOverStats"></div>
+  <div class="btnrow"><button id="hideAgain">🔁 Jogar de novo</button><button id="hideOverMenu" class="ghost">↩ Menu</button></div>
 </div>
 
 <!-- HUD do modo Restaurante -->
@@ -1036,7 +1061,7 @@ function setupControls(){
     if(e.code==='KeyW'){ wHeld=false; forwardReleased(); }
   });
 
-  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='pizza'||gameState==='transito') && controlMode==='pc') canvas.requestPointerLock(); });
+  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='pizza'||gameState==='transito'||gameState==='hide') && controlMode==='pc') canvas.requestPointerLock(); });
   canvas.addEventListener('contextmenu', e=>{ if(gameState==='survival') e.preventDefault(); });
   // 🧟 sobrevivência: clique atira (ou coloca barricada se construindo); botão direito alterna construir
   document.addEventListener('mousedown', e=>{
@@ -2444,6 +2469,8 @@ function animate(){
     updatePizza(dt);
   } else if(gameState==='transito'){
     updateTransito(dt);
+  } else if(gameState==='hide'){
+    hideUpdate(dt);
   }
   renderer.render(scene,camera);
 }
@@ -4684,6 +4711,138 @@ function trExit(){
   gameState='menu'; clearLevel(); document.getElementById('modes').classList.remove('hidden');
 }
 
+// 🙈 ============ ESCONDE-ESCONDE (Prop Hunt) ============
+function hideFresh(){ return { lives:3, round:1, timer:35, susp:0, over:false, monster:null, mWander:null,
+  locked:false, caughtCool:0, prop:null, lastX:0, lastZ:0, props:[] }; }
+let hide=hideFresh();
+function hideMakeCrate(x,z,big){
+  const s=big?1.3:0.9;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(s,s,s), new THREE.MeshStandardMaterial({color:0x9a6a32, roughness:0.85}));
+  m.position.set(x,s/2,z); scene.add(m);
+  walls.push({min:new THREE.Vector3(x-s/2,0,z-s/2),max:new THREE.Vector3(x+s/2,s,z+s/2)});
+  return m;
+}
+function buildHideScene(){
+  clearLevel();
+  scene.background=new THREE.Color(0x14131c); scene.fog=new THREE.FogExp2(0x14131c,0.035);
+  wallMat=new THREE.MeshStandardMaterial({color:0x4a4654, roughness:0.9});
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({color:0x33303c, roughness:0.95}));
+  floor.rotation.x=-Math.PI/2; scene.add(floor);
+  const R=15; addWall(0,-R,2*R,0.5); addWall(0,R,2*R,0.5); addWall(-R,0,0.5,2*R); addWall(R,0,0.5,2*R);
+  // prateleiras (cobertura pra quebrar a linha de visão)
+  for(const [x,z,w,d] of [[-7,-5,1,6],[7,4,1,6],[-5,7,6,1],[6,-8,5,1],[0,0,1.2,1.2]]){
+    addBox(x,1.3,z,w,2.6,d,new THREE.MeshStandardMaterial({color:0x55505e,roughness:0.9}));
+    walls.push({min:new THREE.Vector3(x-w/2,0,z-d/2),max:new THREE.Vector3(x+w/2,2.6,z+d/2)}); }
+  // CAIXAS-DECOY (você é uma delas)
+  hide.props=[];
+  for(let i=0;i<22;i++){ const a=Math.random()*6.28, r=2+Math.random()*12, x=Math.cos(a)*r, z=Math.sin(a)*r;
+    if(Math.abs(x)>14||Math.abs(z)>14) continue; hide.props.push(hideMakeCrate(x,z, Math.random()<0.3)); }
+  // luz
+  scene.add(new THREE.HemisphereLight(0x8088b0,0x222028,0.9));
+  const l=new THREE.PointLight(0xffe8c0,1.2,30); l.position.set(0,9,0); scene.add(l);
+  // monstro caçador
+  hide.monster=makeZombie(); hide.monster.position.set(0,0,-12); scene.add(hide.monster);
+  // sua "fantasia" de caixa (te deixa igual às decoys)
+  hide.prop=hideMakeCrate(0,8); walls.pop();   // sem colisor próprio (segue o player)
+}
+function hideMoved(){ const dx=player.pos.x-hide.lastX, dz=player.pos.z-hide.lastZ; return Math.hypot(dx,dz)>0.02; }
+function hideMovePlayer(dt){
+  const running=keys['ShiftLeft']||keys['ShiftRight']||autoRun; let speed=running?4.6:2.8;
+  const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  const mv=new THREE.Vector3();
+  if(keys['KeyW'])mv.add(fwd); if(keys['KeyS'])mv.sub(fwd); if(keys['KeyD'])mv.add(right); if(keys['KeyA'])mv.sub(right);
+  if(mv.lengthSq()>0) mv.normalize();
+  hide.lastX=player.pos.x; hide.lastZ=player.pos.z;
+  const next=player.pos.clone().addScaledVector(mv,speed*dt); collideBody(next,0,1.0); player.pos.copy(next);
+  camera.position.set(player.pos.x, player.feet+1.0, player.pos.z);   // baixo (você é uma caixa)
+  camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
+  if(hide.prop) hide.prop.position.set(player.pos.x,0.45,player.pos.z);
+  if(playerLight){ playerLight.intensity+=(0.5-playerLight.intensity)*0.2; playerLight.position.set(player.pos.x,1.5,player.pos.z); }
+}
+function hideMonsterFace(){ return hide.monster.rotation.y; }
+function hideUpdateMonster(dt){
+  const m=hide.monster; if(!m) return;
+  const dx=player.pos.x-m.position.x, dz=player.pos.z-m.position.z, dist=Math.hypot(dx,dz);
+  const toAng=Math.atan2(dx,dz);
+  const spd=hide.locked? (4.4+hide.round*0.3) : (2.2+hide.round*0.15);
+  let ang;
+  if(hide.locked){ ang=steerToward(m.position.x,m.position.z,toAng,Math.max(1,spd*dt+0.7)); }
+  else { if(!hide.mWander || Math.hypot(m.position.x-hide.mWander.x,m.position.z-hide.mWander.z)<1.5)
+      hide.mWander={x:(Math.random()-0.5)*26, z:(Math.random()-0.5)*26};
+    const wAng=Math.atan2(hide.mWander.x-m.position.x, hide.mWander.z-m.position.z);
+    ang=steerToward(m.position.x,m.position.z,wAng,Math.max(1,spd*dt+0.7)); }
+  const np=new THREE.Vector3(m.position.x+Math.sin(ang)*spd*dt,0,m.position.z+Math.cos(ang)*spd*dt);
+  collideBody(np,0,2.0,{skipPlayerOnly:true}); m.position.set(np.x,0,np.z); m.rotation.y=ang;
+  const ud=m.userData, sw=Math.sin(clock.elapsedTime*7)*0.5; ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw;
+  // detecção: no cone de visão + perto + você se mexendo
+  const vision=10+hide.round*0.6, half=0.7;
+  const angDiff=Math.abs(((toAng-m.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI);
+  const inSight = dist<vision && angDiff<half && !pointBlocked((player.pos.x+m.position.x)/2,(player.pos.z+m.position.z)/2,0.3);
+  if(hide.caughtCool>0){ hide.caughtCool-=dt; }
+  else if(hide.locked){
+    if(dist<1.4){ hideCaught(); }
+    if(!inSight){ hide.susp-=dt*0.7; if(hide.susp<=0){ hide.susp=0; hide.locked=false; } }
+  } else {
+    if(inSight && hideMoved()){ hide.susp+=dt/1.1; if(hide.susp>=1){ hide.susp=1; hide.locked=true; roar&&roar(); showMsg('👁️ Ele te viu! CORRA e quebre a linha de visão!',2000); } }
+    else { hide.susp=Math.max(0, hide.susp-dt*0.8); }
+  }
+}
+function hideCaught(){
+  hide.lives--; tone(120,0.4,'sawtooth',0.18); hide.susp=0; hide.locked=false; hide.caughtCool=2.0;
+  // empurra o monstro pra longe
+  const a=Math.random()*6.28; hide.monster.position.set(Math.cos(a)*13,0,Math.sin(a)*13);
+  if(hide.lives<=0) hideOver(false); else showMsg('💀 Pego! Vidas: '+hide.lives,2200);
+}
+function hideUpdate(dt){
+  hideMovePlayer(dt);
+  if(hide.over) return;
+  hideUpdateMonster(dt);
+  hide.timer-=dt;
+  if(hide.timer<=0){ hide.round++; hide.timer=35; hide.susp=0; hide.locked=false;
+    tone(660,0.12,'square',0.1); setTimeout(()=>tone(990,0.12,'square',0.08),120);
+    showMsg('✅ Sobreviveu à rodada! Rodada '+hide.round+' — o caçador ficou mais esperto.',3000);
+    const a=Math.random()*6.28; hide.monster.position.set(Math.cos(a)*13,0,Math.sin(a)*13); }
+  hideUpdateHud();
+}
+function hideUpdateHud(){
+  if(document.getElementById('hideHud').classList.contains('hidden')) return;
+  const hearts='❤️'.repeat(Math.max(0,hide.lives))+'🖤'.repeat(Math.max(0,3-hide.lives));
+  document.getElementById('hideStats').innerHTML=`<span>${hearts}</span><span>🎯 Rodada <b>${hide.round}</b></span><span>⏱️ <b>${Math.ceil(hide.timer)}s</b></span>`;
+  const bar=document.getElementById('hideSusp'); if(bar){ bar.style.width=(hide.susp*100)+'%'; bar.style.background = hide.locked?'#ff3b3b':(hide.susp>0.5?'#ffd86b':'#7cff9b'); }
+  const st=document.getElementById('hideState'); if(st) st.textContent = hide.locked?'👁️ DETECTADO — fuja da visão!':(hideMoved()?'🚶 Mexendo (cuidado!)':'📦 Camuflado (parado)');
+}
+function hideOver(win){
+  if(hide.over)return; hide.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('hideOverTitle').textContent = '💀 Você foi descoberto';
+  document.getElementById('hideOverStats').innerHTML=`Você aguentou até a <b>rodada ${hide.round}</b>.<br>Quanto mais rodadas, mais esperto o caçador.`;
+  document.getElementById('hideHud').classList.add('hidden'); document.getElementById('hideOver').classList.remove('hidden');
+}
+function hideStart(){
+  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
+  spectator=false; hide=hideFresh();
+  ['modes','start','device','hideOver','death','win','porteiro','ptOver','svOver','survMenu','pzOver','trOver','ptHud','svHud','svShop','pzHud','trHud'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
+  buildHideScene();
+  staminaMax=100; player.height=1.0; player.pos.set(6,1.0,6); player.feet=0; player.yaw=Math.PI; player.pitch=0; player.stamina=100;
+  hide.lastX=player.pos.x; hide.lastZ=player.pos.z;
+  introActive=false; hiding=false; player.dead=false; qte.active=false; gameState='hide';
+  ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('hideHud').classList.remove('hidden');
+  if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
+  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  hideUpdateHud();
+  showMsg('🙈 Você é uma caixa! FIQUE PARADO pra se esconder. Se mexer na frente do monstro, ele te acha. Sobreviva!',6000);
+}
+function hideExit(){
+  hide.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('hideHud').classList.add('hidden'); document.getElementById('hideOver').classList.add('hidden');
+  document.getElementById('touch').classList.remove('on');
+  document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
+  document.getElementById('minimap').style.display = minimapOn?'block':'none';
+  player.height=1.7; gameState='menu'; clearLevel(); document.getElementById('modes').classList.remove('hidden');
+}
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -4748,7 +4907,11 @@ document.getElementById('trStop').onclick=()=>trDecide(false);
 document.getElementById('trExit').onclick=trExit;
 document.getElementById('trAgain').onclick=trStart;
 document.getElementById('trOverMenu').onclick=trExit;
-document.getElementById('modeHide').onclick=()=>showMsg('🙈 Esconde-esconde — em construção!',2000);
+// 🙈 Esconde-esconde
+document.getElementById('modeHide').onclick=hideStart;
+document.getElementById('hideExit').onclick=hideExit;
+document.getElementById('hideAgain').onclick=hideStart;
+document.getElementById('hideOverMenu').onclick=hideExit;
 document.getElementById('modeHunter').onclick=()=>showMsg('👤 Caçador co-op — em construção!',2000);
 document.getElementById('pzAgain').onclick=pzStart;
 document.getElementById('pzOverMenu').onclick=pzExit;
