@@ -3982,6 +3982,7 @@ function buildSurvivalScene(){
   scene.add(new THREE.HemisphereLight(0x9fb6e0, 0x3a4a2a, 1.1));
   sv.box=[]; if(net.role!=='client'){ for(let i=0;i<6;i++) svSpawnBox(); }
   sv.ghost=null;
+  buildNavGrid();   // 🧠 grade de navegação p/ os zumbis acharem o caminho contornando os prédios
 }
 // ponto livre na borda da cidade (não dentro de prédio) pra nascer zumbi
 function svFreeEdge(){
@@ -4232,6 +4233,7 @@ function svTarget(g){
   return {x:bx,z:bz};
 }
 function svUpdateZombies(dt){
+  navComputeField(player.pos.x, player.pos.z);   // 🧠 campo de fluxo (BFS) até o jogador, recalculado por frame
   for(let i=sv.zombies.length-1;i>=0;i--){
     const z=sv.zombies[i], g=z.group; z.t+=dt;
     const tgt=svTarget(g);
@@ -4247,7 +4249,10 @@ function svUpdateZombies(dt){
       continue; }
     if(dist>1.35){
       const look=Math.max(1.0, z.speed*dt+0.7);
-      const ang=steerToward(g.position.x,g.position.z,desired,look);
+      // 🧠 segue o caminho BFS (contorna prédios); só vai reto quando tem linha de visão livre e está perto
+      const losClear = !pointBlocked(g.position.x+Math.sin(desired)*look, g.position.z+Math.cos(desired)*look, 0.45);
+      const wp = (losClear && dist<5) ? null : navNext(g.position.x, g.position.z);
+      const ang = wp ? Math.atan2(wp.x-g.position.x, wp.z-g.position.z) : steerToward(g.position.x,g.position.z,desired,look);
       const np=new THREE.Vector3(g.position.x+Math.sin(ang)*z.speed*dt,0,g.position.z+Math.cos(ang)*z.speed*dt);
       collideBody(np,0,2.0,{skipPlayerOnly:true}); g.position.set(np.x,0,np.z);
       g.rotation.y=ang; svAnimZombie(z,true);
@@ -4758,6 +4763,7 @@ function buildHideScene(){
   hide.monster.position.set(0,0,-12); scene.add(hide.monster);
   // sua "fantasia" de caixa (te deixa igual às decoys)
   hide.prop=hideMakeCrate(0,8); walls.pop();   // sem colisor próprio (segue o player)
+  buildNavGrid();   // 🧠 o monstro usa pathfinding pra te perseguir contornando prateleiras/caixas
 }
 function hideMoved(){ const dx=player.pos.x-hide.lastX, dz=player.pos.z-hide.lastZ; return Math.hypot(dx,dz)>0.02; }
 function hideMovePlayer(dt){
@@ -4791,7 +4797,10 @@ function hideUpdateMonster(dt){
   const dx=prim.x-m.position.x, dz=prim.z-m.position.z, dist=pd, toAng=Math.atan2(dx,dz);
   const spd=hide.locked? (4.4+hide.round*0.3) : (2.2+hide.round*0.15);
   let ang;
-  if(hide.locked){ ang=steerToward(m.position.x,m.position.z,toAng,Math.max(1,spd*dt+0.7)); }
+  if(hide.locked){ navComputeField(prim.x,prim.z); const look=Math.max(1,spd*dt+0.7);
+    const losClear=!pointBlocked(m.position.x+Math.sin(toAng)*look,m.position.z+Math.cos(toAng)*look,0.45);
+    const wp=(losClear&&dist<5)?null:navNext(m.position.x,m.position.z);
+    ang = wp ? Math.atan2(wp.x-m.position.x,wp.z-m.position.z) : steerToward(m.position.x,m.position.z,toAng,look); }
   else { if(!hide.mWander || Math.hypot(m.position.x-hide.mWander.x,m.position.z-hide.mWander.z)<1.5)
       hide.mWander={x:(Math.random()-0.5)*26, z:(Math.random()-0.5)*26};
     const wAng=Math.atan2(hide.mWander.x-m.position.x, hide.mWander.z-m.position.z);
