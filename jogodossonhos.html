@@ -282,6 +282,15 @@
   #hideCross { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:20px; opacity:.5; }
   #hideExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
   #hideOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #hideOverStats b { color:#9fe8ff; }
+  /* Caçador */
+  #hunterHud { position:fixed; inset:0; z-index:7; pointer-events:none; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
+  #hunterHud.hidden { display:none; }
+  #hunterTop { position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; gap:10px; align-items:center;
+    background:rgba(10,8,16,.72); border:1px solid rgba(200,80,120,.5); border-radius:14px; padding:9px 18px; font-size:16px; font-weight:800; backdrop-filter:blur(4px); }
+  #hunterCross { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:rgba(255,255,255,.6); font-size:20px; }
+  #hunterExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
+  #hunterMpInfo { margin-top:8px; } #hunterMenu input { padding:9px 12px; border-radius:10px; border:1px solid rgba(124,92,255,.4); background:rgba(255,255,255,.06); color:#fff; outline:none; }
+  #hunterOverStats { font-size:17px; line-height:1.8; margin:14px 0; }
   /* tela de dispositivo */
   .devicebtns { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:24px 0; }
   .devbtn {
@@ -517,6 +526,35 @@
   <h1 id="hideOverTitle">💀 Você foi descoberto</h1>
   <div id="hideOverStats"></div>
   <div class="btnrow"><button id="hideAgain">🔁 Jogar de novo</button><button id="hideOverMenu" class="ghost">↩ Menu</button></div>
+</div>
+
+<!-- MENU do Caçador (co-op) -->
+<div id="hunterMenu" class="overlay hidden">
+  <h1>👤 Caçador (Co-op Versus)</h1>
+  <p>Um joga de <b>monstro</b> 👹 e o outro é o <b>fugitivo</b> 🏃 que precisa chegar na porta. Quem <b>cria a sala é o FUGITIVO</b>; quem <b>entra é o CAÇADOR</b>.</p>
+  <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:8px;">
+    <input id="hunterNick" placeholder="Seu nome" maxlength="12" autocomplete="off"/>
+  </div>
+  <div class="mp" style="margin-top:8px;">
+    <button id="hunterHostBtn" class="ghost" style="font-size:14px; padding:9px 18px;">🏃 Criar Sala (sou o fugitivo)</button>
+    <button id="hunterJoinBtn" class="ghost" style="font-size:14px; padding:9px 18px;">👹 Entrar (sou o caçador)</button>
+  </div>
+  <div id="hunterJoinRow" style="display:none; gap:8px; justify-content:center; margin-top:8px;">
+    <input id="hunterCodeInput" placeholder="CÓDIGO" maxlength="5" autocomplete="off"/>
+    <button id="hunterConnectBtn">Conectar</button>
+  </div>
+  <div id="hunterMpInfo" class="mpinfo"></div>
+  <button class="ghost" id="hunterBack" style="font-size:14px; margin-top:14px;">↩ Voltar</button>
+</div>
+<div id="hunterHud" class="hidden">
+  <div id="hunterTop"><span id="hunterRole"></span> &nbsp; <span id="hunterTimer"></span></div>
+  <div id="hunterCross">✛</div>
+  <button id="hunterExit" class="ghost">↩ Sair</button>
+</div>
+<div id="hunterOver" class="overlay hidden">
+  <h1 id="hunterOverTitle">Fim</h1>
+  <div id="hunterOverStats"></div>
+  <div class="btnrow"><button id="hunterOverMenu" class="ghost">↩ Menu</button></div>
 </div>
 
 <!-- HUD do modo Restaurante -->
@@ -1061,7 +1099,7 @@ function setupControls(){
     if(e.code==='KeyW'){ wHeld=false; forwardReleased(); }
   });
 
-  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='pizza'||gameState==='transito'||gameState==='hide') && controlMode==='pc') canvas.requestPointerLock(); });
+  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='pizza'||gameState==='transito'||gameState==='hide'||gameState==='hunter') && controlMode==='pc') canvas.requestPointerLock(); });
   canvas.addEventListener('contextmenu', e=>{ if(gameState==='survival') e.preventDefault(); });
   // 🧟 sobrevivência: clique atira (ou coloca barricada se construindo); botão direito alterna construir
   document.addEventListener('mousedown', e=>{
@@ -2471,6 +2509,8 @@ function animate(){
     updateTransito(dt);
   } else if(gameState==='hide'){
     hideUpdate(dt);
+  } else if(gameState==='hunter'){
+    updateHunter(dt);
   }
   renderer.render(scene,camera);
 }
@@ -3040,6 +3080,11 @@ function onNetData(d){
   else if(d.t==='sv_state'){ if(net.role==='client'){ sv.hp=d.hp; sv.wood=d.wood; sv.wave=d.wave; sv.kills=d.kills; sv.between=d.between;
       document.getElementById('svWave').innerHTML = d.between?('🛠️ Próxima onda em '+d.waveT+'s'):('🧟 ONDA '+d.wave); svUpdateHud(); } }
   else if(d.t==='sv_over'){ svOver(); }
+  // ---- Caçador (co-op versus) ----
+  else if(d.t==='h_begin'){ hunter=hunterFresh(); hunterEnter(); }
+  else if(d.t==='h_mon'){ net.hMon=d; }
+  else if(d.t==='h_surv'){ net.hSurv=d; }
+  else if(d.t==='h_over'){ hunterShowResult(d.winner); }
 }
 function hostAdvance(){
   if(phase>=MAX_PHASE){ netSend({t:'win'}); winGame(); return; }
@@ -4843,6 +4888,140 @@ function hideExit(){
   player.height=1.7; gameState='menu'; clearLevel(); document.getElementById('modes').classList.remove('hidden');
 }
 
+// 👤 ============ CAÇADOR (co-op versus): 1 controla o monstro, o outro foge ============
+function hunterFresh(){ return { role:'surv', over:false, timer:90, monster:null, surv:null, netT:0 }; }
+let hunter=hunterFresh();
+function buildHunterScene(){
+  clearLevel();
+  scene.background=new THREE.Color(0x0d0b16); scene.fog=new THREE.FogExp2(0x0d0b16,0.03);
+  wallMat=new THREE.MeshStandardMaterial({color:0x3a3550, roughness:0.9});
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(40,40), new THREE.MeshStandardMaterial({color:0x26233a, roughness:0.95}));
+  floor.rotation.x=-Math.PI/2; scene.add(floor);
+  const R=15; addWall(0,-R,2*R,0.6); addWall(0,R,2*R,0.6); addWall(-R,0,0.6,2*R); addWall(R,0,0.6,2*R);
+  // obstáculos fixos (cobertura) — determinísticos p/ os 2 jogadores verem igual
+  for(const [x,z,w,d] of [[-6,4,3,1],[6,4,3,1],[-6,-4,1,3],[6,-4,1,3],[0,2,1,4],[-9,-9,2,2],[9,9,2,2],[9,-9,2,2],[-9,9,2,2]]){
+    addBox(x,1.4,z,w,2.8,d,new THREE.MeshStandardMaterial({color:0x4a4560,roughness:0.9}));
+    walls.push({min:new THREE.Vector3(x-w/2,0,z-d/2),max:new THREE.Vector3(x+w/2,2.8,z+d/2)}); }
+  // PORTA de fuga (o fugitivo precisa chegar nela)
+  levelExit={x:0,z:-13}; buildExitDoor(0,-13);
+  scene.add(new THREE.HemisphereLight(0x6a6a90,0x201c2a,0.8));
+  const l=new THREE.PointLight(0xbcd0ff,1.0,40); l.position.set(0,12,0); scene.add(l);
+  // mesh do OUTRO jogador
+  if(hunter.role==='surv'){ hunter.monster=makeZombie(); hunter.monster.position.set(0,0,0); scene.add(hunter.monster); }
+  else { createRemoteAvatar(); hunter.surv=net.remoteAvatar; }
+}
+function hunterMove(dt){
+  const isHunter=hunter.role==='hunter';
+  const running=keys['ShiftLeft']||keys['ShiftRight']||autoRun;
+  let speed=isHunter?(running?6.2:4.6):(running?6.0:3.6);
+  if(!isHunter){ if(running&&(keys['KeyW']||keys['KeyS']||keys['KeyA']||keys['KeyD'])&&player.stamina>0) player.stamina=Math.max(0,player.stamina-26*dt); else player.stamina=Math.min(staminaMax,player.stamina+16*dt); if(player.stamina<=0) speed=3.0; }
+  const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  const mv=new THREE.Vector3();
+  if(keys['KeyW'])mv.add(fwd); if(keys['KeyS'])mv.sub(fwd); if(keys['KeyD'])mv.add(right); if(keys['KeyA'])mv.sub(right);
+  if(mv.lengthSq()>0) mv.normalize();
+  const next=player.pos.clone().addScaledVector(mv,speed*dt); collideBody(next,0,1.9); player.pos.copy(next);
+  const t=clock.elapsedTime, bob=(mv.lengthSq()>0)?Math.sin(t*9)*0.04:0;
+  const eyeH=isHunter?1.95:1.7;
+  camera.position.set(player.pos.x, player.feet+eyeH+bob, player.pos.z);
+  camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
+  if(playerLight){ playerLight.intensity+=((isHunter?0.4:0.9)-playerLight.intensity)*0.2; playerLight.position.set(player.pos.x,player.feet+1.6,player.pos.z); }
+  // envia a própria posição
+  hunter.netT-=dt; if(hunter.netT<=0){ hunter.netT=0.05;
+    netSend({t:isHunter?'h_mon':'h_surv', x:+player.pos.x.toFixed(2), z:+player.pos.z.toFixed(2), yaw:+player.yaw.toFixed(2)}); }
+}
+function hunterUpdateOther(dt){
+  if(hunter.role==='surv' && hunter.monster && net.hMon){
+    const m=hunter.monster; m.position.x+=(net.hMon.x-m.position.x)*Math.min(1,dt*12); m.position.z+=(net.hMon.z-m.position.z)*Math.min(1,dt*12); m.rotation.y=net.hMon.yaw||0;
+    const ud=m.userData, sw=Math.sin(clock.elapsedTime*8)*0.5; ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw;
+  }
+  if(hunter.role==='hunter' && hunter.surv && net.hSurv){
+    const a=hunter.surv; a.visible=true; a.position.x+=(net.hSurv.x-a.position.x)*Math.min(1,dt*12); a.position.z+=(net.hSurv.z-a.position.z)*Math.min(1,dt*12); a.rotation.set(0,(net.hSurv.yaw||0)+Math.PI,0);
+    const ud=a.userData, sw=Math.sin(clock.elapsedTime*9)*0.45; if(ud){ ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw; ud.armL.rotation.x=-sw; ud.armR.rotation.x=sw; }
+  }
+}
+function updateHunter(dt){
+  hunterMove(dt); hunterUpdateOther(dt); pulseDoor(clock.elapsedTime);
+  if(hunter.over) return;
+  if(hunter.role==='surv'){
+    // HOST (fugitivo) é autoritativo: decide pego / chegou na porta / tempo
+    hunter.timer-=dt;
+    const mp = net.hMon || (hunter.monster?{x:hunter.monster.position.x,z:hunter.monster.position.z}:null);
+    if(mp && Math.hypot(player.pos.x-mp.x, player.pos.z-mp.z)<1.5){ hunterEnd('hunter'); }
+    else if(Math.hypot(player.pos.x-levelExit.x, player.pos.z-levelExit.z)<2.2){ hunterEnd('surv'); }
+    else if(hunter.timer<=0){ hunterEnd('hunter'); }
+    hunterUpdateHud();
+  }
+}
+function hunterEnd(winner){
+  if(hunter.over) return; hunter.over=true;
+  netSend({t:'h_over', winner}); hunterShowResult(winner);
+}
+function hunterShowResult(winner){
+  hunter.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  const iWon = (winner==='surv' && hunter.role==='surv') || (winner==='hunter' && hunter.role==='hunter');
+  document.getElementById('hunterOverTitle').textContent = iWon?'🏆 Você venceu!':'💀 Você perdeu';
+  document.getElementById('hunterOverStats').innerHTML = winner==='surv'
+    ? '🏃 O fugitivo chegou na porta e escapou!' : '👹 O caçador pegou o fugitivo!';
+  document.getElementById('hunterHud').classList.add('hidden');
+  document.getElementById('hunterOver').classList.remove('hidden');
+}
+function hunterUpdateHud(){
+  if(document.getElementById('hunterHud').classList.contains('hidden')) return;
+  document.getElementById('hunterRole').textContent = hunter.role==='surv'?'🏃 Você é o FUGITIVO — chegue na porta azul!':'👹 Você é o CAÇADOR — pegue o fugitivo!';
+  document.getElementById('hunterTimer').textContent = hunter.role==='surv'?('⏱️ '+Math.max(0,Math.ceil(hunter.timer))+'s'):'';
+}
+function hunterEnter(){
+  spectator=false;
+  ['modes','start','device','hunterOver','death','win','porteiro','ptOver','svOver','survMenu','pzOver','trOver','hideOver','hunterMenu','ptHud','svHud','svShop','pzHud','trHud','hideHud'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
+  hunter.role = (net.role==='host')?'surv':'hunter';
+  buildHunterScene();
+  staminaMax=100; player.height=1.7; player.feet=0; player.vy=0; player.pitch=-0.04; player.stamina=100;
+  if(hunter.role==='surv'){ player.pos.set(0,1.7,12); player.yaw=0; }    // longe da porta
+  else { player.pos.set(0,1.7,-2); player.yaw=Math.PI; }                  // monstro no meio
+  introActive=false; hiding=false; player.dead=false; qte.active=false; gameState='hunter';
+  ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('hunterHud').classList.remove('hidden');
+  if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
+  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  hunterUpdateHud();
+  showMsg(hunter.role==='surv'?'🏃 FUJA até a porta azul antes do caçador te pegar!':'👹 Você é o monstro! Cace o fugitivo antes de ele escapar.',5000);
+}
+function hInfo(h){ const el=document.getElementById('hunterMpInfo'); if(el) el.innerHTML=h; }
+function hunterHost(){
+  if(typeof Peer==='undefined'){ hInfo('❌ Rede indisponível (precisa de internet).'); return; }
+  leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.nick=sanitizeNick(document.getElementById('hunterNick').value); net.role='host'; hInfo('Criando sala...');
+  const code=genCode(); net.peer=new Peer('jds-'+code, PEER_OPTS); wireVoice();
+  net.peer.on('open', ()=>{ net.id=code; hInfo('Sala criada! Código: <code>'+code+'</code><br>Você é o 🏃 FUGITIVO. Envie ao caçador e aguarde...'); });
+  net.peer.on('connection', conn=>{ wireConn(conn);
+    conn.on('open', ()=>{ hInfo('✅ Caçador entrou! Começando...'); hunter=hunterFresh(); netSend({t:'h_begin'}); try{ startVoiceCall(conn.peer); }catch(e){} hunterEnter(); }); });
+  net.peer.on('error', e=>{ if(e.type==='unavailable-id'){ try{net.peer.destroy();}catch(_){} hunterHost(); return; } hInfo('❌ Erro: '+e.type); });
+}
+function hunterConnect(){
+  const code=document.getElementById('hunterCodeInput').value.trim().toUpperCase();
+  if(code.length!==5){ hInfo('O código tem 5 caracteres.'); return; }
+  if(typeof Peer==='undefined'){ hInfo('❌ Rede indisponível.'); return; }
+  leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.nick=sanitizeNick(document.getElementById('hunterNick').value); net.role='client'; hInfo('Conectando...');
+  net.peer=new Peer(undefined, PEER_OPTS); wireVoice();
+  net.peer.on('open', ()=>{ const conn=net.peer.connect('jds-'+code,{reliable:true}); wireConn(conn);
+    conn.on('open', ()=>hInfo('✅ Conectado! Você é o 👹 CAÇADOR. Aguardando o host...')); });
+  net.peer.on('error', e=>hInfo('❌ Erro: '+e.type+' (código certo?)'));
+}
+function hunterExit(){
+  hunter.over=true;
+  if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; net.hMon=null; net.hSurv=null; net.remoteAvatar=null;
+  try{ stopVoice(); }catch(e){}
+  if(document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('hunterHud').classList.add('hidden'); document.getElementById('hunterOver').classList.add('hidden');
+  document.getElementById('touch').classList.remove('on');
+  document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
+  document.getElementById('minimap').style.display = minimapOn?'block':'none';
+  gameState='menu'; clearLevel(); document.getElementById('modes').classList.remove('hidden');
+}
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -4912,7 +5091,14 @@ document.getElementById('modeHide').onclick=hideStart;
 document.getElementById('hideExit').onclick=hideExit;
 document.getElementById('hideAgain').onclick=hideStart;
 document.getElementById('hideOverMenu').onclick=hideExit;
-document.getElementById('modeHunter').onclick=()=>showMsg('👤 Caçador co-op — em construção!',2000);
+// 👤 Caçador (co-op versus)
+document.getElementById('modeHunter').onclick=()=>{ document.getElementById('modes').classList.add('hidden'); document.getElementById('hunterMenu').classList.remove('hidden'); document.getElementById('hunterJoinRow').style.display='none'; };
+document.getElementById('hunterHostBtn').onclick=hunterHost;
+document.getElementById('hunterJoinBtn').onclick=()=>{ document.getElementById('hunterJoinRow').style.display='flex'; hInfo('Digite o código do fugitivo e clique Conectar.'); };
+document.getElementById('hunterConnectBtn').onclick=hunterConnect;
+document.getElementById('hunterBack').onclick=()=>{ document.getElementById('hunterMenu').classList.add('hidden'); document.getElementById('modes').classList.remove('hidden'); };
+document.getElementById('hunterExit').onclick=hunterExit;
+document.getElementById('hunterOverMenu').onclick=hunterExit;
 document.getElementById('pzAgain').onclick=pzStart;
 document.getElementById('pzOverMenu').onclick=pzExit;
 // menu Sobrevivência
