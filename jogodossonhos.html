@@ -202,6 +202,7 @@
   .svbig.shoot { background:linear-gradient(160deg,#ff6d5b,#c8384a); }
   .svbig.build { background:linear-gradient(160deg,#5b9fe0,#2f6fb0); }
   .svbig.build.on { background:linear-gradient(160deg,#7cff9b,#2aa85f); }
+  .svbig.weap { background:linear-gradient(160deg,#8a7adf,#5b4aa8); width:62px; height:62px; font-size:24px; }
   .svbig:active { transform:translateY(2px); }
   #svExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
   #svFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .1s; }
@@ -457,6 +458,7 @@
   <div id="svCross">✛</div>
   <div id="svBuildTip"></div>
   <div id="svBtns">
+    <button id="svWeapBtn" class="svbig weap">🔫</button>
     <button id="svShootBtn" class="svbig shoot">🔫</button>
     <button id="svBuildBtn" class="svbig build">🔨</button>
   </div>
@@ -3802,7 +3804,7 @@ function svMakeGunModel(id){
 }
 function svSetWeaponView(id){
   if(sv.weaponView){ scene.remove(sv.weaponView); disposeObj(sv.weaponView); }
-  const g=svMakeGunModel(id); scene.add(g); sv.weaponView=g;
+  const g=svMakeGunModel(id); g.scale.setScalar(1.2); scene.add(g); sv.weaponView=g;
 }
 function svEquip(id){ if(!sv.owned.includes(id)) return;
   sv.weapon=id; svSetWeaponView(id); svUpdateHud(); if(sv.shopOpen) svRenderShop(); tone(700,0.06,'square',0.07); }
@@ -4025,7 +4027,7 @@ function svMovePlayer(dt){
   // 🔫 arma em primeira pessoa: presa à câmera (com coice + leve balanço ao andar)
   if(sv.weaponView){ sv.viewKick=Math.max(0,(sv.viewKick||0)-dt*4.5);
     const sway=(move.lengthSq()>0&&player.onGround)?Math.sin(t*9)*0.012:0;
-    const off=new THREE.Vector3(0.26, -0.23+sway, -0.5+(sv.viewKick||0)*0.16);
+    const off=new THREE.Vector3(0.22, -0.2+sway, -0.55+(sv.viewKick||0)*0.16);
     off.applyQuaternion(camera.quaternion);
     sv.weaponView.position.copy(camera.position).add(off);
     sv.weaponView.quaternion.copy(camera.quaternion);
@@ -4056,9 +4058,10 @@ function svUpdateHud(){
     `<span class="kills">🧟 Kills: ${sv.kills}</span>`+
     `<span>🔫 Arma: ${W.ic} ${W.name}</span>`+
     `<span>🛡️ Barricadas: ${sv.barr.length}</span>`;
+  const wb=document.getElementById('svWeapBtn'); if(wb) wb.textContent=W.ic;
   document.getElementById('svBuildTip').innerHTML = sv.building
     ? `🔨 <b>Construindo</b> — mire e toque 🧱 pra colocar (custa ${SV_WALL_COST} 🪵) · B sai`
-    : `🪵 caixas = madeira · 🔨/B construir · 🖱️ atirar · 🛒 loja · 1-4/roda troca arma`;
+    : `🪵 caixas = madeira · 🔨/B construir · 🖱️ atirar · 🛒 loja · 🔄 troca arma (ou 1-4/roda)`;
   if(sv.shopOpen) svRenderShop();
 }
 // 🛒 LOJA DE ARMAS — preço em kills
@@ -4262,6 +4265,7 @@ document.getElementById('survBack').onclick=()=>{
 // HUD Sobrevivência
 document.getElementById('svShootBtn').onclick=()=>{ if(sv.building) svPlaceWall(); else svFire(); };
 document.getElementById('svBuildBtn').onclick=svToggleBuild;
+document.getElementById('svWeapBtn').onclick=()=>svCycleWeapon(1);   // 🔄 trocar de arma (toque/clique)
 document.getElementById('svShopBtn').onclick=svOpenShop;
 document.getElementById('svShopClose').onclick=svCloseShop;
 document.getElementById('svExit').onclick=svExit;
