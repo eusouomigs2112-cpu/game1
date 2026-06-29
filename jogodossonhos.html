@@ -180,6 +180,34 @@
   #ptFlash.bad  { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.6); opacity:1; }
   #ptOverStats { font-size:16px; line-height:1.9; margin:14px 0; }
   #ptOverStats b { color:#aef0ff; }
+  /* modo Sobrevivência */
+  #svHud { position:fixed; inset:0; z-index:7; pointer-events:none; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
+  #svHud.hidden { display:none; }
+  #svStats { position:absolute; top:14px; left:14px; display:flex; flex-direction:column; gap:6px;
+    background:rgba(10,8,16,.72); border:1px solid rgba(120,200,120,.4); border-radius:14px; padding:11px 16px;
+    font-size:15px; font-weight:700; backdrop-filter:blur(4px); min-width:180px; }
+  #svStats .bar { height:12px; border-radius:6px; background:rgba(255,255,255,.15); overflow:hidden; margin-top:2px; }
+  #svStats .bar > i { display:block; height:100%; background:linear-gradient(90deg,#ff5d6d,#ff9b5b); }
+  #svStats .wood { color:#d6b06a; } #svStats .kills { color:#9fe8ff; }
+  #svWave { position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    background:rgba(10,8,16,.72); border:1px solid rgba(200,80,80,.5); border-radius:12px; padding:8px 18px;
+    font-size:16px; font-weight:800; text-align:center; backdrop-filter:blur(4px); }
+  #svCross { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:rgba(255,255,255,.8);
+    font-size:24px; text-shadow:0 0 4px #000; }
+  #svBuildTip { position:absolute; left:50%; bottom:120px; transform:translateX(-50%); text-align:center;
+    font-size:14px; opacity:.9; text-shadow:0 1px 6px #000; max-width:90vw; }
+  #svBtns { position:absolute; right:18px; bottom:24px; display:flex; gap:14px; }
+  .svbig { pointer-events:auto; width:74px; height:74px; border-radius:50%; border:none; font-size:30px; cursor:pointer;
+    color:#fff; box-shadow:0 6px 16px rgba(0,0,0,.5); }
+  .svbig.shoot { background:linear-gradient(160deg,#ff6d5b,#c8384a); }
+  .svbig.build { background:linear-gradient(160deg,#5b9fe0,#2f6fb0); }
+  .svbig.build.on { background:linear-gradient(160deg,#7cff9b,#2aa85f); }
+  .svbig:active { transform:translateY(2px); }
+  #svExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
+  #svFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .1s; }
+  #svFlash.hurt { box-shadow:inset 0 0 170px 60px rgba(220,30,40,.6); opacity:1; }
+  #svOverStats { font-size:16px; line-height:1.9; margin:14px 0; }
+  #svOverStats b { color:#9fe8ff; }
   /* tela de dispositivo */
   .devicebtns { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:24px 0; }
   .devbtn {
@@ -359,8 +387,36 @@
       <div class="ic">👁️</div><div class="lb">ESPECTADOR</div>
       <div class="ds">Explore os 25 mundos com calma — o monstro não te pega</div>
     </div>
+    <div class="devbtn" id="modeSurvival">
+      <div class="ic">🧟</div><div class="lb">SOBREVIVÊNCIA</div>
+      <div class="ds">Fim do mundo com zumbis — colete recursos, construa uma base e resista às ondas</div>
+    </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
+</div>
+
+<!-- HUD do modo Sobrevivência -->
+<div id="svHud" class="hidden">
+  <div id="svStats"></div>
+  <div id="svWave"></div>
+  <div id="svCross">✛</div>
+  <div id="svBuildTip"></div>
+  <div id="svBtns">
+    <button id="svShootBtn" class="svbig shoot">🔫</button>
+    <button id="svBuildBtn" class="svbig build">🔨</button>
+  </div>
+  <div id="svFlash"></div>
+  <button id="svExit" class="ghost">↩ Sair</button>
+</div>
+
+<!-- Tela de fim do modo Sobrevivência -->
+<div id="svOver" class="overlay hidden">
+  <h1 id="svOverTitle">💀 Você foi devorado</h1>
+  <div id="svOverStats"></div>
+  <div class="btnrow">
+    <button id="svAgain">🔁 Jogar de novo</button>
+    <button id="svOverMenu" class="ghost">↩ Menu</button>
+  </div>
 </div>
 
 <!-- MENU do modo Porteiro (escolha sozinho / co-op) -->
@@ -799,6 +855,7 @@ function setupControls(){
     if(e.code==='KeyE'){ if(gameState==='porteiro') ptDecide(true); else interact(); }   // 🚪 porteiro: E = deixar entrar
     if(e.code==='KeyQ' && gameState==='porteiro') ptDecide(false);                       // 🚪 porteiro: Q = fechar portão
     if(e.code==='KeyC' && gameState==='porteiro') ptPhone();                             // 📞 porteiro: C = ligar pra casa
+    if(e.code==='KeyB' && gameState==='survival') svToggleBuild();                       // 🧟 sobrevivência: B = construir
     if(e.code==='KeyF'){ if(flashBat>0 && gameState!=='porteiro') flashOn=!flashOn; }     // 🔦 lanterna
     if(e.code==='KeyM'){ minimapOn=!minimapOn; const mm=document.getElementById('minimap'); if(mm) mm.style.display=minimapOn?'block':'none'; } // 🗺️
     if(e.code==='KeyW' && !wHeld){ wHeld=true; forwardPressed(); }  // 2x W = correr
@@ -809,7 +866,14 @@ function setupControls(){
     if(e.code==='KeyW'){ wHeld=false; forwardReleased(); }
   });
 
-  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro') && controlMode==='pc') canvas.requestPointerLock(); });
+  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival') && controlMode==='pc') canvas.requestPointerLock(); });
+  canvas.addEventListener('contextmenu', e=>{ if(gameState==='survival') e.preventDefault(); });
+  // 🧟 sobrevivência: clique atira (ou coloca barricada se construindo); botão direito alterna construir
+  document.addEventListener('mousedown', e=>{
+    if(gameState!=='survival' || document.pointerLockElement!==canvas) return;
+    if(e.button===0){ if(sv.building) svPlaceWall(); else svShoot(); }
+    else if(e.button===2){ svToggleBuild(); }
+  });
 
   document.addEventListener('mousemove', e=>{
     if(introActive) return;                       // trava o olhar durante a intro
@@ -2201,6 +2265,8 @@ function animate(){
     drawMinimap();
   } else if(gameState==='porteiro'){
     updatePorteiro(dt);
+  } else if(gameState==='survival'){
+    updateSurvival(dt);
   }
   renderer.render(scene,camera);
 }
@@ -3375,6 +3441,263 @@ function ptAgain(){
   else ptStartSolo();
 }
 
+// 🧟 ============ SOBREVIVÊNCIA — APOCALIPSE ZUMBI ============
+// Fim do mundo: ondas de zumbis te perseguem. Colete madeira (🪵), construa
+// barricadas (B) pra fazer sua base e atire (🖱️) pra sobreviver o máximo de ondas.
+const SV_WALL_COST=15;
+function svFresh(){ return { hp:100, wood:30, wave:0, kills:0, zombies:[], box:[], barr:[],
+  over:false, building:false, ghost:null, between:false, waveT:0, shootCool:0,
+  fire:null, flame:null }; }
+let sv=svFresh();
+
+function makeZombie(){
+  const g=new THREE.Group();
+  const skin=new THREE.MeshStandardMaterial({color:0x6f8a5a, roughness:0.85});
+  const cloth=new THREE.MeshStandardMaterial({color:[0x33384a,0x4a3030,0x2a3a2a,0x3a3540][(Math.random()*4)|0], roughness:0.9});
+  const dark=new THREE.MeshStandardMaterial({color:0x161616});
+  const legL=ptLimb(g,cloth,-0.13,0.82,0,0.12,0.82), legR=ptLimb(g,cloth,0.13,0.82,0,0.12,0.82);
+  [-0.13,0.13].forEach(x=>{ const s=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.12,0.34),dark); s.position.set(x,0.06,0.07); g.add(s); });
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(0.52,0.7,0.3),cloth); torso.position.y=1.2; g.add(torso);
+  const hand=()=>new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8),skin);
+  const armL=ptLimb(g,cloth,-0.34,1.46,0,0.09,0.66,hand()), armR=ptLimb(g,cloth,0.34,1.46,0,0.09,0.66,hand());
+  armL.rotation.x=-1.3; armR.rotation.x=-1.3;   // braços esticados pra frente
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,14,14),skin); head.scale.set(1,1.1,1); head.position.y=1.86; g.add(head);
+  const eye=new THREE.MeshStandardMaterial({color:0xff3020, emissive:0xff1500, emissiveIntensity:1.6});
+  [-0.08,0.08].forEach(x=>{ const e=new THREE.Mesh(new THREE.SphereGeometry(0.04,8,8),eye); e.position.set(x,1.9,0.18); g.add(e); });
+  g.userData={legL,legR,armL,armR};
+  return g;
+}
+function buildSurvivalScene(){
+  clearLevel();
+  scene.background=new THREE.Color(0x140f0c);
+  scene.fog=new THREE.FogExp2(0x140f0c, 0.028);
+  wallMat=new THREE.MeshStandardMaterial({color:0x5a5048, roughness:0.9});
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(140,140), new THREE.MeshStandardMaterial({color:0x2e251c, roughness:1}));
+  ground.rotation.x=-Math.PI/2; scene.add(ground);
+  // muro perimetral (limita a arena)
+  const R=24, peri=new THREE.MeshStandardMaterial({color:0x2a2622, roughness:0.95});
+  addBox(0,2,-R,2*R,4,1,peri); addBox(0,2,R,2*R,4,1,peri); addBox(-R,2,0,1,4,2*R,peri); addBox(R,2,0,1,4,2*R,peri);
+  walls.push({min:new THREE.Vector3(-R,0,-R-0.6),max:new THREE.Vector3(R,4,-R+0.6)});
+  walls.push({min:new THREE.Vector3(-R,0,R-0.6),max:new THREE.Vector3(R,4,R+0.6)});
+  walls.push({min:new THREE.Vector3(-R-0.6,0,-R),max:new THREE.Vector3(-R+0.6,4,R)});
+  walls.push({min:new THREE.Vector3(R-0.6,0,-R),max:new THREE.Vector3(R+0.6,4,R)});
+  // ruínas (obstáculos + clima pós-apocalíptico)
+  const ruin=new THREE.MeshStandardMaterial({color:0x3a342c, roughness:0.95});
+  const spots=[[-11,-8,3,5,3],[10,-12,4,7,4],[-14,9,5,4,3],[13,11,3,6,5],[7,5,2,3,2],[-7,-3,2,4,2],[2,-15,3,5,3]];
+  for(const [x,z,w,h,d] of spots){ addBox(x,h/2,z,w,h,d,ruin);
+    walls.push({min:new THREE.Vector3(x-w/2,0,z-d/2),max:new THREE.Vector3(x+w/2,h,z+d/2)}); }
+  // fogueira central (ponto de luz da base)
+  addBox(0,0.2,0,1.2,0.4,1.2,new THREE.MeshStandardMaterial({color:0x201510}));
+  sv.flame=new THREE.Mesh(new THREE.ConeGeometry(0.42,0.95,8),new THREE.MeshStandardMaterial({color:0xff6a1a,emissive:0xff5500,emissiveIntensity:1.6}));
+  sv.flame.position.set(0,0.85,0); scene.add(sv.flame);
+  sv.fire=new THREE.PointLight(0xff8030,2.6,22,1.3); sv.fire.position.set(0,1.4,0); scene.add(sv.fire);
+  const moon=new THREE.PointLight(0x9aa6d0,1.4,90); moon.position.set(0,28,6); scene.add(moon);
+  scene.add(new THREE.HemisphereLight(0x6a6a90, 0x241a12, 0.8));
+  // caixas de recurso iniciais
+  sv.box=[]; for(let i=0;i<6;i++) svSpawnBox();
+  sv.ghost=null;
+}
+function svSpawnBox(){
+  const a=Math.random()*6.28, r=6+Math.random()*14, x=Math.cos(a)*r, z=Math.sin(a)*r;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.7,0.7),
+    new THREE.MeshStandardMaterial({color:0x9a6a32, roughness:0.8, emissive:0x3a2a10, emissiveIntensity:0.5}));
+  m.position.set(x,0.35,z); scene.add(m); sv.box.push({mesh:m,x,z});
+}
+function svSpawnZombie(){
+  const a=Math.random()*6.28, r=22, x=Math.cos(a)*r, z=Math.sin(a)*r;
+  const g=makeZombie(); g.position.set(x,0,z); scene.add(g);
+  const speed=Math.min(4.2, 1.5+sv.wave*0.12+Math.random()*0.4);
+  sv.zombies.push({group:g, hp:2+Math.floor(sv.wave/3), speed, atk:0, t:Math.random()*6});
+}
+function svStartWave(){
+  sv.wave++; sv.between=false;
+  const n=4+sv.wave*2;
+  for(let i=0;i<n;i++) svSpawnZombie();
+  showMsg('🧟 ONDA '+sv.wave+'! '+n+' zumbis chegando...',3000);
+  tone(80,0.6,'sawtooth',0.12);
+  document.getElementById('svWave').innerHTML='🧟 ONDA '+sv.wave;
+}
+function svBetweenWaves(){
+  sv.between=true; sv.waveT=14; sv.wood+=10;
+  for(let i=0;i<3;i++) svSpawnBox();
+  showMsg('✅ Onda '+sv.wave+' resistida! +10 🪵. Reforce a base!',3500);
+  tone(660,0.12,'square',0.1); setTimeout(()=>tone(990,0.12,'square',0.08),120);
+}
+function svFlash(){ const f=document.getElementById('svFlash'); if(!f) return;
+  f.className='hurt'; setTimeout(()=>{ f.className=''; },140); }
+function svHurt(d){ if(sv.over) return; sv.hp-=d; svFlash(); tone(140,0.16,'sawtooth',0.12);
+  if(sv.hp<=0){ sv.hp=0; svOver(); } svUpdateHud(); }
+function svKill(z){ scene.remove(z.group); disposeObj(z.group);
+  sv.zombies=sv.zombies.filter(o=>o!==z); sv.kills++; sv.wood+=5;
+  tone(120,0.16,'sawtooth',0.1); svUpdateHud(); }
+function svMuzzle(){ if(playerLight) playerLight.intensity=3.2; }
+function svShoot(){
+  if(sv.over || sv.building || sv.shootCool>0) return;
+  sv.shootCool=0.3; svMuzzle();
+  tone(330,0.05,'square',0.13); setTimeout(()=>tone(170,0.05,'square',0.07),35);
+  const fx=-Math.sin(player.yaw), fz=-Math.cos(player.yaw);
+  let best=null, bestD=1e9;
+  for(const z of sv.zombies){ const dx=z.group.position.x-player.pos.x, dz=z.group.position.z-player.pos.z;
+    const d=Math.hypot(dx,dz); if(d>34) continue; const dot=(dx*fx+dz*fz)/(d||1);
+    if(dot>0.965 && d<bestD){ best=z; bestD=d; } }   // mira central (~15°)
+  if(best){ best.hp--; tone(900,0.04,'square',0.06);
+    if(best.hp<=0) svKill(best); }
+}
+function svCollect(){
+  for(let i=sv.box.length-1;i>=0;i--){ const b=sv.box[i];
+    if(Math.hypot(player.pos.x-b.x,player.pos.z-b.z)<1.5){ scene.remove(b.mesh); disposeObj(b.mesh);
+      sv.box.splice(i,1); sv.wood+=20; tone(700,0.07,'sine',0.08); setTimeout(()=>tone(980,0.06,'sine',0.06),60);
+      showMsg('🪵 +20 madeira',1100); svUpdateHud(); } }
+}
+// ---- construção de barricadas ----
+function svMakeGhost(){ const m=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.6,0.3),
+  new THREE.MeshStandardMaterial({color:0x66ff99, transparent:true, opacity:0.4})); scene.add(m); sv.ghost=m; }
+function svGhostPos(){ const fx=-Math.sin(player.yaw), fz=-Math.cos(player.yaw);
+  return { x:Math.round(player.pos.x+fx*2.4), z:Math.round(player.pos.z+fz*2.4) }; }
+function svHoriz(){ return Math.abs(Math.sin(player.yaw))<0.5; }   // parede perpendicular ao olhar
+function svOccupied(x,z){ return sv.barr.some(b=>Math.abs(b.x-x)<0.7&&Math.abs(b.z-z)<0.7); }
+function svToggleBuild(){
+  sv.building=!sv.building;
+  document.getElementById('svBuildBtn').classList.toggle('on',sv.building);
+  document.getElementById('svShootBtn').textContent = sv.building?'🧱':'🔫';
+  if(sv.building){ if(!sv.ghost) svMakeGhost(); sv.ghost.visible=true; }
+  else if(sv.ghost) sv.ghost.visible=false;
+  svUpdateHud();
+}
+function svUpdateBuild(){
+  if(!sv.building||!sv.ghost) return;
+  const p=svGhostPos(); sv.ghost.position.set(p.x,0.8,p.z);
+  sv.ghost.rotation.y = svHoriz()?0:Math.PI/2;
+  const ok = sv.wood>=SV_WALL_COST && !svOccupied(p.x,p.z);
+  sv.ghost.material.color.setHex(ok?0x66ff99:0xff5555);
+}
+function svPlaceWall(){
+  if(!sv.building) return;
+  const p=svGhostPos();
+  if(sv.wood<SV_WALL_COST){ showMsg('🪵 Madeira insuficiente (precisa '+SV_WALL_COST+')',1600); return; }
+  if(svOccupied(p.x,p.z)) return;
+  sv.wood-=SV_WALL_COST;
+  const horiz=svHoriz(), w=horiz?1.6:0.3, d=horiz?0.3:1.6;
+  const mesh=addBox(p.x,0.8,p.z,w,1.6,d,new THREE.MeshStandardMaterial({color:0x7a5532, roughness:0.85}));
+  const wall={min:new THREE.Vector3(p.x-w/2,0,p.z-d/2),max:new THREE.Vector3(p.x+w/2,1.6,p.z+d/2)};
+  walls.push(wall); sv.barr.push({mesh,x:p.x,z:p.z,hp:120,wall});
+  tone(200,0.1,'square',0.08); svUpdateHud();
+}
+function svRemoveBarr(b){ scene.remove(b.mesh); disposeObj(b.mesh);
+  walls=walls.filter(w=>w!==b.wall); sv.barr=sv.barr.filter(o=>o!==b); tone(80,0.2,'sawtooth',0.1); }
+function svAnimZombie(z,walking){ const ud=z.group.userData;
+  const sw=Math.sin(z.t*(walking?7:11))*(walking?0.5:0.3);
+  ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw;
+  ud.armL.rotation.x=-1.3+Math.sin(z.t*6)*0.18; ud.armR.rotation.x=-1.3-Math.sin(z.t*6)*0.18; }
+function svUpdateZombies(dt){
+  for(let i=sv.zombies.length-1;i>=0;i--){
+    const z=sv.zombies[i], g=z.group; z.t+=dt;
+    const dx=player.pos.x-g.position.x, dz=player.pos.z-g.position.z, dist=Math.hypot(dx,dz);
+    const desired=Math.atan2(dx,dz);
+    // barricada no caminho? (bate nela)
+    let bash=null, bd=1e9;
+    for(const b of sv.barr){ const bdx=b.x-g.position.x, bdz=b.z-g.position.z, d=Math.hypot(bdx,bdz);
+      if(d<1.3 && d<bd && (bdx*dx+bdz*dz)>0){ bash=b; bd=d; } }
+    if(bash){ g.rotation.y=desired; svAnimZombie(z,false);
+      z.atk-=dt; if(z.atk<=0){ z.atk=0.6; bash.hp-=14; tone(90,0.07,'square',0.05);
+        if(bash.hp<=0){ svRemoveBarr(bash); showMsg('🛑 Uma barricada caiu!',1500); } }
+      continue; }
+    if(dist>1.35){
+      const look=Math.max(1.0, z.speed*dt+0.7);
+      const ang=steerToward(g.position.x,g.position.z,desired,look);
+      const np=new THREE.Vector3(g.position.x+Math.sin(ang)*z.speed*dt,0,g.position.z+Math.cos(ang)*z.speed*dt);
+      collideBody(np,0,2.0,{skipPlayerOnly:true}); g.position.set(np.x,0,np.z);
+      g.rotation.y=ang; svAnimZombie(z,true);
+    } else {
+      g.rotation.y=desired; svAnimZombie(z,false);
+      z.atk-=dt; if(z.atk<=0){ z.atk=1.0; svHurt(8+Math.floor(sv.wave/2)); }
+    }
+  }
+  if(!sv.between && sv.wave>0 && sv.zombies.length===0) svBetweenWaves();
+}
+function svMovePlayer(dt){
+  const running = keys['ShiftLeft']||keys['ShiftRight']||autoRun;
+  let speed = running?6.2:3.6;
+  if(running && (keys['KeyW']||keys['KeyS']||keys['KeyA']||keys['KeyD']) && player.stamina>0) player.stamina=Math.max(0,player.stamina-26*dt);
+  else player.stamina=Math.min(staminaMax,player.stamina+16*dt);
+  if(player.stamina<=0) speed=3.0;
+  const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  const move=new THREE.Vector3();
+  if(keys['KeyW'])move.add(fwd); if(keys['KeyS'])move.sub(fwd); if(keys['KeyD'])move.add(right); if(keys['KeyA'])move.sub(right);
+  if(move.lengthSq()>0) move.normalize();
+  const next=player.pos.clone().addScaledVector(move,speed*dt); collideBody(next,0,1.95); player.pos.copy(next);
+  const t=clock.elapsedTime, bob=(move.lengthSq()>0)?Math.sin(t*9)*0.04:0;
+  camera.position.set(player.pos.x, player.feet+player.height+bob, player.pos.z);
+  camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
+  if(playerLight){ playerLight.intensity += (1.0-playerLight.intensity)*0.12; playerLight.position.set(player.pos.x,player.feet+1.6,player.pos.z); }
+  if(move.lengthSq()>0){ stepTime-=dt; if(stepTime<=0){ tone(150,0.05,'square',0.03); stepTime=running?0.3:0.45; } }
+}
+function updateSurvival(dt){
+  svMovePlayer(dt);
+  if(sv.over) return;
+  sv.shootCool-=dt;
+  svCollect(); svUpdateZombies(dt); svUpdateBuild();
+  if(sv.between){ sv.waveT-=dt;
+    document.getElementById('svWave').innerHTML='🛠️ Próxima onda em '+Math.max(0,Math.ceil(sv.waveT))+'s';
+    if(sv.waveT<=0) svStartWave(); }
+  if(sv.flame) sv.flame.scale.y=0.85+Math.sin(clock.elapsedTime*12)*0.15;
+  if(sv.fire) sv.fire.intensity=2.0+Math.sin(clock.elapsedTime*9)*0.4;
+}
+function svUpdateHud(){
+  if(document.getElementById('svHud').classList.contains('hidden')) return;
+  document.getElementById('svStats').innerHTML=
+    `❤️ Vida <div class="bar"><i style="width:${Math.max(0,sv.hp)}%"></i></div>`+
+    `<span class="wood">🪵 Madeira: ${sv.wood}</span>`+
+    `<span class="kills">🧟 Mortos: ${sv.kills}</span>`+
+    `<span>🛡️ Barricadas: ${sv.barr.length}</span>`;
+  document.getElementById('svBuildTip').innerHTML = sv.building
+    ? `🔨 <b>Construindo</b> — mire e toque 🧱 pra colocar (custa ${SV_WALL_COST} 🪵) · B sai`
+    : `🪵 ande sobre as caixas pra coletar · 🔨/B construir · 🖱️ atirar`;
+}
+function svOver(){
+  if(sv.over) return; sv.over=true;
+  if(document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('svOverStats').innerHTML=
+    `Você resistiu até a <b>onda ${sv.wave}</b>.<br>`+
+    `🧟 Zumbis eliminados: <b>${sv.kills}</b><br>`+
+    `🛡️ Barricadas de pé: <b>${sv.barr.length}</b> · 🪵 Madeira: <b>${sv.wood}</b>`;
+  document.getElementById('svHud').classList.add('hidden');
+  document.getElementById('svOver').classList.remove('hidden');
+}
+function svStart(){
+  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
+  spectator=false; sv=svFresh();
+  ['modes','start','device','svOver','death','win','porteiro','ptOver'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  document.getElementById('ptHud').classList.add('hidden');
+  initAudio(); if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+  buildSurvivalScene();
+  staminaMax=100; player.height=1.7; player.pos.set(0,1.7,5); player.feet=0; player.vy=0;
+  player.crouch=false; player.yaw=0; player.pitch=-0.04; player.stamina=100;
+  introActive=false; hiding=false; player.dead=false; qte.active=false; gameState='survival';
+  ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('svHud').classList.remove('hidden');
+  document.getElementById('svShootBtn').textContent='🔫';
+  document.getElementById('svBuildBtn').classList.remove('on');
+  if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
+  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  svUpdateHud();
+  showMsg('🧟 O fim do mundo chegou! Colete 🪵, construa barricadas (B) e atire. Sobreviva!',5000);
+  sv.between=true; sv.waveT=10;
+  document.getElementById('svWave').innerHTML='🛠️ Prepare-se...';
+}
+function svExit(){
+  sv.over=true;
+  if(document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('svHud').classList.add('hidden');
+  document.getElementById('svOver').classList.add('hidden');
+  document.getElementById('touch').classList.remove('on');
+  document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
+  document.getElementById('minimap').style.display = minimapOn?'block':'none';
+  gameState='menu'; clearLevel();
+  document.getElementById('modes').classList.remove('hidden');
+}
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -3424,6 +3747,13 @@ document.getElementById('modePorteiro').onclick=()=>{
   document.getElementById('ptCoopPanel').style.display='none';
 };
 document.getElementById('modeSpec').onclick=startSpectator;
+document.getElementById('modeSurvival').onclick=svStart;
+// modo Sobrevivência
+document.getElementById('svShootBtn').onclick=()=>{ if(sv.building) svPlaceWall(); else svShoot(); };
+document.getElementById('svBuildBtn').onclick=svToggleBuild;
+document.getElementById('svExit').onclick=svExit;
+document.getElementById('svAgain').onclick=svStart;
+document.getElementById('svOverMenu').onclick=svExit;
 // menu Porteiro
 document.getElementById('ptStartSolo').onclick=ptStartSolo;
 document.getElementById('ptStartCoop').onclick=()=>{
