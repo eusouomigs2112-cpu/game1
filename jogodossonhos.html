@@ -232,32 +232,22 @@
   .witem .no { color:#ff8a8a; font-weight:700; font-size:13px; }
   #svShopClose { margin-top:8px; font-size:16px; font-weight:800; padding:11px 26px; border:none; border-radius:12px;
     cursor:pointer; color:#10131f; background:#ffd86b; }
-  /* modo Pizzaria */
+  /* modo Restaurante */
   #pzHud { position:fixed; inset:0; z-index:7; pointer-events:none; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
   #pzHud.hidden { display:none; }
   #pzStats { position:absolute; top:14px; left:14px; display:flex; flex-direction:column; gap:5px;
     background:rgba(10,8,20,.72); border:1px solid rgba(255,180,90,.4); border-radius:14px; padding:10px 15px;
     font-size:15px; font-weight:700; backdrop-filter:blur(4px); }
-  #pzOrderBox { position:absolute; top:14px; left:50%; transform:translateX(-50%); text-align:center;
-    background:rgba(10,8,20,.78); border:2px solid rgba(255,180,90,.55); border-radius:16px; padding:10px 20px; backdrop-filter:blur(4px); }
-  #pzOrderLbl { font-size:13px; opacity:.8; }
-  #pzOrder { font-size:24px; font-weight:800; line-height:1.1; min-height:30px; }
-  #pzRecipe { font-size:14px; opacity:.92; margin-top:4px; color:#ffd86b; }
-  .pzitem .lb { display:block; font-size:10px; font-weight:700; opacity:.85; margin-top:-2px; }
-  #pzPatWrap { height:8px; border-radius:5px; background:rgba(255,255,255,.15); overflow:hidden; margin-top:6px; }
-  #pzPat { height:100%; width:100%; background:linear-gradient(90deg,#7cff9b,#ffd86b,#ff5d6d); }
-  #pzCenter { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); width:min(94vw,560px); text-align:center; pointer-events:none; }
-  #pzTrayLbl { font-size:13px; opacity:.8; text-shadow:0 1px 5px #000; }
-  #pzTray { font-size:34px; min-height:44px; letter-spacing:4px; text-shadow:0 2px 8px #000;
-    background:rgba(10,8,20,.5); border-radius:12px; margin:4px 0 10px; }
-  #pzMenuBtns { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
-  .pzitem { pointer-events:auto; font-size:26px; width:62px; height:62px; border-radius:14px; cursor:pointer; border:2px solid rgba(255,255,255,.25);
-    background:rgba(40,32,60,.92); box-shadow:0 4px 12px rgba(0,0,0,.5); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; line-height:1; }
-  .pzitem:active { transform:translateY(2px); }
-  #pzActions { display:flex; gap:14px; justify-content:center; margin-top:12px; }
-  #pzActions button { pointer-events:auto; font-size:17px; font-weight:800; padding:12px 22px; border:none; border-radius:13px; cursor:pointer; color:#fff; }
-  #pzDeliver { background:linear-gradient(90deg,#3ad07a,#2aa85f); }
-  #pzExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
+  #pzMenuCard { position:absolute; top:14px; right:14px; max-width:230px; font-size:12px; line-height:1.5;
+    background:rgba(10,8,20,.72); border:1px solid rgba(255,180,90,.4); border-radius:14px; padding:10px 13px; backdrop-filter:blur(4px); }
+  #pzMenuCard h4 { margin:0 0 5px; font-size:12px; color:#ffd86b; letter-spacing:.5px; }
+  #pzCross { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:rgba(255,255,255,.7); font-size:22px; text-shadow:0 0 4px #000; }
+  #pzCenterBox { position:absolute; left:50%; bottom:24px; transform:translateX(-50%); width:min(94vw,540px); text-align:center; }
+  #pzTrayLbl { font-size:13px; opacity:.85; text-shadow:0 1px 5px #000; }
+  #pzTray { font-size:32px; min-height:42px; letter-spacing:4px; text-shadow:0 2px 8px #000;
+    background:rgba(10,8,20,.5); border-radius:12px; margin:4px 0 8px; }
+  #pzHint { font-size:16px; font-weight:800; min-height:24px; text-shadow:0 2px 8px #000; color:#aef0ff; }
+  #pzExit { position:absolute; top:14px; right:250px; pointer-events:auto; font-size:13px; padding:8px 14px; }
   #pzFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .12s; }
   #pzFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.5); opacity:1; }
   #pzFlash.bad  { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.55); opacity:1; }
@@ -453,23 +443,15 @@
   <button class="ghost" id="modesBack">↩ Voltar</button>
 </div>
 
-<!-- HUD do modo Pizzaria -->
+<!-- HUD do modo Restaurante -->
 <div id="pzHud" class="hidden">
   <div id="pzStats"></div>
-  <div id="pzOrderBox">
-    <div id="pzOrderLbl">Pedido do cliente:</div>
-    <div id="pzOrder"></div>
-    <div id="pzRecipe"></div>
-    <div id="pzPatWrap"><div id="pzPat"></div></div>
-  </div>
-  <div id="pzCenter">
-    <div id="pzTrayLbl">🍽️ Sua bandeja:</div>
+  <div id="pzMenuCard"></div>
+  <div id="pzCross">✛</div>
+  <div id="pzCenterBox">
+    <div id="pzTrayLbl">🍽️ Bandeja na mão:</div>
     <div id="pzTray"></div>
-    <div id="pzMenuBtns"></div>
-    <div id="pzActions">
-      <button id="pzClear" class="ghost">🗑️ Limpar</button>
-      <button id="pzDeliver">✅ Entregar</button>
-    </div>
+    <div id="pzHint"></div>
   </div>
   <div id="pzFlash"></div>
   <button id="pzExit" class="ghost">↩ Sair</button>
@@ -991,9 +973,7 @@ function setupControls(){
     if(e.code==='KeyC' && gameState==='porteiro') ptPhone();                             // 📞 porteiro: C = ligar pra casa
     if(e.code==='KeyB' && gameState==='survival') svToggleBuild();                       // 🧟 sobrevivência: B = construir
     if(gameState==='survival'){ const wk={Digit1:'pistol',Digit2:'axe',Digit3:'shotgun',Digit4:'bazooka'}[e.code]; if(wk) svEquip(wk); } // trocar arma (1-4)
-    if(gameState==='pizza'){ const di={Digit1:0,Digit2:1,Digit3:2,Digit4:3,Digit5:4,Digit6:5,Digit7:6,Digit8:7}[e.code];
-      if(di!=null && PZ_ING[di]) pzAdd(PZ_ING[di].id);
-      if(e.code==='KeyE'||e.code==='Enter') pzDeliver(); if(e.code==='Backspace') pzClearTray(); }   // 🍕 pizzaria (ingredientes)
+    if(e.code==='Enter' && gameState==='pizza') pzInteract();   // 🍕 restaurante (E também interage)
     if(e.code==='KeyF'){ if(flashBat>0 && gameState!=='porteiro') flashOn=!flashOn; }     // 🔦 lanterna
     if(e.code==='KeyM'){ minimapOn=!minimapOn; const mm=document.getElementById('minimap'); if(mm) mm.style.display=minimapOn?'block':'none'; } // 🗺️
     if(e.code==='KeyW' && !wHeld){ wHeld=true; forwardPressed(); }  // 2x W = correr
@@ -2246,6 +2226,7 @@ function creepifyEntity(chasing){
 
 // ---------- INTERAGIR (E): esconder no armário OU abrir a porta ----------
 function interact(){
+  if(gameState==='pizza'){ pzInteract(); return; }   // 🍕 restaurante: E = pegar/entregar
   if(gameState!=='playing') return;
 
   // ⚡ se está no QTE de escapar -> apertar E conta como debater-se
@@ -4300,7 +4281,7 @@ function svAgain(){
   else svStartSolo();
 }
 
-// 🍕 ============ PIZZARIA / LANCHONETE (fazer a comida + fila de clientes) ============
+// 🍕 ============ RESTAURANTE (andar, cozinhar e levar o prato à mesa) ============
 const PZ_ING=[ {id:'pao',ic:'🍞',n:'Pão'},{id:'carne',ic:'🥩',n:'Carne'},{id:'queijo',ic:'🧀',n:'Queijo'},
   {id:'molho',ic:'🍅',n:'Molho'},{id:'salsicha',ic:'🍖',n:'Salsicha'},{id:'batata',ic:'🥔',n:'Batata'},
   {id:'massa',ic:'🫓',n:'Massa'},{id:'refri',ic:'🥤',n:'Refri'} ];
@@ -4311,80 +4292,166 @@ const PZ_DISH=[
   {id:'sanduiche',ic:'🥪',n:'Sanduíche',r:['pao','queijo']},
   {id:'fries', ic:'🍟',n:'Batata frita',r:['batata']},
   {id:'refresco',ic:'🥤',n:'Refrigerante',r:['refri']} ];
-const PZ_PAT=16;   // segundos de paciência do cliente da frente
-function pzFresh(){ return { lives:3, score:0, served:0, correct:0, streak:0, best:0, queue:[], leaving:[], tray:[], cool:0.6, maxQ:4, over:false }; }
+const PZ_PAT=26;   // segundos de paciência do cliente na mesa
+function pzFresh(){ return { lives:3, score:0, served:0, correct:0, streak:0, best:0,
+  tables:[], stations:[], tray:[], over:false, spawnCool:2.5, near:null }; }
 let pz=pzFresh();
 function pzIng(id){ return PZ_ING.find(x=>x.id===id); }
 function pzIngIc(id){ const m=pzIng(id); return m?m.ic:'?'; }
 function pzGenOrder(){ const d=PZ_DISH[(Math.random()*PZ_DISH.length)|0], arr=[d];
   if(d.id!=='refresco' && Math.random()<0.3) arr.push(PZ_DISH.find(x=>x.id==='refresco')); return arr; }
 function pzRecipe(order){ const r=[]; for(const d of order) r.push(...d.r); return r; }
-function pzZSlot(i){ return -2.6 - i*1.9; }
-function pzXSlot(i){ return i===0?0 : (i%2? 0.8:-0.8)*Math.ceil(i/2)*0.55+ (i%2?0.5:-0.5); }
-function pzSpawnIntoQueue(){
-  if(pz.queue.length>=pz.maxQ) return;
-  const desc={ skin:ptPick(SKINS), shirt:SHIRTS[(Math.random()*SHIRTS.length)|0].c, pants:ptPick(PANTS), hair:ptPick(HAIRS), monster:null };
-  const g=makePerson(desc); g.position.set(0,0,-16 - pz.queue.length*1.4); g.rotation.y=0; scene.add(g);
-  const c={ order:pzGenOrder(), group:g, state:'walk', t:Math.random()*6, patience:1 };
-  setSpriteText(g.userData.label, c.order.map(d=>d.ic).join(''));
-  pz.queue.push(c);
-}
-function pzAnimWalk(c,moving){ const ud=c.group.userData; const sw=moving?Math.sin(c.t*9)*0.5:Math.sin(c.t*1.8)*0.04;
-  ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw; ud.armL.rotation.x=-sw; ud.armR.rotation.x=sw; }
-function pzUpdateQueue(dt){
-  for(let i=0;i<pz.queue.length;i++){ const c=pz.queue[i], g=c.group; c.t+=dt;
-    const tz=pzZSlot(i), tx=pzXSlot(i), dz=tz-g.position.z, dxx=tx-g.position.x, moving=Math.abs(dz)>0.05||Math.abs(dxx)>0.05;
-    if(moving){ g.position.z += Math.sign(dz)*Math.min(Math.abs(dz), 3.0*dt); g.position.x += Math.sign(dxx)*Math.min(Math.abs(dxx), 2.0*dt); }
-    pzAnimWalk(c,moving);
-    if(i===0 && !moving && c.state!=='order'){ c.state='order'; tone(880,0.07,'sine',0.07); setTimeout(()=>tone(1200,0.07,'sine',0.05),90); pzUpdateHud(); }
-    if(i===0 && c.state==='order'){ c.patience-=dt/PZ_PAT; if(c.patience<=0) pzResolve(false,'demorou'); }
+function pzDist(x,z){ return Math.hypot(player.pos.x-x, player.pos.z-z); }
+
+// ---- móveis ----
+function pzMakeTable(x,z){
+  const g=new THREE.Group();
+  const wood=new THREE.MeshStandardMaterial({color:0x7a5230, roughness:0.7});
+  const woodD=new THREE.MeshStandardMaterial({color:0x5a3a1e, roughness:0.8});
+  const top=new THREE.Mesh(new THREE.CylinderGeometry(0.85,0.85,0.12,20),wood); top.position.y=0.95; g.add(top);
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.16,0.95,10),woodD); leg.position.y=0.47; g.add(leg);
+  // cadeiras (4 lados)
+  for(const [cx,cz] of [[0,1.1],[0,-1.1],[1.1,0],[-1.1,0]]){
+    const seat=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.1,0.5),woodD); seat.position.set(cx,0.5,cz); g.add(seat);
+    const back=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.1),woodD);
+    back.position.set(cx + (cx?Math.sign(cx)*0.2:0), 0.78, cz + (cz?Math.sign(cz)*0.2:0)); g.add(back);
   }
-  for(let i=pz.leaving.length-1;i>=0;i--){ const c=pz.leaving[i], g=c.group; c.t+=dt;
-    g.rotation.y=Math.PI; g.position.z-=3.5*dt; pzAnimWalk(c,true);
-    if(g.position.z<-17){ scene.remove(g); disposeObj(g); pz.leaving.splice(i,1); } }
+  g.position.set(x,0,z); scene.add(g);
+  walls.push({min:new THREE.Vector3(x-0.85,0,z-0.85),max:new THREE.Vector3(x+0.85,1.05,z+0.85)});
+  return g;
 }
-function pzAdd(id){ const c=pz.queue[0]; if(!c||c.state!=='order'||pz.over||pz.tray.length>=8) return;
-  pz.tray.push(id); tone(520,0.05,'square',0.06); pzUpdateHud(); }
-function pzClearTray(){ pz.tray=[]; tone(200,0.06,'square',0.05); pzUpdateHud(); }
-function pzDeliver(){ const c=pz.queue[0]; if(!c||c.state!=='order'||pz.over) return;
-  const a=pzRecipe(c.order).slice().sort().join(','), b=pz.tray.slice().sort().join(',');
-  pzResolve(a===b, 'pedido errado');
+function pzStationMesh(x,z,ic,col){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.0,1.0), new THREE.MeshStandardMaterial({color:col||0x8a8f9c, roughness:0.6, metalness:0.3}));
+  body.position.y=0.5; g.add(body);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(1.75,0.1,1.05), new THREE.MeshStandardMaterial({color:0xcdd2da, roughness:0.4, metalness:0.5}));
+  top.position.y=1.02; g.add(top);
+  const label=makeNameSprite(); label.position.set(0,1.7,0); label.scale.set(1.2,0.6,1); setSpriteText(label, ic); g.add(label);
+  g.position.set(x,0,z); scene.add(g);
+  walls.push({min:new THREE.Vector3(x-0.85,0,z-0.5),max:new THREE.Vector3(x+0.85,1.05,z+0.5)});
+  return g;
 }
-function pzResolve(ok, reason){
-  const c=pz.queue[0]; if(!c||c.state!=='order') return;
-  pz.served++;
-  if(ok){ pz.correct++; pz.streak++; if(pz.streak>pz.best)pz.best=pz.streak; pz.score+=10+(pz.streak-1)*2;
-    tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); pzFlash('good'); setSpriteText(c.group.userData.label,'😋 Valeu!'); }
-  else { pz.lives--; pz.streak=0; tone(150,0.3,'sawtooth',0.16); pzFlash('bad'); setSpriteText(c.group.userData.label,'😡 '+(reason||'errado')); }
-  c.state='leaving'; pz.queue.shift(); pz.leaving.push(c); pz.tray=[]; pzUpdateHud();
-  if(pz.lives<=0) pzOver();
+function buildRestaurantScene(){
+  clearLevel();
+  scene.background=new THREE.Color(0x1a1626);
+  scene.fog=new THREE.FogExp2(0x1a1626, 0.02);
+  wallMat=new THREE.MeshStandardMaterial({color:0x6a6478, roughness:0.85});
+  // piso (xadrez simples via dois planos? só um piso com cor quente)
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(40,40), new THREE.MeshStandardMaterial({color:0x4a4036, roughness:0.95}));
+  floor.rotation.x=-Math.PI/2; scene.add(floor);
+  const kitchenFloor=new THREE.Mesh(new THREE.PlaneGeometry(26,8), new THREE.MeshStandardMaterial({color:0x33373f, roughness:0.9}));
+  kitchenFloor.rotation.x=-Math.PI/2; kitchenFloor.position.set(0,0.01,6); scene.add(kitchenFloor);
+  // paredes externas
+  const XW=13, ZN=-14, ZF=10;
+  addWall(0,ZN,2*XW,0.4); addWall(0,ZF,2*XW,0.4); addWall(-XW,(ZN+ZF)/2,0.4,ZF-ZN); addWall(XW,(ZN+ZF)/2,0.4,ZF-ZN);
+  // BALCÃO separando salão (z<2) da cozinha (z>2), com passagem no meio
+  const bMat=new THREE.MeshStandardMaterial({color:0x5b4a8a, roughness:0.7});
+  addBox(-6.5,0.55,2.2,9,1.1,0.5,bMat); walls.push({min:new THREE.Vector3(-11,0,1.95),max:new THREE.Vector3(-2,1.1,2.45)});
+  addBox(6.5,0.55,2.2,9,1.1,0.5,bMat);  walls.push({min:new THREE.Vector3(2,0,1.95),max:new THREE.Vector3(11,1.1,2.45)});
+  // ESTAÇÕES da cozinha (ingredientes + lixeira)
+  pz.stations=[];
+  const items=[...PZ_ING, {id:'lixo',ic:'🗑️',n:'Lixo'}];
+  items.forEach((m,i)=>{ const x=-9 + i*2.1, z=7.2; const col = m.id==='lixo'?0x553333:0x8a8f9c;
+    pzStationMesh(x,z,m.ic,col); pz.stations.push({id:m.id, ic:m.ic, n:m.n, x, z:z-0.7}); });
+  // MESAS do salão
+  pz.tables=[];
+  const spots=[[-8,-3],[0,-4],[8,-3],[-8,-9],[0,-10],[8,-9]];
+  for(const [x,z] of spots){ const g=pzMakeTable(x,z);
+    pz.tables.push({x,z, group:g, occupied:false, order:null, patience:1, client:null, balloon:null, sitZ:z+1.1}); }
+  // luzes
+  scene.add(new THREE.HemisphereLight(0xfff0e0, 0x33304a, 1.3));
+  const l1=new THREE.PointLight(0xffe8c0,1.4,30); l1.position.set(0,6,-4); scene.add(l1);
+  const l2=new THREE.PointLight(0xcfe0ff,1.2,26); l2.position.set(0,6,6); scene.add(l2);
 }
+function pzSeatCustomer(){
+  const free=pz.tables.filter(t=>!t.occupied); if(!free.length) return;
+  const t=free[(Math.random()*free.length)|0];
+  const desc={ skin:ptPick(SKINS), shirt:SHIRTS[(Math.random()*SHIRTS.length)|0].c, pants:ptPick(PANTS), hair:ptPick(HAIRS), monster:null };
+  const g=makePerson(desc); g.position.set(t.x, 0, t.sitZ); g.rotation.y=Math.PI; scene.add(g);  // sentado de frente pra mesa
+  if(g.userData.label) g.userData.label.visible=false;   // usa o balão do pedido, não o nome
+  const order=pzGenOrder();
+  const bal=makeNameSprite(); bal.position.set(t.x, 2.5, t.z); bal.scale.set(2.0,0.9,1); setSpriteText(bal, order.map(d=>d.ic).join('')); scene.add(bal);
+  t.occupied=true; t.order=order; t.patience=1; t.client=g; t.balloon=bal;
+}
+function pzFreeTable(t){ if(t.client){ scene.remove(t.client); disposeObj(t.client); } if(t.balloon){ scene.remove(t.balloon); disposeObj(t.balloon); }
+  t.occupied=false; t.order=null; t.client=null; t.balloon=null; }
 function pzFlash(k){ const f=document.getElementById('pzFlash'); if(!f)return; f.className=k; setTimeout(()=>{f.className='';},260); }
+
+// ---- interação (tecla E) ----
+function pzInteract(){
+  if(pz.over) return;
+  // estação mais próxima
+  let st=null, sd=1.9; for(const s of pz.stations){ const d=pzDist(s.x,s.z); if(d<sd){ sd=d; st=s; } }
+  // mesa ocupada mais próxima
+  let tb=null, td=2.4; for(const t of pz.tables){ if(!t.occupied) continue; const d=pzDist(t.x,t.sitZ); if(d<td){ td=d; tb=t; } }
+  if(st && (!tb || sd<=td)){
+    if(st.id==='lixo'){ pz.tray=[]; tone(200,0.07,'square',0.06); }
+    else if(pz.tray.length<8){ pz.tray.push(st.id); tone(520,0.05,'square',0.06); }
+    pzUpdateHud(); return;
+  }
+  if(tb){ pzDeliverTo(tb); }
+}
+function pzDeliverTo(t){
+  const a=pzRecipe(t.order).slice().sort().join(','), b=pz.tray.slice().sort().join(',');
+  if(a===b){ pz.served++; pz.correct++; pz.streak++; if(pz.streak>pz.best)pz.best=pz.streak; pz.score+=10+(pz.streak-1)*2;
+    tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); pzFlash('good');
+    if(t.balloon) setSpriteText(t.balloon,'😋'); pz.tray=[];
+    // libera a mesa na hora; o cliente feliz some logo depois
+    t.occupied=false; t.order=null; const cl=t.client, ba=t.balloon; t.client=null; t.balloon=null;
+    setTimeout(()=>{ if(cl){scene.remove(cl);disposeObj(cl);} if(ba){scene.remove(ba);disposeObj(ba);} },700);
+    pzUpdateHud(); }
+  else { tone(150,0.2,'sawtooth',0.12); pzFlash('bad'); showMsg('❌ Pedido errado! Confira o cardápio (canto).',1800); }
+}
+function pzMovePlayer(dt){
+  const running=keys['ShiftLeft']||keys['ShiftRight']||autoRun; let speed=running?6.0:3.6;
+  const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  const move=new THREE.Vector3();
+  if(keys['KeyW'])move.add(fwd); if(keys['KeyS'])move.sub(fwd); if(keys['KeyD'])move.add(right); if(keys['KeyA'])move.sub(right);
+  if(move.lengthSq()>0) move.normalize();
+  const next=player.pos.clone().addScaledVector(move,speed*dt); collideBody(next,0,1.9); player.pos.copy(next);
+  const t=clock.elapsedTime, bob=(move.lengthSq()>0)?Math.sin(t*9)*0.04:0;
+  camera.position.set(player.pos.x, player.feet+player.height+bob, player.pos.z);
+  camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
+  if(playerLight){ playerLight.intensity += (0.6-playerLight.intensity)*0.2; playerLight.position.set(player.pos.x,player.feet+1.6,player.pos.z); }
+  if(move.lengthSq()>0){ stepTime-=dt; if(stepTime<=0){ tone(150,0.05,'square',0.03); stepTime=running?0.32:0.46; } }
+}
+function pzUpdateTables(dt){
+  for(const t of pz.tables){ if(!t.occupied) continue;
+    t.patience-=dt/PZ_PAT;
+    if(t.client){ const ud=t.client.userData; const sw=Math.sin(clock.elapsedTime*2+t.x)*0.05; ud.armL.rotation.x=sw; ud.armR.rotation.x=-sw; }
+    if(t.balloon){ const ord=t.order.map(d=>d.ic).join(''); setSpriteText(t.balloon, t.patience<0.3?('⏰'+ord):ord);
+      t.balloon.position.y=2.5+Math.sin(clock.elapsedTime*3)*0.05; }
+    if(t.patience<=0){ pz.lives--; pz.streak=0; tone(150,0.3,'sawtooth',0.16); pzFlash('bad'); showMsg('😡 Um cliente foi embora sem ser atendido!',2200);
+      pzFreeTable(t); if(pz.lives<=0) pzOver(); }
+  }
+}
+function pzHintUpdate(){
+  let st=null, sd=1.9; for(const s of pz.stations){ const d=pzDist(s.x,s.z); if(d<sd){ sd=d; st=s; } }
+  let tb=null, td=2.4; for(const t of pz.tables){ if(!t.occupied) continue; const d=pzDist(t.x,t.sitZ); if(d<td){ td=d; tb=t; } }
+  const h=document.getElementById('pzHint'); if(!h) return;
+  if(st && (!tb || sd<=td)){ h.textContent = st.id==='lixo' ? '[E] 🗑️ Esvaziar bandeja' : '[E] Pegar '+st.ic+' '+st.n; }
+  else if(tb){ h.textContent='[E] Entregar na mesa ('+tb.order.map(d=>d.ic).join('')+')'; }
+  else h.textContent='Vá à cozinha (atrás) pegar ingredientes • leve o prato até a mesa';
+}
+function updatePizza(dt){
+  pzMovePlayer(dt);
+  if(pz.over) return;
+  pzUpdateTables(dt); pzHintUpdate();
+  pz.spawnCool-=dt; if(pz.spawnCool<=0 && pz.tables.some(t=>!t.occupied)){ pzSeatCustomer(); pz.spawnCool=4.5; pzUpdateHud(); }
+}
 function pzUpdateHud(){
   if(document.getElementById('pzHud').classList.contains('hidden')) return;
   const hearts='❤️'.repeat(Math.max(0,pz.lives))+'🖤'.repeat(Math.max(0,3-pz.lives));
   const acc=pz.served?Math.round(pz.correct/pz.served*100):100;
-  document.getElementById('pzStats').innerHTML=`<span>${hearts}</span><span>⭐ Pontos: <b>${pz.score}</b></span><span>🎯 ${acc}%</span><span>🔥 ${pz.streak} (rec ${pz.best})</span><span>🧍 Fila: ${pz.queue.length}</span>`;
-  const c=pz.queue[0]; const ord=document.getElementById('pzOrder'), rec=document.getElementById('pzRecipe');
-  if(c && c.state==='order'){ ord.innerHTML=c.order.map(d=>d.ic+' '+d.n).join('  +  ');
-    rec.innerHTML='👨‍🍳 Junte: '+pzRecipe(c.order).map(id=>pzIngIc(id)+' '+pzIng(id).n).join(' + ');
-    document.getElementById('pzOrderBox').style.opacity=1; }
-  else { ord.textContent='—'; rec.textContent=''; document.getElementById('pzOrderBox').style.opacity=0.5; }
-  document.getElementById('pzTray').innerHTML=pz.tray.length?pz.tray.map(pzIngIc).join(' '):'<span style="opacity:.5;font-size:18px">(vazia — junte os ingredientes)</span>';
+  const occ=pz.tables.filter(t=>t.occupied).length;
+  document.getElementById('pzStats').innerHTML=`<span>${hearts}</span><span>⭐ Pontos: <b>${pz.score}</b></span><span>🎯 ${acc}%</span><span>🔥 ${pz.streak} (rec ${pz.best})</span><span>🍽️ Mesas: ${occ}/${pz.tables.length}</span>`;
+  document.getElementById('pzTray').innerHTML=pz.tray.length?pz.tray.map(pzIngIc).join(' '):'<span style="opacity:.5;font-size:17px">(vazia — pegue ingredientes na cozinha)</span>';
 }
-function pzMovePlayer(dt){
-  camera.position.set(player.pos.x, player.feet+player.height, player.pos.z);
-  camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
-  if(playerLight){ playerLight.intensity += (0.7-playerLight.intensity)*0.2; playerLight.position.set(player.pos.x,player.feet+1.6,player.pos.z); }
+function pzMenuCardHtml(){
+  document.getElementById('pzMenuCard').innerHTML='<h4>📖 Cardápio (receitas)</h4>'+
+    PZ_DISH.map(d=>`${d.ic} <b>${d.n}</b> = ${d.r.map(pzIngIc).join(' ')}`).join('<br>');
 }
-function updatePizza(dt){
-  pzMovePlayer(dt); pzUpdateQueue(dt);
-  if(pz.over) return;
-  pz.cool-=dt; if(pz.cool<=0 && pz.queue.length<pz.maxQ){ pzSpawnIntoQueue(); pz.cool=2.4; }
-  const c=pz.queue[0]; const pat=document.getElementById('pzPat'); if(pat) pat.style.width=(c&&c.state==='order'?Math.max(0,c.patience*100):0)+'%';
-}
-function pzMakeMenuBtns(){ const box=document.getElementById('pzMenuBtns'); box.innerHTML='';
-  for(const m of PZ_ING){ const b=document.createElement('button'); b.className='pzitem'; b.innerHTML=m.ic+'<span class="lb">'+m.n+'</span>'; b.onclick=()=>pzAdd(m.id); box.appendChild(b); } }
 function pzOver(){
   if(pz.over)return; pz.over=true;
   if(document.pointerLockElement) document.exitPointerLock();
@@ -4398,21 +4465,20 @@ function pzStart(){
   spectator=false; pz=pzFresh();
   ['modes','start','device','pzOver','death','win','porteiro','ptOver','svOver','survMenu','ptHud','svHud','svShop'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
-  buildPorteiroScene();   // reusa o balcão 3D
-  staminaMax=100; player.height=1.7; player.pos.set(0,1.7,1.0); player.feet=0; player.vy=0; player.yaw=0; player.pitch=-0.05; player.stamina=100;
+  buildRestaurantScene();
+  staminaMax=100; player.height=1.7; player.pos.set(0,1.7,0); player.feet=0; player.vy=0; player.yaw=Math.PI; player.pitch=-0.05; player.stamina=100;
   introActive=false; hiding=false; player.dead=false; qte.active=false; gameState='pizza';
   ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
-  pzMakeMenuBtns();
   document.getElementById('pzHud').classList.remove('hidden');
+  pzMenuCardHtml();
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
   if(controlMode==='pc') renderer.domElement.requestPointerLock();
-  pz.cool=0.6; pzUpdateHud();
-  showMsg('🍕 Lanchonete aberta! FAÇA a comida juntando os ingredientes (ex: 🍞 Pão + 🍖 Salsicha = 🌭) e ✅ entregue.',5500);
+  pz.spawnCool=1.5; pzUpdateHud();
+  showMsg('🍽️ Restaurante! Vá à COZINHA (atrás) pegar ingredientes (E), monte o prato e LEVE até a mesa do cliente.',6000);
 }
 function pzExit(){
   pz.over=true;
-  for(const c of [...pz.queue, ...pz.leaving]){ if(c.group){ scene.remove(c.group); disposeObj(c.group); } }
-  pz.queue=[]; pz.leaving=[];
+  for(const t of pz.tables) pzFreeTable(t);
   if(document.pointerLockElement) document.exitPointerLock();
   document.getElementById('pzHud').classList.add('hidden');
   document.getElementById('pzOver').classList.add('hidden');
@@ -4479,8 +4545,6 @@ document.getElementById('modeSurvival').onclick=()=>{
 };
 // 🍕 Pizzaria
 document.getElementById('modePizza').onclick=pzStart;
-document.getElementById('pzDeliver').onclick=pzDeliver;
-document.getElementById('pzClear').onclick=pzClearTray;
 document.getElementById('pzExit').onclick=pzExit;
 document.getElementById('pzAgain').onclick=pzStart;
 document.getElementById('pzOverMenu').onclick=pzExit;
