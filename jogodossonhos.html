@@ -341,6 +341,15 @@
     background:rgba(20,15,34,.92); border:3px solid #4dd06a; font-size:30px; cursor:pointer; transition:border-color .1s;
     box-shadow:0 6px 18px rgba(0,0,0,.45); }
   .mNoise.hit { background:#4dd06a; }
+  .mNoise.mLight { border-color:#ffe14d; } .mNoise.mEye { border-color:#a04dff; }
+  .mCandle { width:62px; height:80px; border-radius:14px; background:rgba(20,15,34,.9); border:2px solid rgba(124,92,255,.4);
+    font-size:34px; cursor:pointer; transition:.12s; }
+  .mCandle.lit { background:#ffcf6b; border-color:#fff0c0; box-shadow:0 0 26px 8px rgba(255,200,90,.7); transform:translateY(-6px); }
+  .mDoor { position:absolute; top:50%; transform:translateY(-50%); width:38%; max-width:240px; padding:24px 10px; border-radius:16px;
+    background:rgba(30,30,42,.9); border:2px solid rgba(124,92,255,.4); color:#fff; font-size:15px; font-weight:800; cursor:pointer; }
+  .mDoor.closed { background:rgba(70,40,40,.95); border-color:#ff6d6d; }
+  .mFeed { position:absolute; top:30%; left:50%; transform:translateX(-50%); font-size:18px; background:rgba(10,10,16,.8);
+    padding:10px 22px; border-radius:12px; border:1px solid rgba(124,92,255,.3); pointer-events:none; }
   #mFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .14s; }
   #mFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.45); opacity:1; }
   #mFlash.bad { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.5); opacity:1; }
@@ -617,6 +626,18 @@
     <div class="devbtn" id="modeSilencio">
       <div class="ic">🤫</div><div class="lb">SILÊNCIO</div>
       <div class="ds">Silencie cada barulho antes que o monstro escute você</div>
+    </div>
+    <div class="devbtn" id="modeRitual">
+      <div class="ic">🕯️</div><div class="lb">RITUAL</div>
+      <div class="ds">Memorize e repita a ordem em que as velas acendem</div>
+    </div>
+    <div class="devbtn" id="modeCameras">
+      <div class="ic">📹</div><div class="lb">CÂMERAS</div>
+      <div class="ds">Estilo FNAF — feche a porta certa e gerencie a energia até o amanhecer</div>
+    </div>
+    <div class="devbtn" id="modePesadelo">
+      <div class="ic">🛏️</div><div class="lb">PESADELO</div>
+      <div class="ds">Sobreviva no escuro banindo pesadelos e mantendo a sanidade</div>
     </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
@@ -5743,6 +5764,102 @@ miniRegister('silencio',{
   exit(){ const c=mCenter(); if(c) c.innerHTML=''; this.s=null; }
 });
 
+// 🕯️📹🛏️ ====== LOTE HORROR: Ritual, Cameras (FNAF), Pesadelo ======
+function mDarkScene(bg,fogD){ scene.background=new THREE.Color(bg); scene.fog=new THREE.FogExp2(bg,fogD||0.06);
+  scene.add(new THREE.HemisphereLight(0x2a2840,0x050507,0.6));
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(40,40), new THREE.MeshStandardMaterial({color:0x100e16,roughness:1})); fl.rotation.x=-Math.PI/2; scene.add(fl);
+  camera.position.set(0,1.6,4); camera.lookAt(0,1.4,0); camera.rotation.z=0; }
+
+// 🕯️ ---- RITUAL (Simon: acenda as velas na ordem) ----
+miniRegister('ritual',{
+  name:'Ritual', ic:'🕯️', tip:'Memorize a ordem das velas e repita',
+  enter(){ mDarkScene(0x140a18,0.04);
+    const s=this.s={ seq:[], pos:0, round:0, lives:3, over:false, mode:'show', showQ:[], showT:0, idx:0, n:5 };
+    const c=mCenter(); c.innerHTML=''; this.btns=[];
+    const wrap=document.createElement('div'); wrap.style.cssText='position:absolute;left:50%;top:54%;transform:translate(-50%,-50%);display:flex;gap:14px;';
+    for(let i=0;i<s.n;i++){ const b=document.createElement('button'); b.className='mCandle'; b.textContent='🕯️'; b.dataset.i=i;
+      b.onclick=(e)=>{ e.stopPropagation(); this.tap(i); }; wrap.appendChild(b); this.btns.push(b); }
+    c.appendChild(wrap); this.nextRound();
+  },
+  light(i,on){ const b=this.btns[i]; if(b) b.classList.toggle('lit',on); },
+  nextRound(){ const s=this.s; if(!s||s.over) return; if(s.round>=8){ s.over=true; miniOver('🏆 Ritual completo!','Rodadas: <b>'+s.round+'</b>'); return; }
+    s.round++; s.seq.push((Math.random()*s.n)|0); s.pos=0; s.mode='show'; s.showQ=[]; s.idx=0; s.showT=0.5;
+    for(const v of s.seq){ s.showQ.push({i:v}); } this.hud(); },
+  tap(i){ const s=this.s; if(s.over||s.mode!=='play') return; this.light(i,true); setTimeout(()=>this.light(i,false),180); tone(440+i*70,0.12,'sine',0.12);
+    if(i===s.seq[s.pos]){ s.pos++; if(s.pos>=s.seq.length){ tone(880,0.15,'sine',0.12); setTimeout(()=>this.nextRound(),500); s.mode='wait'; } }
+    else { s.lives--; tone(120,0.4,'sawtooth',0.16); mFlash('bad'); s.pos=0;
+      if(s.lives<=0){ s.over=true; miniOver('💀 Ritual falhou','Rodadas: <b>'+s.round+'</b>'); } else { showMsg('❌ Errou a sequência — recomece a rodada',1400); setTimeout(()=>{ s.mode='show'; s.showQ=s.seq.map(v=>({i:v})); s.idx=0; s.showT=0.5; },700); } }
+    this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over) return;
+    if(s.mode==='show'){ s.showT-=dt; if(s.showT<=0){ if(s.idx<s.showQ.length){ const cur=s.showQ[s.idx]; this.light(cur.i,true); setTimeout(()=>this.light(cur.i,false),360); tone(440+cur.i*70,0.18,'sine',0.12); s.idx++; s.showT=0.62; } else { s.mode='play'; } } }
+    this.hud(); },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>🔮 Rodada <b>'+s.round+'</b>/8</span>');
+    mRule(s.mode==='show'?'👀 <b>Observe</b> a ordem das velas...':'🕯️ Sua vez! Toque as velas na ordem certa'); },
+  onClick(){}, onKey(){},
+  exit(){ const c=mCenter(); if(c)c.innerHTML=''; this.s=null; }
+});
+
+// 📹 ---- CÂMERAS (FNAF: feche a porta certa, gerencie energia, sobreviva a noite) ----
+miniRegister('cameras',{
+  name:'Câmeras', ic:'📹', tip:'Feche a porta do lado em que o monstro aparecer — mas a energia acaba',
+  enter(){ mDarkScene(0x0a0a0f,0.05);
+    const s=this.s={ power:100, time:90, over:false, L:false, R:false, side:null, sideT:0, warnT:0, grace:0, jumps:0 };
+    const c=mCenter(); c.innerHTML='';
+    const mk=(side,txt,x)=>{ const b=document.createElement('button'); b.className='mDoor'; b.style.left=x; b.dataset.side=side;
+      b.onclick=(e)=>{ e.stopPropagation(); this.toggle(side); }; c.appendChild(b); return b; };
+    this.dL=mk('L','',' 6%'); this.dR=mk('R','','auto'); this.dR.style.right='6%'; this.dR.style.left='auto';
+    this.feed=document.createElement('div'); this.feed.className='mFeed'; c.appendChild(this.feed);
+    this.sched(); this.render(); this.hud();
+  },
+  sched(){ const s=this.s; s.side=Math.random()<0.5?'L':'R'; s.warnT=1.0+Math.random()*1.4; s.grace=2.2; },
+  toggle(side){ const s=this.s; if(s.over)return; if(side==='L') s.L=!s.L; else s.R=!s.R; tone(s[side]?260:200,0.08,'square',0.1); this.render(); },
+  render(){ const s=this.s;
+    this.dL.textContent=(s.L?'🚪 PORTA ESQ: FECHADA':'⬅️ PORTA ESQ: ABERTA'); this.dL.classList.toggle('closed',s.L);
+    this.dR.textContent=(s.R?'PORTA DIR: FECHADA 🚪':'PORTA DIR: ABERTA ➡️'); this.dR.classList.toggle('closed',s.R);
+    this.feed.innerHTML = s.warnT<=0 ? ('<b style="color:#ff6d6d">⚠️ BARULHO À '+(s.side==='L'?'ESQUERDA':'DIREITA')+'!</b>') : '📹 Vigiando...'; },
+  caught(){ const s=this.s; s.over=true; tone(80,0.6,'sawtooth',0.2); mFlash('bad'); miniOver('💀 O monstro entrou!','Você resistiu <b>'+Math.ceil(90-s.time)+'s</b> da noite'); },
+  update(dt){ const s=this.s; if(!s||s.over) return;
+    s.time-=dt; if(s.time<=0){ s.over=true; miniOver('🌅 Você sobreviveu a noite!','Noite completa! Energia restante: <b>'+Math.round(s.power)+'%</b>'); return; }
+    let drain=2.0; if(s.L)drain+=7; if(s.R)drain+=7; s.power-=drain*dt;
+    if(s.power<=0){ s.power=0; this.caught(); return; }
+    if(s.warnT>0){ s.warnT-=dt; if(s.warnT<=0) this.render(); }
+    else { s.grace-=dt; const safe = s.side==='L'?s.L:s.R; if(safe){ this.sched(); this.render(); } else if(s.grace<=0){ this.caught(); return; } }
+    this.hud(); },
+  hud(){ const s=this.s; mStats('<span>🔋 <b>'+Math.round(s.power)+'%</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>');
+    mRule('📹 Feche a porta do lado do barulho a tempo. Portas fechadas gastam energia!'); },
+  onClick(){}, onKey(code){ const s=this.s; if(!s||s.over)return; if(code==='KeyA') this.toggle('L'); if(code==='KeyD') this.toggle('R'); },
+  exit(){ const c=mCenter(); if(c)c.innerHTML=''; this.s=null; }
+});
+
+// 🛏️ ---- PESADELO (sobreviva no escuro: bana pesadelos e acenda luzes) ----
+miniRegister('pesadelo',{
+  name:'Pesadelo', ic:'🛏️', tip:'Toque nos 👁️ pra bani-los e nas 💡 pra manter a sanidade',
+  enter(){ mDarkScene(0x05040a,0.07);
+    const s=this.s={ sanity:100, time:80, banished:0, over:false, items:[], spawnT:0.8 }; mCenter().innerHTML=''; this.hud();
+  },
+  spawn(){ const s=this.s; const light=Math.random()<0.32; const b=document.createElement('button'); b.className='mNoise'+(light?' mLight':' mEye');
+    b.textContent=light?'💡':'👁️'; b.style.left=(8+Math.random()*80)+'%'; b.style.top=(20+Math.random()*56)+'%';
+    const it={el:b, light, age:0, life:light?2.0:2.8};
+    b.onclick=(e)=>{ e.stopPropagation(); this.tap(it); }; mCenter().appendChild(b); s.items.push(it); },
+  tap(it){ const s=this.s; if(it.done)return; it.done=true;
+    if(it.light){ s.sanity=Math.min(100,s.sanity+14); tone(720,0.1,'sine',0.1); }
+    else { s.banished++; s.sanity=Math.min(100,s.sanity+3); tone(300,0.08,'square',0.1); }
+    it.el.classList.add('hit'); setTimeout(()=>{ if(it.el&&it.el.parentNode)it.el.remove(); },140); s.items=s.items.filter(x=>x!==it); this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return;
+    s.time-=dt; if(s.time<=0){ s.over=true; miniOver('🌅 Você acordou são e salvo!','Pesadelos banidos: <b>'+s.banished+'</b>'); return; }
+    s.sanity-=3.2*dt;
+    s.spawnT-=dt; if(s.spawnT<=0){ s.spawnT=0.6+Math.random()*0.7; this.spawn(); }
+    for(const it of s.items){ it.age+=dt; const left=Math.max(0,1-it.age/it.life); it.el.style.transform='translate(-50%,-50%) scale('+(0.5+0.5*left)+')';
+      if(it.age>=it.life && !it.done){ it.done=true; if(!it.light) s.sanity-=10; if(it.el&&it.el.parentNode)it.el.remove(); tone(130,0.18,'sawtooth',0.1); } }
+    s.items=s.items.filter(x=>!x.done);
+    if(s.sanity<=0){ s.over=true; tone(70,0.7,'sawtooth',0.2); miniOver('💀 A loucura te consumiu','Pesadelos banidos: <b>'+s.banished+'</b>'); return; }
+    this.hud(); },
+  hud(){ const s=this.s; mStats('<span>🧠 Sanidade <span style="display:inline-block;width:120px;height:9px;background:rgba(255,255,255,.15);border-radius:5px;vertical-align:middle"><span style="display:block;height:100%;width:'+Math.max(0,s.sanity)+'%;background:linear-gradient(90deg,#ff4d4d,#4dd06a);border-radius:5px"></span></span></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>');
+    mRule('👁️ Toque pra banir pesadelos · 💡 pegue luzes pra recuperar a sanidade'); },
+  onClick(){}, onKey(){},
+  exit(){ const c=mCenter(); if(c)c.innerHTML=''; this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -5857,8 +5974,7 @@ document.getElementById('aExit').onclick=agExit;
 document.getElementById('aAgain').onclick=()=>agStart(ag.key);
 document.getElementById('aOverMenu').onclick=agExit;
 // minigames (framework)
-['lenhador','silencio'].forEach(k=>{
-  const cap=k.charAt(0).toUpperCase()+k.slice(1);
+[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo']].forEach(([k,cap])=>{
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>miniStart(k);
 });
 document.getElementById('mExit').onclick=miniExit;
