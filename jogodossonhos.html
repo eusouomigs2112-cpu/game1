@@ -232,6 +232,34 @@
   .witem .no { color:#ff8a8a; font-weight:700; font-size:13px; }
   #svShopClose { margin-top:8px; font-size:16px; font-weight:800; padding:11px 26px; border:none; border-radius:12px;
     cursor:pointer; color:#10131f; background:#ffd86b; }
+  /* modo Pizzaria */
+  #pzHud { position:fixed; inset:0; z-index:7; pointer-events:none; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
+  #pzHud.hidden { display:none; }
+  #pzStats { position:absolute; top:14px; left:14px; display:flex; flex-direction:column; gap:5px;
+    background:rgba(10,8,20,.72); border:1px solid rgba(255,180,90,.4); border-radius:14px; padding:10px 15px;
+    font-size:15px; font-weight:700; backdrop-filter:blur(4px); }
+  #pzOrderBox { position:absolute; top:14px; left:50%; transform:translateX(-50%); text-align:center;
+    background:rgba(10,8,20,.78); border:2px solid rgba(255,180,90,.55); border-radius:16px; padding:10px 20px; backdrop-filter:blur(4px); }
+  #pzOrderLbl { font-size:13px; opacity:.8; }
+  #pzOrder { font-size:40px; line-height:1.1; min-height:46px; letter-spacing:4px; }
+  #pzPatWrap { height:8px; border-radius:5px; background:rgba(255,255,255,.15); overflow:hidden; margin-top:6px; }
+  #pzPat { height:100%; width:100%; background:linear-gradient(90deg,#7cff9b,#ffd86b,#ff5d6d); }
+  #pzCenter { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); width:min(94vw,560px); text-align:center; pointer-events:none; }
+  #pzTrayLbl { font-size:13px; opacity:.8; text-shadow:0 1px 5px #000; }
+  #pzTray { font-size:34px; min-height:44px; letter-spacing:4px; text-shadow:0 2px 8px #000;
+    background:rgba(10,8,20,.5); border-radius:12px; margin:4px 0 10px; }
+  #pzMenuBtns { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .pzitem { pointer-events:auto; font-size:30px; width:64px; height:64px; border-radius:14px; cursor:pointer; border:2px solid rgba(255,255,255,.25);
+    background:rgba(40,32,60,.92); box-shadow:0 4px 12px rgba(0,0,0,.5); }
+  .pzitem:active { transform:translateY(2px); }
+  #pzActions { display:flex; gap:14px; justify-content:center; margin-top:12px; }
+  #pzActions button { pointer-events:auto; font-size:17px; font-weight:800; padding:12px 22px; border:none; border-radius:13px; cursor:pointer; color:#fff; }
+  #pzDeliver { background:linear-gradient(90deg,#3ad07a,#2aa85f); }
+  #pzExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
+  #pzFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .12s; }
+  #pzFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.5); opacity:1; }
+  #pzFlash.bad  { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.55); opacity:1; }
+  #pzOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #pzOverStats b { color:#ffd86b; }
   /* tela de dispositivo */
   .devicebtns { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:24px 0; }
   .devbtn {
@@ -415,8 +443,43 @@
       <div class="ic">🧟</div><div class="lb">SOBREVIVÊNCIA</div>
       <div class="ds">Fim do mundo com zumbis — colete recursos, construa uma base e resista às ondas</div>
     </div>
+    <div class="devbtn" id="modePizza">
+      <div class="ic">🍕</div><div class="lb">PIZZARIA</div>
+      <div class="ds">Atenda os clientes: monte o pedido certo e entregue antes da paciência acabar</div>
+    </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
+</div>
+
+<!-- HUD do modo Pizzaria -->
+<div id="pzHud" class="hidden">
+  <div id="pzStats"></div>
+  <div id="pzOrderBox">
+    <div id="pzOrderLbl">Pedido do cliente:</div>
+    <div id="pzOrder"></div>
+    <div id="pzPatWrap"><div id="pzPat"></div></div>
+  </div>
+  <div id="pzCenter">
+    <div id="pzTrayLbl">🍽️ Sua bandeja:</div>
+    <div id="pzTray"></div>
+    <div id="pzMenuBtns"></div>
+    <div id="pzActions">
+      <button id="pzClear" class="ghost">🗑️ Limpar</button>
+      <button id="pzDeliver">✅ Entregar</button>
+    </div>
+  </div>
+  <div id="pzFlash"></div>
+  <button id="pzExit" class="ghost">↩ Sair</button>
+</div>
+
+<!-- Tela de fim da Pizzaria -->
+<div id="pzOver" class="overlay hidden">
+  <h1 id="pzOverTitle">🍕 Fim do expediente</h1>
+  <div id="pzOverStats"></div>
+  <div class="btnrow">
+    <button id="pzAgain">🔁 Jogar de novo</button>
+    <button id="pzOverMenu" class="ghost">↩ Menu</button>
+  </div>
 </div>
 
 <!-- MENU do modo Sobrevivência (Sozinho / Co-op) -->
@@ -925,6 +988,9 @@ function setupControls(){
     if(e.code==='KeyC' && gameState==='porteiro') ptPhone();                             // 📞 porteiro: C = ligar pra casa
     if(e.code==='KeyB' && gameState==='survival') svToggleBuild();                       // 🧟 sobrevivência: B = construir
     if(gameState==='survival'){ const wk={Digit1:'pistol',Digit2:'axe',Digit3:'shotgun',Digit4:'bazooka'}[e.code]; if(wk) svEquip(wk); } // trocar arma (1-4)
+    if(gameState==='pizza'){ const di={Digit1:0,Digit2:1,Digit3:2,Digit4:3,Digit5:4,Digit6:5}[e.code];
+      if(di!=null && PZ_MENU[di]) pzAdd(PZ_MENU[di].id);
+      if(e.code==='KeyE'||e.code==='Enter') pzDeliver(); if(e.code==='Backspace') pzClearTray(); }   // 🍕 pizzaria
     if(e.code==='KeyF'){ if(flashBat>0 && gameState!=='porteiro') flashOn=!flashOn; }     // 🔦 lanterna
     if(e.code==='KeyM'){ minimapOn=!minimapOn; const mm=document.getElementById('minimap'); if(mm) mm.style.display=minimapOn?'block':'none'; } // 🗺️
     if(e.code==='KeyW' && !wHeld){ wHeld=true; forwardPressed(); }  // 2x W = correr
@@ -935,7 +1001,7 @@ function setupControls(){
     if(e.code==='KeyW'){ wHeld=false; forwardReleased(); }
   });
 
-  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival') && controlMode==='pc') canvas.requestPointerLock(); });
+  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='pizza') && controlMode==='pc') canvas.requestPointerLock(); });
   canvas.addEventListener('contextmenu', e=>{ if(gameState==='survival') e.preventDefault(); });
   // 🧟 sobrevivência: clique atira (ou coloca barricada se construindo); botão direito alterna construir
   document.addEventListener('mousedown', e=>{
@@ -2338,6 +2404,8 @@ function animate(){
     updatePorteiro(dt);
   } else if(gameState==='survival'){
     updateSurvival(dt);
+  } else if(gameState==='pizza'){
+    updatePizza(dt);
   }
   renderer.render(scene,camera);
 }
@@ -4229,6 +4297,111 @@ function svAgain(){
   else svStartSolo();
 }
 
+// 🍕 ============ PIZZARIA / LANCHONETE ============
+const PZ_MENU=[ {id:'pizza',ic:'🍕'},{id:'burger',ic:'🍔'},{id:'hotdog',ic:'🌭'},
+  {id:'fries',ic:'🍟'},{id:'soda',ic:'🥤'},{id:'icecream',ic:'🍦'} ];
+const PZ_PAT=14;   // segundos de paciência do cliente
+function pzFresh(){ return { lives:3, score:0, served:0, correct:0, streak:0, best:0, cur:null, tray:[], cool:0.6, over:false }; }
+let pz=pzFresh();
+function pzIc(id){ const m=PZ_MENU.find(x=>x.id===id); return m?m.ic:'?'; }
+function pzGenOrder(){ const n=1+((Math.random()*3)|0), items=[];
+  for(let i=0;i<n;i++) items.push(PZ_MENU[(Math.random()*PZ_MENU.length)|0].id); return items; }
+function pzClearCustomer(){ if(pz.cur&&pz.cur.group){ scene.remove(pz.cur.group); disposeObj(pz.cur.group); } }
+function pzSpawnCustomer(){
+  pzClearCustomer(); pz.tray=[];
+  const desc={ skin:ptPick(SKINS), shirt:SHIRTS[(Math.random()*SHIRTS.length)|0].c, pants:ptPick(PANTS), hair:ptPick(HAIRS), monster:null };
+  const g=makePerson(desc); g.position.set(0,0,-14); g.rotation.y=0; scene.add(g);
+  setSpriteText(g.userData.label,'🙂 Cliente');
+  pz.cur={ order:pzGenOrder(), group:g, state:'walkin', t:0, patience:1 };
+  pzUpdateHud();
+}
+function pzUpdateCustomer(dt){
+  const c=pz.cur; if(!c||!c.group) return;
+  const g=c.group, ud=g.userData; c.t+=dt;
+  const walking=c.state==='walkin'||c.state==='leaving';
+  const sw=walking?Math.sin(c.t*9)*0.5:Math.sin(clock.elapsedTime*1.8)*0.04;
+  ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw; ud.armL.rotation.x=-sw; ud.armR.rotation.x=sw;
+  if(c.state==='walkin'){ g.position.z+=3.0*dt;
+    if(g.position.z>=-2.5){ g.position.z=-2.5; c.state='order'; tone(880,0.07,'sine',0.07); setTimeout(()=>tone(1200,0.07,'sine',0.05),90); pzUpdateHud(); } }
+  else if(c.state==='order'){ c.patience-=dt/PZ_PAT; if(c.patience<=0) pzResolve(false,'demorou'); }
+  else if(c.state==='leaving'){ g.rotation.y=Math.PI; g.position.z-=3.4*dt; if(g.position.z<-14){ pzClearCustomer(); pz.cur=null; pz.cool=0.4; } }
+}
+function pzAdd(id){ if(!pz.cur||pz.cur.state!=='order'||pz.over||pz.tray.length>=6) return;
+  pz.tray.push(id); tone(520,0.05,'square',0.06); pzUpdateHud(); }
+function pzClearTray(){ pz.tray=[]; tone(200,0.06,'square',0.05); pzUpdateHud(); }
+function pzDeliver(){ if(!pz.cur||pz.cur.state!=='order'||pz.over) return;
+  const a=[...pz.cur.order].sort().join(','), b=[...pz.tray].sort().join(',');
+  pzResolve(a===b, 'pedido errado');
+}
+function pzResolve(ok, reason){
+  const c=pz.cur; if(!c||c.state!=='order') return;
+  pz.served++;
+  if(ok){ pz.correct++; pz.streak++; if(pz.streak>pz.best)pz.best=pz.streak; pz.score+=10+(pz.streak-1)*2;
+    tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); pzFlash('good'); setSpriteText(c.group.userData.label,'😋 Valeu!'); }
+  else { pz.lives--; pz.streak=0; tone(150,0.3,'sawtooth',0.16); pzFlash('bad'); setSpriteText(c.group.userData.label,'😡 '+(reason||'errado')); }
+  c.state='leaving'; pz.tray=[]; pzUpdateHud();
+  if(pz.lives<=0) pzOver();
+}
+function pzFlash(k){ const f=document.getElementById('pzFlash'); if(!f)return; f.className=k; setTimeout(()=>{f.className='';},260); }
+function pzUpdateHud(){
+  if(document.getElementById('pzHud').classList.contains('hidden')) return;
+  const hearts='❤️'.repeat(Math.max(0,pz.lives))+'🖤'.repeat(Math.max(0,3-pz.lives));
+  const acc=pz.served?Math.round(pz.correct/pz.served*100):100;
+  document.getElementById('pzStats').innerHTML=`<span>${hearts}</span><span>⭐ Pontos: <b>${pz.score}</b></span><span>🎯 ${acc}%</span><span>🔥 ${pz.streak} (rec ${pz.best})</span>`;
+  const ord=document.getElementById('pzOrder');
+  if(pz.cur && pz.cur.state==='order'){ ord.textContent=pz.cur.order.map(pzIc).join(' '); document.getElementById('pzOrderBox').style.opacity=1; }
+  else { ord.textContent='—'; document.getElementById('pzOrderBox').style.opacity=0.5; }
+  document.getElementById('pzTray').textContent=pz.tray.length?pz.tray.map(pzIc).join(' '):'(vazia)';
+}
+function pzMovePlayer(dt){
+  camera.position.set(player.pos.x, player.feet+player.height, player.pos.z);
+  camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
+  if(playerLight){ playerLight.intensity += (0.7-playerLight.intensity)*0.2; playerLight.position.set(player.pos.x,player.feet+1.6,player.pos.z); }
+}
+function updatePizza(dt){
+  pzMovePlayer(dt); pzUpdateCustomer(dt);
+  if(pz.over) return;
+  if(!pz.cur){ pz.cool-=dt; if(pz.cool<=0) pzSpawnCustomer(); }
+  if(pz.cur && pz.cur.state==='order'){ const pat=document.getElementById('pzPat'); if(pat) pat.style.width=Math.max(0,pz.cur.patience*100)+'%'; }
+}
+function pzMakeMenuBtns(){ const box=document.getElementById('pzMenuBtns'); box.innerHTML='';
+  for(const m of PZ_MENU){ const b=document.createElement('button'); b.className='pzitem'; b.textContent=m.ic; b.onclick=()=>pzAdd(m.id); box.appendChild(b); } }
+function pzOver(){
+  if(pz.over)return; pz.over=true;
+  if(document.pointerLockElement) document.exitPointerLock();
+  const acc=pz.served?Math.round(pz.correct/pz.served*100):100;
+  document.getElementById('pzOverStats').innerHTML=`Clientes atendidos: <b>${pz.served}</b><br>Acertos: <b>${pz.correct}</b><br>Precisão: <b>${acc}%</b> · Melhor sequência: <b>${pz.best}</b><br>Pontos: <b>${pz.score}</b>`;
+  document.getElementById('pzHud').classList.add('hidden');
+  document.getElementById('pzOver').classList.remove('hidden');
+}
+function pzStart(){
+  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
+  spectator=false; pz=pzFresh();
+  ['modes','start','device','pzOver','death','win','porteiro','ptOver','svOver','survMenu','ptHud','svHud','svShop'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
+  buildPorteiroScene();   // reusa o balcão 3D
+  staminaMax=100; player.height=1.7; player.pos.set(0,1.7,1.0); player.feet=0; player.vy=0; player.yaw=0; player.pitch=-0.05; player.stamina=100;
+  introActive=false; hiding=false; player.dead=false; qte.active=false; gameState='pizza';
+  ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  pzMakeMenuBtns();
+  document.getElementById('pzHud').classList.remove('hidden');
+  if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
+  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  pz.cool=0.6; pzUpdateHud();
+  showMsg('🍕 Lanchonete aberta! Monte o pedido (botões) e ✅ entregue antes da paciência acabar.',4500);
+}
+function pzExit(){
+  pz.over=true; pzClearCustomer(); pz.cur=null;
+  if(document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('pzHud').classList.add('hidden');
+  document.getElementById('pzOver').classList.add('hidden');
+  document.getElementById('touch').classList.remove('on');
+  document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
+  document.getElementById('minimap').style.display = minimapOn?'block':'none';
+  gameState='menu'; clearLevel();
+  document.getElementById('modes').classList.remove('hidden');
+}
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -4283,6 +4456,13 @@ document.getElementById('modeSurvival').onclick=()=>{
   document.getElementById('survMenu').classList.remove('hidden');
   document.getElementById('survCoopPanel').style.display='none';
 };
+// 🍕 Pizzaria
+document.getElementById('modePizza').onclick=pzStart;
+document.getElementById('pzDeliver').onclick=pzDeliver;
+document.getElementById('pzClear').onclick=pzClearTray;
+document.getElementById('pzExit').onclick=pzExit;
+document.getElementById('pzAgain').onclick=pzStart;
+document.getElementById('pzOverMenu').onclick=pzExit;
 // menu Sobrevivência
 document.getElementById('survStartSolo').onclick=svStartSolo;
 document.getElementById('survStartCoop').onclick=()=>{
