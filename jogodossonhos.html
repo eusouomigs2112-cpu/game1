@@ -252,6 +252,24 @@
   #pzFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.5); opacity:1; }
   #pzFlash.bad  { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.55); opacity:1; }
   #pzOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #pzOverStats b { color:#ffd86b; }
+  /* Guarda de Trânsito */
+  #trHud { position:fixed; inset:0; z-index:7; pointer-events:none; font-family:"Segoe UI",system-ui,sans-serif; color:#fff; }
+  #trHud.hidden { display:none; }
+  #trStats { position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; gap:16px; flex-wrap:wrap; justify-content:center;
+    background:rgba(10,8,16,.72); border:1px solid rgba(120,200,120,.4); border-radius:14px; padding:9px 18px; font-size:15px; font-weight:700; backdrop-filter:blur(4px); }
+  #trRule { position:absolute; top:14px; left:14px; max-width:240px; font-size:13px; line-height:1.5;
+    background:rgba(10,8,16,.72); border:1px solid rgba(255,180,90,.4); border-radius:14px; padding:11px 14px; backdrop-filter:blur(4px); }
+  #trRule h4 { margin:0 0 5px; font-size:12px; color:#ffd86b; }
+  #trCenter { position:absolute; left:50%; bottom:26px; transform:translateX(-50%); text-align:center; width:min(94vw,540px); }
+  #trPlate { font-size:30px; font-weight:800; letter-spacing:3px; min-height:38px; text-shadow:0 2px 10px #000; }
+  #trPlate .pl { background:#e8e8d0; color:#111; padding:3px 12px; border-radius:6px; border:2px solid #333; font-family:monospace; }
+  #trHint { font-size:13px; opacity:.8; margin:6px 0 12px; text-shadow:0 1px 6px #000; }
+  #trBtns { display:flex; gap:16px; justify-content:center; }
+  #trExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
+  #trFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .12s; }
+  #trFlash.good { box-shadow:inset 0 0 160px 50px rgba(40,220,120,.5); opacity:1; }
+  #trFlash.bad { box-shadow:inset 0 0 160px 50px rgba(230,40,60,.55); opacity:1; }
+  #trOverStats { font-size:16px; line-height:1.9; margin:14px 0; } #trOverStats b { color:#9fe8ff; }
   /* tela de dispositivo */
   .devicebtns { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:24px 0; }
   .devbtn {
@@ -436,11 +454,44 @@
       <div class="ds">Fim do mundo com zumbis — colete recursos, construa uma base e resista às ondas</div>
     </div>
     <div class="devbtn" id="modePizza">
-      <div class="ic">🍕</div><div class="lb">PIZZARIA</div>
-      <div class="ds">Atenda os clientes: monte o pedido certo e entregue antes da paciência acabar</div>
+      <div class="ic">🍕</div><div class="lb">RESTAURANTE</div>
+      <div class="ds">Ande, cozinhe e leve o prato até a mesa do cliente antes da paciência acabar</div>
+    </div>
+    <div class="devbtn" id="modeTransito">
+      <div class="ic">🚦</div><div class="lb">GUARDA DE TRÂNSITO</div>
+      <div class="ds">Libere os carros certos e barre os procurados e irregulares na cancela</div>
+    </div>
+    <div class="devbtn" id="modeHide">
+      <div class="ic">🙈</div><div class="lb">ESCONDE-ESCONDE</div>
+      <div class="ds">Vire um objeto e fique parado pra se esconder do monstro — sobreviva ao tempo</div>
+    </div>
+    <div class="devbtn" id="modeHunter">
+      <div class="ic">👤</div><div class="lb">CAÇADOR (CO-OP)</div>
+      <div class="ds">Versus online: um controla o monstro, o outro foge até a porta</div>
     </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
+</div>
+
+<!-- HUD do Guarda de Trânsito -->
+<div id="trHud" class="hidden">
+  <div id="trStats"></div>
+  <div id="trRule"></div>
+  <div id="trCenter">
+    <div id="trPlate">—</div>
+    <div id="trHint">✅ <b>E</b> liberar · 🛑 <b>Q</b> barrar</div>
+    <div id="trBtns">
+      <button id="trStop" class="ptbig deny">🛑 Barrar</button>
+      <button id="trGo" class="ptbig accept">✅ Liberar</button>
+    </div>
+  </div>
+  <div id="trFlash"></div>
+  <button id="trExit" class="ghost">↩ Sair</button>
+</div>
+<div id="trOver" class="overlay hidden">
+  <h1 id="trOverTitle">🚦 Fim do plantão</h1>
+  <div id="trOverStats"></div>
+  <div class="btnrow"><button id="trAgain">🔁 Jogar de novo</button><button id="trOverMenu" class="ghost">↩ Menu</button></div>
 </div>
 
 <!-- HUD do modo Restaurante -->
@@ -968,8 +1019,9 @@ function forwardReleased(){ autoRun=false; }   // soltar pra frente cancela a co
 function setupControls(){
   const canvas = renderer.domElement;
   document.addEventListener('keydown', e=>{ keys[e.code]=true;
-    if(e.code==='KeyE'){ if(gameState==='porteiro') ptDecide(true); else interact(); }   // 🚪 porteiro: E = deixar entrar
+    if(e.code==='KeyE'){ if(gameState==='porteiro') ptDecide(true); else if(gameState==='transito') trDecide(true); else interact(); }
     if(e.code==='KeyQ' && gameState==='porteiro') ptDecide(false);                       // 🚪 porteiro: Q = fechar portão
+    if(e.code==='KeyQ' && gameState==='transito') trDecide(false);                       // 🚦 trânsito: Q = barrar
     if(e.code==='KeyC' && gameState==='porteiro') ptPhone();                             // 📞 porteiro: C = ligar pra casa
     if(e.code==='KeyB' && gameState==='survival') svToggleBuild();                       // 🧟 sobrevivência: B = construir
     if(gameState==='survival'){ const wk={Digit1:'pistol',Digit2:'axe',Digit3:'shotgun',Digit4:'bazooka'}[e.code]; if(wk) svEquip(wk); } // trocar arma (1-4)
@@ -984,7 +1036,7 @@ function setupControls(){
     if(e.code==='KeyW'){ wHeld=false; forwardReleased(); }
   });
 
-  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='pizza') && controlMode==='pc') canvas.requestPointerLock(); });
+  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='pizza'||gameState==='transito') && controlMode==='pc') canvas.requestPointerLock(); });
   canvas.addEventListener('contextmenu', e=>{ if(gameState==='survival') e.preventDefault(); });
   // 🧟 sobrevivência: clique atira (ou coloca barricada se construindo); botão direito alterna construir
   document.addEventListener('mousedown', e=>{
@@ -2390,6 +2442,8 @@ function animate(){
     updateSurvival(dt);
   } else if(gameState==='pizza'){
     updatePizza(dt);
+  } else if(gameState==='transito'){
+    updateTransito(dt);
   }
   renderer.render(scene,camera);
 }
@@ -4489,6 +4543,147 @@ function pzExit(){
   document.getElementById('modes').classList.remove('hidden');
 }
 
+// 🚦 ============ GUARDA DE TRÂNSITO ============
+function trFresh(){ return { lives:3, score:0, processed:0, correct:0, streak:0, best:0, passed:0, stopped:0,
+  wanted:[], cur:null, cool:0.7, over:false, barrier:null, barTarget:0 }; }
+let tr=trFresh();
+function trPlate(){ const L='ABCDEFGHJKLMNPQRSTUVWXYZ', N='0123456789';
+  const p=c=>c[(Math.random()*c.length)|0];
+  return p(L)+p(L)+p(L)+'-'+p(N)+p(L)+p(N)+p(N); }
+function trGenWanted(){ tr.wanted=[]; for(let i=0;i<4;i++) tr.wanted.push(trPlate()); }
+const TR_COLORS=[0xd23a3a,0x3a6fd2,0x2faa55,0xd9c33a,0xe8e8ee,0x222228,0xe07b2a];
+function trMakeCar(d){
+  const g=new THREE.Group();
+  const body=new THREE.MeshStandardMaterial({color:d.color, roughness:0.45, metalness:0.5});
+  const dark=new THREE.MeshStandardMaterial({color:0x111316, roughness:0.4});
+  const glass=new THREE.MeshStandardMaterial({color:0x9fd0e0, roughness:0.2, metalness:0.3, transparent:true, opacity:0.7});
+  const chassis=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.6,3.6),body); chassis.position.set(0,0.6,0); g.add(chassis);
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.6,1.8),body); cab.position.set(0,1.15,-0.2); g.add(cab);
+  const wind=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.5,0.1),glass); wind.position.set(0,1.15,0.7); g.add(wind);
+  for(const [x,z] of [[-0.8,1.2],[0.8,1.2],[-0.8,-1.2],[0.8,-1.2]]){ const w=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.36,0.3,14),dark); w.rotation.z=Math.PI/2; w.position.set(x,0.36,z); g.add(w); }
+  // faróis (frente = +z, virado pro guarda)
+  const hl=new THREE.MeshStandardMaterial({color:0xfff6c0, emissive:0xffe080, emissiveIntensity:1.2});
+  [-0.6,0.6].forEach(x=>{ const h=new THREE.Mesh(new THREE.SphereGeometry(0.16,10,10),hl); h.position.set(x,0.6,1.8); g.add(h); });
+  // placa (frente)
+  if(!d.noPlate){ const pl=makeNameSprite(); pl.scale.set(1.5,0.38,1); pl.position.set(0,0.5,1.95); setSpriteText(pl, d.plate); g.add(pl); }
+  // fumaça (irregular)
+  if(d.smoking){ const s=new THREE.Mesh(new THREE.SphereGeometry(0.4,10,10), new THREE.MeshStandardMaterial({color:0x444444, transparent:true, opacity:0.7}));
+    s.position.set(0,1.8,-1.8); g.add(s); g.userData.smoke=s; }
+  return g;
+}
+function trMakeDesc(){
+  const r=Math.random(); let type = r<0.5?'ok' : r<0.7?'wanted' : r<0.85?'smoking' : 'noplate';
+  let plate=trPlate(), color=TR_COLORS[(Math.random()*TR_COLORS.length)|0], smoking=false, noPlate=false, ok=false, reason='';
+  if(type==='ok'){ while(tr.wanted.includes(plate)) plate=trPlate(); ok=true; reason='Carro liberado ✅'; }
+  else if(type==='wanted'){ plate=tr.wanted[(Math.random()*tr.wanted.length)|0]; reason='PROCURADO 🚨'; }
+  else if(type==='smoking'){ while(tr.wanted.includes(plate)) plate=trPlate(); smoking=true; reason='Irregular: soltando fumaça 💨'; }
+  else { noPlate=true; reason='Irregular: sem placa'; }
+  return { plate, color, smoking, noPlate, ok, reason };
+}
+function trClearCar(){ if(tr.cur&&tr.cur.group){ scene.remove(tr.cur.group); disposeObj(tr.cur.group); } }
+function trSpawnCar(){
+  trClearCar();
+  const d=trMakeDesc(); const g=trMakeCar(d); g.position.set(0,0,-30); scene.add(g);
+  tr.cur=d; tr.cur.group=g; tr.cur.state='in'; tr.cur.t=0; trUpdateHud();
+}
+function buildTransitoScene(){
+  clearLevel();
+  scene.background=new THREE.Color(0x10131f); scene.fog=new THREE.FogExp2(0x10131f,0.015);
+  wallMat=new THREE.MeshStandardMaterial({color:0x4a4660, roughness:0.85});
+  const grass=new THREE.Mesh(new THREE.PlaneGeometry(80,90), new THREE.MeshStandardMaterial({color:0x2a3a26, roughness:1}));
+  grass.rotation.x=-Math.PI/2; scene.add(grass);
+  const road=new THREE.Mesh(new THREE.PlaneGeometry(5,90), new THREE.MeshStandardMaterial({color:0x33343c, roughness:0.95}));
+  road.rotation.x=-Math.PI/2; road.position.set(0,0.01,-8); scene.add(road);
+  // faixas da pista
+  for(let i=0;i<14;i++){ const m=new THREE.Mesh(new THREE.PlaneGeometry(0.2,1.4), new THREE.MeshStandardMaterial({color:0xddddcc})); m.rotation.x=-Math.PI/2; m.position.set(0,0.02,-30+i*3.2); scene.add(m); }
+  // guarita do guarda (à direita)
+  const booth=new THREE.MeshStandardMaterial({color:0x5b4a8a, roughness:0.7});
+  addBox(3.2,1.1,0,1.6,2.2,2.0,booth);
+  // CANCELA (barreira) atravessando a pista, com pivô na direita
+  const bar=new THREE.Group();
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,1.6,10), new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.5})); pole.position.set(2.3,0.8,-2); scene.add(pole);
+  const arm=new THREE.Mesh(new THREE.BoxGeometry(5.0,0.18,0.18), new THREE.MeshStandardMaterial({color:0xff3b3b}));
+  // listras
+  for(let i=0;i<5;i++){ const s=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.2,0.2), new THREE.MeshStandardMaterial({color:i%2?0xffffff:0xff3b3b})); s.position.x=-2+i*1.0; arm.add(s); }
+  arm.position.set(-0.2,0,0); bar.add(arm); bar.position.set(2.3,1.5,-2); scene.add(bar);
+  tr.barrier=bar; tr.barTarget=0;   // 0=baixada (bloqueia), 1=levantada
+  // prédios ao fundo
+  for(const x of [-9,9]){ const b=new THREE.Mesh(new THREE.BoxGeometry(6,14,6), new THREE.MeshStandardMaterial({color:0x2b2d44})); b.position.set(x,7,-20); scene.add(b); }
+  scene.add(new THREE.HemisphereLight(0x9fb6e0,0x33304a,1.1));
+  const l=new THREE.PointLight(0xfff0cc,1.3,30); l.position.set(0,8,-4); scene.add(l);
+}
+function trDecide(go){
+  const c=tr.cur; if(!c||c.state!=='wait'||tr.over) return;
+  const correct=(go===c.ok); tr.processed++;
+  if(correct){ tr.correct++; tr.streak++; if(tr.streak>tr.best)tr.best=tr.streak; tr.score+=10+(tr.streak-1)*2;
+    tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); trFlash('good'); }
+  else { tr.lives--; tr.streak=0; tone(150,0.32,'sawtooth',0.18); trFlash('bad'); showMsg('❌ '+c.reason,2400); }
+  if(go && c.ok) tr.passed++; if(!go && !c.ok) tr.stopped++;
+  if(go){ c.state='pass'; tr.barTarget=1; tone(440,0.1,'sine',0.08); } else { c.state='leave'; tr.barTarget=0; }
+  trUpdateHud(); if(tr.lives<=0) trOver();
+}
+function trFlash(k){ const f=document.getElementById('trFlash'); if(!f)return; f.className=k; setTimeout(()=>{f.className='';},260); }
+function trUpdateCar(dt){
+  const c=tr.cur; if(!c||!c.group) return; const g=c.group; c.t+=dt;
+  if(g.userData.smoke){ g.userData.smoke.position.y=1.8+Math.sin(clock.elapsedTime*4)*0.1; g.userData.smoke.material.opacity=0.5+Math.sin(clock.elapsedTime*5)*0.2; }
+  if(c.state==='in'){ g.position.z+=7*dt; if(g.position.z>=-6){ g.position.z=-6; c.state='wait'; tone(330,0.08,'sine',0.06); trUpdateHud(); } }
+  else if(c.state==='pass'){ g.position.z+=9*dt; if(g.position.z>10){ trClearCar(); tr.cur=null; tr.cool=0.5; tr.barTarget=0; } }
+  else if(c.state==='leave'){ g.position.z-=8*dt; if(g.position.z<-30){ trClearCar(); tr.cur=null; tr.cool=0.5; } }
+}
+function trUpdateBarrier(dt){ if(!tr.barrier) return;
+  const target=tr.barTarget*(-Math.PI/2);   // levantada = -90°
+  tr.barrier.rotation.z += (target - tr.barrier.rotation.z)*Math.min(1,dt*6); }
+function trMovePlayer(dt){
+  camera.position.set(player.pos.x, player.feet+player.height, player.pos.z);
+  camera.rotation.order='YXZ'; camera.rotation.y=player.yaw; camera.rotation.x=player.pitch;
+  if(playerLight){ playerLight.intensity += (0.7-playerLight.intensity)*0.2; playerLight.position.set(player.pos.x,player.feet+1.6,player.pos.z); }
+}
+function updateTransito(dt){
+  trMovePlayer(dt); trUpdateCar(dt); trUpdateBarrier(dt);
+  if(tr.over) return;
+  if(!tr.cur){ tr.cool-=dt; if(tr.cool<=0) trSpawnCar(); }
+}
+function trUpdateHud(){
+  if(document.getElementById('trHud').classList.contains('hidden')) return;
+  const hearts='❤️'.repeat(Math.max(0,tr.lives))+'🖤'.repeat(Math.max(0,3-tr.lives));
+  const acc=tr.processed?Math.round(tr.correct/tr.processed*100):100;
+  document.getElementById('trStats').innerHTML=`<span>${hearts}</span><span>⭐ <b>${tr.score}</b></span><span>🎯 ${acc}%</span><span>🔥 ${tr.streak} (rec ${tr.best})</span>`;
+  document.getElementById('trRule').innerHTML='<h4>🚨 PLACAS PROCURADAS</h4>'+tr.wanted.map(p=>'• <b>'+p+'</b>').join('<br>')+'<br><span style="opacity:.7">Barre procurados, sem placa e fumaça. Libere o resto.</span>';
+  const pl=document.getElementById('trPlate');
+  if(tr.cur && tr.cur.state==='wait'){ pl.innerHTML = tr.cur.noPlate ? '<span style="color:#ff8a8a">🚗 SEM PLACA</span>' : '🚗 <span class="pl">'+tr.cur.plate+'</span>'; }
+  else pl.textContent='—';
+}
+function trOver(){
+  if(tr.over)return; tr.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  const acc=tr.processed?Math.round(tr.correct/tr.processed*100):100;
+  document.getElementById('trOverStats').innerHTML=`Carros conferidos: <b>${tr.processed}</b><br>Acertos: <b>${tr.correct}</b> · Precisão: <b>${acc}%</b><br>Liberados certos: <b>${tr.passed}</b> · Barrados certos: <b>${tr.stopped}</b><br>Melhor sequência: <b>${tr.best}</b> · Pontos: <b>${tr.score}</b>`;
+  document.getElementById('trHud').classList.add('hidden'); document.getElementById('trOver').classList.remove('hidden');
+}
+function trStart(){
+  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
+  spectator=false; tr=trFresh(); trGenWanted();
+  ['modes','start','device','trOver','death','win','porteiro','ptOver','svOver','survMenu','pzOver','ptHud','svHud','svShop','pzHud'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
+  buildTransitoScene();
+  staminaMax=100; player.height=1.7; player.pos.set(2.2,1.7,1.2); player.feet=0; player.yaw=0.45; player.pitch=-0.05; player.stamina=100;
+  introActive=false; hiding=false; player.dead=false; qte.active=false; gameState='transito';
+  ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('trHud').classList.remove('hidden');
+  if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
+  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  tr.cool=0.8; trUpdateHud();
+  showMsg('🚦 Confira a placa! Barre os PROCURADOS e irregulares (sem placa/fumaça). Libere o resto.',5000);
+}
+function trExit(){
+  tr.over=true; trClearCar(); tr.cur=null;
+  if(document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('trHud').classList.add('hidden'); document.getElementById('trOver').classList.add('hidden');
+  document.getElementById('touch').classList.remove('on');
+  document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
+  document.getElementById('minimap').style.display = minimapOn?'block':'none';
+  gameState='menu'; clearLevel(); document.getElementById('modes').classList.remove('hidden');
+}
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -4546,6 +4741,15 @@ document.getElementById('modeSurvival').onclick=()=>{
 // 🍕 Pizzaria
 document.getElementById('modePizza').onclick=pzStart;
 document.getElementById('pzExit').onclick=pzExit;
+// 🚦 Guarda de Trânsito
+document.getElementById('modeTransito').onclick=trStart;
+document.getElementById('trGo').onclick=()=>trDecide(true);
+document.getElementById('trStop').onclick=()=>trDecide(false);
+document.getElementById('trExit').onclick=trExit;
+document.getElementById('trAgain').onclick=trStart;
+document.getElementById('trOverMenu').onclick=trExit;
+document.getElementById('modeHide').onclick=()=>showMsg('🙈 Esconde-esconde — em construção!',2000);
+document.getElementById('modeHunter').onclick=()=>showMsg('👤 Caçador co-op — em construção!',2000);
 document.getElementById('pzAgain').onclick=pzStart;
 document.getElementById('pzOverMenu').onclick=pzExit;
 // menu Sobrevivência
