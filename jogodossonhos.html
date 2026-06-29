@@ -270,10 +270,13 @@
   #trRule { position:absolute; top:14px; left:14px; max-width:240px; font-size:13px; line-height:1.5;
     background:rgba(10,8,16,.72); border:1px solid rgba(255,180,90,.4); border-radius:14px; padding:11px 14px; backdrop-filter:blur(4px); }
   #trRule h4 { margin:0 0 5px; font-size:12px; color:#ffd86b; }
+  #trPlateBox { position:absolute; top:84px; left:50%; transform:translateX(-50%); text-align:center;
+    background:rgba(10,8,16,.78); border:2px solid rgba(255,180,90,.5); border-radius:16px; padding:10px 22px; backdrop-filter:blur(4px); }
+  #trPlateLbl { font-size:12px; opacity:.75; letter-spacing:1px; margin-bottom:5px; }
+  #trPlate { font-size:30px; font-weight:800; letter-spacing:3px; min-height:40px; }
+  #trPlate .pl { background:#e8e8d0; color:#111; padding:4px 14px; border-radius:6px; border:2px solid #333; font-family:monospace; }
   #trCenter { position:absolute; left:50%; bottom:26px; transform:translateX(-50%); text-align:center; width:min(94vw,540px); }
-  #trPlate { font-size:30px; font-weight:800; letter-spacing:3px; min-height:38px; text-shadow:0 2px 10px #000; }
-  #trPlate .pl { background:#e8e8d0; color:#111; padding:3px 12px; border-radius:6px; border:2px solid #333; font-family:monospace; }
-  #trHint { font-size:13px; opacity:.8; margin:6px 0 12px; text-shadow:0 1px 6px #000; }
+  #trHint { font-size:13px; opacity:.85; margin:0 0 12px; text-shadow:0 1px 6px #000; }
   #trBtns { display:flex; gap:16px; justify-content:center; }
   #trExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
   #trFlash { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .12s; }
@@ -299,7 +302,7 @@
     background:rgba(10,8,16,.72); border:1px solid rgba(200,80,120,.5); border-radius:14px; padding:9px 18px; font-size:16px; font-weight:800; backdrop-filter:blur(4px); }
   #hunterCross { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:rgba(255,255,255,.6); font-size:20px; }
   #hunterExit { position:absolute; top:14px; right:14px; pointer-events:auto; font-size:13px; padding:8px 14px; }
-  #hunterMpInfo { margin-top:8px; } #hunterMenu input { padding:9px 12px; border-radius:10px; border:1px solid rgba(124,92,255,.4); background:rgba(255,255,255,.06); color:#fff; outline:none; }
+  #hunterMpInfo { margin-top:8px; } #hunterMenu input, #hideMenu input { padding:9px 12px; border-radius:10px; border:1px solid rgba(124,92,255,.4); background:rgba(255,255,255,.06); color:#fff; outline:none; }
   #hunterOverStats { font-size:17px; line-height:1.8; margin:14px 0; }
   /* tela de dispositivo */
   .devicebtns { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; margin:24px 0; }
@@ -508,8 +511,8 @@
 <div id="trHud" class="hidden">
   <div id="trStats"></div>
   <div id="trRule"></div>
+  <div id="trPlateBox"><div id="trPlateLbl">🚗 PLACA DO CARRO</div><div id="trPlate">—</div></div>
   <div id="trCenter">
-    <div id="trPlate">—</div>
     <div id="trHint">✅ <b>E</b> liberar · 🛑 <b>Q</b> barrar</div>
     <div id="trBtns">
       <button id="trStop" class="ptbig deny">🛑 Barrar</button>
@@ -523,6 +526,29 @@
   <h1 id="trOverTitle">🚦 Fim do plantão</h1>
   <div id="trOverStats"></div>
   <div class="btnrow"><button id="trAgain">🔁 Jogar de novo</button><button id="trOverMenu" class="ghost">↩ Menu</button></div>
+</div>
+
+<!-- MENU do Esconde-esconde (Solo / Co-op) -->
+<div id="hideMenu" class="overlay hidden">
+  <h1>🙈 Esconde-esconde</h1>
+  <p>Vire um objeto e fique <b>parado</b> pra se esconder do monstro. Sobrevivam às rodadas!</p>
+  <div class="btnrow">
+    <button id="hideStartSolo">🙂 Jogar Sozinho</button>
+    <button id="hideStartCoop" class="ghost">👥 Co-op (com amigo)</button>
+  </div>
+  <div id="hideCoopPanel" style="display:none; margin-top:6px;">
+    <div style="font-size:13px; opacity:.7; letter-spacing:1px; margin-bottom:6px;">👥 OS DOIS SE ESCONDEM — vidas compartilhadas</div>
+    <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;"><input id="hideNick" placeholder="Seu nome" maxlength="12" autocomplete="off"/></div>
+    <div class="mp" style="margin-top:8px;">
+      <button id="hideHostBtn" class="ghost" style="font-size:14px; padding:9px 18px;">🌐 Criar Sala</button>
+      <button id="hideJoinBtn" class="ghost" style="font-size:14px; padding:9px 18px;">🔑 Entrar com código</button>
+    </div>
+    <div id="hideJoinRow" style="display:none; gap:8px; justify-content:center; margin-top:8px;">
+      <input id="hideCodeInput" placeholder="CÓDIGO" maxlength="5" autocomplete="off"/><button id="hideConnectBtn">Conectar</button>
+    </div>
+    <div id="hideMpInfo" class="mpinfo"></div>
+  </div>
+  <button class="ghost" id="hideBack" style="font-size:14px; margin-top:14px;">↩ Voltar</button>
 </div>
 
 <!-- HUD do Esconde-esconde -->
@@ -3104,6 +3130,11 @@ function onNetData(d){
   else if(d.t==='h_mon'){ net.hMon=d; }
   else if(d.t==='h_surv'){ net.hSurv=d; }
   else if(d.t==='h_over'){ hunterShowResult(d.winner); }
+  // ---- Esconde-esconde (co-op) ----
+  else if(d.t==='hide_begin'){ hide=hideFresh(); hideEnter(); }
+  else if(d.t==='hide_mon'){ net.hideMon=d; }
+  else if(d.t==='hide_state'){ if(net.role==='client'){ hide.lives=d.lives; hide.round=d.round; hide.timer=d.timer; hide.susp=d.susp; hide.locked=d.locked; hideUpdateHud(); } }
+  else if(d.t==='hide_over'){ hideOver(false); }
 }
 function hostAdvance(){
   if(phase>=MAX_PHASE){ netSend({t:'win'}); winGame(); return; }
@@ -4720,12 +4751,17 @@ function buildHideScene(){
   scene.add(new THREE.HemisphereLight(0x8088b0,0x222028,0.9));
   const l=new THREE.PointLight(0xffe8c0,1.2,30); l.position.set(0,9,0); scene.add(l);
   // monstro caçador
-  hide.monster=makeZombie(); hide.monster.position.set(0,0,-12); scene.add(hide.monster);
+  // 👹 monstro caçador (não é zumbi): humanoide cinza com chifres, garras, presas e olhos brilhando
+  hide.monster=makePerson({skin:0x6a6470, shirt:0x201c26, pants:0x141118, hair:0x111111,
+    monster:{gray:true, glow:true, horns:true, claws:true, fangs:true, big:true}});
+  if(hide.monster.userData.label) hide.monster.userData.label.visible=false;
+  hide.monster.position.set(0,0,-12); scene.add(hide.monster);
   // sua "fantasia" de caixa (te deixa igual às decoys)
   hide.prop=hideMakeCrate(0,8); walls.pop();   // sem colisor próprio (segue o player)
 }
 function hideMoved(){ const dx=player.pos.x-hide.lastX, dz=player.pos.z-hide.lastZ; return Math.hypot(dx,dz)>0.02; }
 function hideMovePlayer(dt){
+  if(isMP()){ sendPos(); updateRemote(); }
   const running=keys['ShiftLeft']||keys['ShiftRight']||autoRun; let speed=running?4.6:2.8;
   const fwd=new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
   const right=new THREE.Vector3(Math.cos(player.yaw),0,-Math.sin(player.yaw));
@@ -4734,18 +4770,25 @@ function hideMovePlayer(dt){
   if(mv.lengthSq()>0) mv.normalize();
   hide.lastX=player.pos.x; hide.lastZ=player.pos.z;
   const next=player.pos.clone().addScaledVector(mv,speed*dt); collideBody(next,0,1.0); player.pos.copy(next);
-  if(hide.prop) hide.prop.position.set(player.pos.x,0.45,player.pos.z);   // sua caixa (você se vê em 3ª pessoa)
-  // 📷 câmera em 3ª pessoa: atrás e acima do personagem, orbitando pelo yaw
+  if(hide.prop) hide.prop.position.set(player.pos.x,0.45,player.pos.z);
   const dist=4.4, ph=Math.max(-0.5,Math.min(0.7,player.pitch));
   camera.position.set(player.pos.x + Math.sin(player.yaw)*dist, player.feet+2.5 - ph*3.2, player.pos.z + Math.cos(player.yaw)*dist);
   camera.lookAt(player.pos.x, player.feet+0.6, player.pos.z);
   if(playerLight){ playerLight.intensity+=(0.5-playerLight.intensity)*0.2; playerLight.position.set(player.pos.x,1.5,player.pos.z); }
 }
-function hideMonsterFace(){ return hide.monster.rotation.y; }
+function hideTargets(){
+  const arr=[{x:player.pos.x,z:player.pos.z,moving:hideMoved()}];
+  if(isMP() && net.remoteState && !net.remoteState.dead){ const r=net.remoteState;
+    const moved=Math.hypot(r.x-(hide.remLX??r.x), r.z-(hide.remLZ??r.z))>0.02; hide.remLX=r.x; hide.remLZ=r.z;
+    arr.push({x:r.x,z:r.z,moving:moved}); }
+  return arr;
+}
 function hideUpdateMonster(dt){
   const m=hide.monster; if(!m) return;
-  const dx=player.pos.x-m.position.x, dz=player.pos.z-m.position.z, dist=Math.hypot(dx,dz);
-  const toAng=Math.atan2(dx,dz);
+  const targets=hideTargets();
+  let prim=targets[0], pd=1e9;
+  for(const t of targets){ const d=Math.hypot(t.x-m.position.x,t.z-m.position.z); if(d<pd){pd=d;prim=t;} }
+  const dx=prim.x-m.position.x, dz=prim.z-m.position.z, dist=pd, toAng=Math.atan2(dx,dz);
   const spd=hide.locked? (4.4+hide.round*0.3) : (2.2+hide.round*0.15);
   let ang;
   if(hide.locked){ ang=steerToward(m.position.x,m.position.z,toAng,Math.max(1,spd*dt+0.7)); }
@@ -4756,34 +4799,44 @@ function hideUpdateMonster(dt){
   const np=new THREE.Vector3(m.position.x+Math.sin(ang)*spd*dt,0,m.position.z+Math.cos(ang)*spd*dt);
   collideBody(np,0,2.0,{skipPlayerOnly:true}); m.position.set(np.x,0,np.z); m.rotation.y=ang;
   const ud=m.userData, sw=Math.sin(clock.elapsedTime*7)*0.5; ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw;
-  // detecção: no cone de visão + perto + você se mexendo
   const vision=10+hide.round*0.6, half=0.7;
   const angDiff=Math.abs(((toAng-m.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI);
-  const inSight = dist<vision && angDiff<half && !pointBlocked((player.pos.x+m.position.x)/2,(player.pos.z+m.position.z)/2,0.3);
+  const inSight=dist<vision && angDiff<half && !pointBlocked((prim.x+m.position.x)/2,(prim.z+m.position.z)/2,0.3);
+  const touch=targets.some(t=>Math.hypot(t.x-m.position.x,t.z-m.position.z)<1.4);
   if(hide.caughtCool>0){ hide.caughtCool-=dt; }
   else if(hide.locked){
-    if(dist<1.4){ hideCaught(); }
+    if(touch) hideCaught();
     if(!inSight){ hide.susp-=dt*0.7; if(hide.susp<=0){ hide.susp=0; hide.locked=false; } }
   } else {
-    if(inSight && hideMoved()){ hide.susp+=dt/1.1; if(hide.susp>=1){ hide.susp=1; hide.locked=true; roar&&roar(); showMsg('👁️ Ele te viu! CORRA e quebre a linha de visão!',2000); } }
-    else { hide.susp=Math.max(0, hide.susp-dt*0.8); }
+    if(inSight && prim.moving){ hide.susp+=dt/1.1; if(hide.susp>=1){ hide.susp=1; hide.locked=true; if(typeof roar==='function')roar(); showMsg('👁️ O caçador viu alguém! CORRAM!',2000); } }
+    else hide.susp=Math.max(0, hide.susp-dt*0.8);
   }
 }
 function hideCaught(){
   hide.lives--; tone(120,0.4,'sawtooth',0.18); hide.susp=0; hide.locked=false; hide.caughtCool=2.0;
-  // empurra o monstro pra longe
   const a=Math.random()*6.28; hide.monster.position.set(Math.cos(a)*13,0,Math.sin(a)*13);
   if(hide.lives<=0) hideOver(false); else showMsg('💀 Pego! Vidas: '+hide.lives,2200);
+}
+function hideBroadcast(){
+  netSend({t:'hide_mon', x:+hide.monster.position.x.toFixed(2), z:+hide.monster.position.z.toFixed(2), yaw:+hide.monster.rotation.y.toFixed(2)});
+  netSend({t:'hide_state', lives:hide.lives, round:hide.round, timer:Math.max(0,Math.ceil(hide.timer)), susp:+hide.susp.toFixed(2), locked:hide.locked});
+}
+function hideClientSync(dt){
+  if(hide.monster && net.hideMon){ const m=hide.monster;
+    m.position.x+=(net.hideMon.x-m.position.x)*Math.min(1,dt*12); m.position.z+=(net.hideMon.z-m.position.z)*Math.min(1,dt*12); m.rotation.y=net.hideMon.yaw||0;
+    const ud=m.userData,sw=Math.sin(clock.elapsedTime*7)*0.5; ud.legL.rotation.x=sw; ud.legR.rotation.x=-sw; }
 }
 function hideUpdate(dt){
   hideMovePlayer(dt);
   if(hide.over) return;
+  if(net.role==='client'){ hideClientSync(dt); hideUpdateHud(); return; }   // host comanda o monstro/estado
   hideUpdateMonster(dt);
   hide.timer-=dt;
   if(hide.timer<=0){ hide.round++; hide.timer=35; hide.susp=0; hide.locked=false;
     tone(660,0.12,'square',0.1); setTimeout(()=>tone(990,0.12,'square',0.08),120);
-    showMsg('✅ Sobreviveu à rodada! Rodada '+hide.round+' — o caçador ficou mais esperto.',3000);
+    showMsg('✅ Sobreviveram à rodada! Rodada '+hide.round+' — o caçador ficou mais esperto.',3000);
     const a=Math.random()*6.28; hide.monster.position.set(Math.cos(a)*13,0,Math.sin(a)*13); }
+  if(isMP()){ hide.netT=(hide.netT||0)-dt; if(hide.netT<=0){ hide.netT=0.06; hideBroadcast(); } }
   hideUpdateHud();
 }
 function hideUpdateHud(){
@@ -4791,32 +4844,59 @@ function hideUpdateHud(){
   const hearts='❤️'.repeat(Math.max(0,hide.lives))+'🖤'.repeat(Math.max(0,3-hide.lives));
   document.getElementById('hideStats').innerHTML=`<span>${hearts}</span><span>🎯 Rodada <b>${hide.round}</b></span><span>⏱️ <b>${Math.ceil(hide.timer)}s</b></span>`;
   const bar=document.getElementById('hideSusp'); if(bar){ bar.style.width=(hide.susp*100)+'%'; bar.style.background = hide.locked?'#ff3b3b':(hide.susp>0.5?'#ffd86b':'#7cff9b'); }
-  const st=document.getElementById('hideState'); if(st) st.textContent = hide.locked?'👁️ DETECTADO — fuja da visão!':(hideMoved()?'🚶 Mexendo (cuidado!)':'📦 Camuflado (parado)');
+  const st=document.getElementById('hideState'); if(st) st.textContent = hide.locked?'👁️ DETECTADO — fujam da visão!':(hideMoved()?'🚶 Mexendo (cuidado!)':'📦 Camuflado (parado)');
 }
 function hideOver(win){
   if(hide.over)return; hide.over=true; if(document.pointerLockElement) document.exitPointerLock();
   document.getElementById('hideOverTitle').textContent = '💀 Você foi descoberto';
-  document.getElementById('hideOverStats').innerHTML=`Você aguentou até a <b>rodada ${hide.round}</b>.<br>Quanto mais rodadas, mais esperto o caçador.`;
+  document.getElementById('hideOverStats').innerHTML=`Aguentaram até a <b>rodada ${hide.round}</b>.<br>Quanto mais rodadas, mais esperto o caçador.`;
   document.getElementById('hideHud').classList.add('hidden'); document.getElementById('hideOver').classList.remove('hidden');
+  if(isMP() && net.role!=='client') netSend({t:'hide_over'});
 }
-function hideStart(){
-  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
-  spectator=false; hide=hideFresh();
-  ['modes','start','device','hideOver','death','win','porteiro','ptOver','svOver','survMenu','pzOver','trOver','ptHud','svHud','svShop','pzHud','trHud'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+function hideEnter(){
+  spectator=false;
+  ['modes','start','device','hideOver','death','win','porteiro','ptOver','svOver','survMenu','pzOver','trOver','hideMenu','hunterMenu','hunterOver','ptHud','svHud','svShop','pzHud','trHud','hunterHud'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
   buildHideScene();
-  staminaMax=100; player.height=1.0; player.pos.set(6,1.0,6); player.feet=0; player.yaw=Math.PI; player.pitch=0; player.stamina=100;
+  staminaMax=100; player.height=1.0; player.feet=0; player.yaw=Math.PI; player.pitch=0; player.stamina=100;
+  player.pos.set(net.role==='client'?-6:6, 1.0, net.role==='client'?-6:6);
   hide.lastX=player.pos.x; hide.lastZ=player.pos.z;
   introActive=false; hiding=false; player.dead=false; qte.active=false; gameState='hide';
   ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   document.getElementById('hideHud').classList.remove('hidden');
+  if(isMP()) createRemoteAvatar();
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
   if(controlMode==='pc') renderer.domElement.requestPointerLock();
   hideUpdateHud();
-  showMsg('🙈 Você é uma caixa! FIQUE PARADO pra se esconder. Se mexer na frente do monstro, ele te acha. Sobreviva!',6000);
+  showMsg(isMP()?'🙈 Co-op! Vocês são caixas. FIQUEM PARADOS pra se esconder. Vidas compartilhadas!':'🙈 Você é uma caixa! FIQUE PARADO pra se esconder. Se mexer na frente do monstro, ele te acha.',6000);
+}
+function hideStart(){ net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } hide=hideFresh(); hideEnter(); }
+function hInfoH(h){ const el=document.getElementById('hideMpInfo'); if(el) el.innerHTML=h; }
+function hideHost(){
+  if(typeof Peer==='undefined'){ hInfoH('❌ Rede indisponível (precisa de internet).'); return; }
+  leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.nick=sanitizeNick(document.getElementById('hideNick').value); net.role='host'; hInfoH('Criando sala...');
+  const code=genCode(); net.peer=new Peer('jds-'+code, PEER_OPTS); wireVoice();
+  net.peer.on('open', ()=>{ net.id=code; hInfoH('Sala criada! Código: <code>'+code+'</code><br>Envie ao amigo e aguarde...'); });
+  net.peer.on('connection', conn=>{ wireConn(conn);
+    conn.on('open', ()=>{ hInfoH('✅ Amigo entrou! Começando...'); hide=hideFresh(); netSend({t:'hide_begin'}); try{ startVoiceCall(conn.peer); }catch(e){} hideEnter(); }); });
+  net.peer.on('error', e=>{ if(e.type==='unavailable-id'){ try{net.peer.destroy();}catch(_){} hideHost(); return; } hInfoH('❌ Erro: '+e.type); });
+}
+function hideConnect(){
+  const code=document.getElementById('hideCodeInput').value.trim().toUpperCase();
+  if(code.length!==5){ hInfoH('O código tem 5 caracteres.'); return; }
+  if(typeof Peer==='undefined'){ hInfoH('❌ Rede indisponível.'); return; }
+  leaveLobby(); if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.nick=sanitizeNick(document.getElementById('hideNick').value); net.role='client'; hInfoH('Conectando...');
+  net.peer=new Peer(undefined, PEER_OPTS); wireVoice();
+  net.peer.on('open', ()=>{ const conn=net.peer.connect('jds-'+code,{reliable:true}); wireConn(conn);
+    conn.on('open', ()=>hInfoH('✅ Conectado! Aguardando o host...')); });
+  net.peer.on('error', e=>hInfoH('❌ Erro: '+e.type+' (código certo?)'));
 }
 function hideExit(){
-  hide.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  hide.over=true; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; net.remoteState=null; net.hideMon=null; net.remoteAvatar=null;
+  try{ stopVoice(); }catch(e){}
+  if(document.pointerLockElement) document.exitPointerLock();
   document.getElementById('hideHud').classList.add('hidden'); document.getElementById('hideOver').classList.add('hidden');
   document.getElementById('touch').classList.remove('on');
   document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
@@ -5025,7 +5105,13 @@ document.getElementById('trExit').onclick=trExit;
 document.getElementById('trAgain').onclick=trStart;
 document.getElementById('trOverMenu').onclick=trExit;
 // 🙈 Esconde-esconde
-document.getElementById('modeHide').onclick=hideStart;
+document.getElementById('modeHide').onclick=()=>{ document.getElementById('modes').classList.add('hidden'); document.getElementById('hideMenu').classList.remove('hidden'); document.getElementById('hideCoopPanel').style.display='none'; };
+document.getElementById('hideStartSolo').onclick=hideStart;
+document.getElementById('hideStartCoop').onclick=()=>{ const p=document.getElementById('hideCoopPanel'); p.style.display=p.style.display==='none'?'block':'none'; };
+document.getElementById('hideHostBtn').onclick=hideHost;
+document.getElementById('hideJoinBtn').onclick=()=>{ document.getElementById('hideJoinRow').style.display='flex'; hInfoH('Digite o código do amigo e clique Conectar.'); };
+document.getElementById('hideConnectBtn').onclick=hideConnect;
+document.getElementById('hideBack').onclick=()=>{ document.getElementById('hideMenu').classList.add('hidden'); document.getElementById('modes').classList.remove('hidden'); };
 document.getElementById('hideExit').onclick=hideExit;
 document.getElementById('hideAgain').onclick=hideStart;
 document.getElementById('hideOverMenu').onclick=hideExit;
