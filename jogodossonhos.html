@@ -6955,6 +6955,87 @@ miniRegister('estrada',{
   onClick(){}, onKey(){}, exit(){ this.s=null; }
 });
 
+// 🤫🛏️👥 ====== CO-OP: Silêncio e Pesadelo (alvos sincronizados, host autoritativo) ======
+
+// 🤫 SILÊNCIO co-op
+miniRegister('silencio',{
+  name:'Silêncio', ic:'🤫', coop:true, coopDesc:'Fiquem em silêncio juntos! Vidas compartilhadas — e ninguém clica quando o monstro escuta.',
+  tip:'Silencie os barulhos — quando aparecer 👂 ESCUTANDO, ninguém clica!',
+  enter(role){ mDarkScene(0x07060c,0.05); const s=this.s={ noise:0, lives:3, time:75, silenced:0, over:false, items:[], rg:{}, spawnT:0.8, listen:false, listenT:6, listenDur:0, gid:1, netT:0 };
+    this.SRC=['📞','🔔','🐶','👶','📺','⏰']; this.hud(); },
+  spawn(){ const s=this.s; const id=s.gid++; const em=this.SRC[(Math.random()*this.SRC.length)|0]; const sp=emojiSprite(em,1.5);
+    sp.position.set(-6+Math.random()*12, 1.2+Math.random()*4, -4-Math.random()*7); scene.add(sp);
+    const it={id,sp,em,age:0,life:2.6,done:false}; sp.userData.__cl={sid:id}; s.items.push(it); tone(300+Math.random()*200,0.05,'sine',0.05); },
+  silence(it){ const s=this.s; if(!it||it.done)return; it.done=true; s.silenced++; tone(720,0.06,'sine',0.1); scene.remove(it.sp); it.sp=null; s.items=s.items.filter(x=>x!==it); this.hud(); },
+  noiseUp(amt,msg){ const s=this.s; s.noise=Math.min(100,s.noise+amt); tone(130,0.2,'sawtooth',0.12); if(msg)showMsg(msg,1100); if(s.noise>=100)this.hear(); this.hud(); },
+  hear(){ const s=this.s; s.noise=0; s.lives--; tone(90,0.5,'sawtooth',0.2); mFlash('bad'); showMsg('👹 O monstro ouviu!',1400);
+    if(s.lives<=0){ s.over=true; const t='💀 O monstro pegou vocês', st='Barulhos silenciados: <b>'+s.silenced+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); } this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,2,2.5); camera.lookAt(0,2.4,-6); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    s.time-=dt; if(s.time<=0){ s.over=true; const t='🏆 Sobreviveram em silêncio!', st='Barulhos silenciados: <b>'+s.silenced+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    if(s.listen){ s.listenDur-=dt; if(s.listenDur<=0){ s.listen=false; s.listenT=4+Math.random()*4; } }
+    else { s.listenT-=dt; if(s.listenT<=0){ s.listen=true; s.listenDur=2.2+Math.random()*1.3; showMsg('👂 O MONSTRO ESTÁ ESCUTANDO — fiquem parados!',1600); } }
+    if(!s.listen){ s.spawnT-=dt; if(s.spawnT<=0){ s.spawnT=0.9+Math.random()*1.1; this.spawn(); } }
+    for(const it of s.items){ if(!it.sp)continue; it.age+=dt; const left=Math.max(0,1-it.age/it.life); it.sp.scale.setScalar(0.6+left*1.0);
+      if(it.age>=it.life && !it.done){ it.done=true; s.noise=Math.min(100,s.noise+22); scene.remove(it.sp); it.sp=null; tone(140,0.2,'sawtooth',0.1); } }
+    s.items=s.items.filter(x=>!x.done); if(s.noise>=100)this.hear();
+    if(role==='host'){ s.netT-=dt; if(s.netT<=0){ s.netT=0.08; netSend({t:'m_si', g:s.items.filter(x=>x.sp).map(x=>({i:x.id,e:x.em,x:+x.sp.position.x.toFixed(2),y:+x.sp.position.y.toFixed(2),z:+x.sp.position.z.toFixed(2),s:+x.sp.scale.x.toFixed(2)})), n:s.noise, l:s.lives, c:s.silenced, ls:s.listen}); } }
+    this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_sil'){ if(MINI.role==='host'){ const it=s.items.find(x=>x.id===d.i); if(it)this.silence(it); } }
+    else if(d.t==='m_noise'){ if(MINI.role==='host') this.noiseUp(d.a||45,'🙊 Barulho na hora errada!'); }
+    else if(d.t==='m_si'){ if(MINI.role==='client'){ s.noise=d.n; s.lives=d.l; s.silenced=d.c; s.listen=d.ls; const seen={};
+        for(const gg of d.g){ seen[gg.i]=1; let sp=s.rg[gg.i]; if(!sp){ sp=emojiSprite(gg.e,1.5); sp.userData.__cl={sid:gg.i}; scene.add(sp); s.rg[gg.i]=sp; } sp.position.set(gg.x,gg.y,gg.z); sp.scale.setScalar(gg.s); }
+        for(const id in s.rg){ if(!seen[id]){ scene.remove(s.rg[id]); delete s.rg[id]; } } this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>🤫 <b>'+s.silenced+'</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>'+(s.listen?'<span style="color:#ff6d6d;font-weight:800">👂 ESCUTANDO!</span>':'')+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🔊 Barulho: <span style="display:inline-block;width:140px;height:9px;background:rgba(255,255,255,.15);border-radius:5px;vertical-align:middle"><span style="display:block;height:100%;width:'+s.noise+'%;background:linear-gradient(90deg,#4dd06a,#ff4d4d);border-radius:5px"></span></span> — '+(s.listen?'<b style="color:#ff6d6d">NÃO cliquem!</b>':'cliquem pra silenciar')); },
+  onClick(x,y){ const s=this.s; if(s.over)return; const role=MINI.role||'solo';
+    if(s.listen){ if(role==='client') netSend({t:'m_noise',a:45}); else this.noiseUp(45,'🙊 Barulho na hora errada!'); return; }
+    if(role==='client'){ const list=Object.keys(s.rg).map(id=>({obj:s.rg[id]})); const cl=ui3dPick(x,y,list); if(cl&&cl.sid!=null) netSend({t:'m_sil',i:cl.sid}); else netSend({t:'m_noise',a:10}); }
+    else { const cl=ui3dPick(x,y,s.items.map(i=>({obj:i.sp}))); if(cl&&cl.sid!=null){ const it=s.items.find(x=>x.id===cl.sid); if(it)this.silence(it); } else this.noiseUp(10); } },
+  onKey(){}, exit(){ this.s=null; }
+});
+
+// 🛏️ PESADELO co-op
+miniRegister('pesadelo',{
+  name:'Pesadelo', ic:'🛏️', coop:true, coopDesc:'Sobrevivam juntos à paralisia do sono! O pânico é compartilhado.',
+  tip:'Cliquem nos vultos que se aproximam pra afastá-los e sobrevivam',
+  enter(role){ scene.background=new THREE.Color(0x040308); scene.fog=new THREE.FogExp2(0x040308,0.08);
+    scene.add(new THREE.HemisphereLight(0x20203a,0x040406,0.6));
+    const room=new THREE.Mesh(new THREE.BoxGeometry(16,9,18), new THREE.MeshStandardMaterial({color:0x12101c,roughness:1,side:THREE.BackSide})); room.position.set(0,3,-4); scene.add(room);
+    const bed=new THREE.Mesh(new THREE.BoxGeometry(3,0.6,5), new THREE.MeshStandardMaterial({color:0x2a2438,roughness:0.9})); bed.position.set(0,0.3,1.5); scene.add(bed);
+    const moon=new THREE.PointLight(0x6a7aff,0.5,30); moon.position.set(-5,7,-8); scene.add(moon);
+    const s=this.s={ panic:0, time:60, banished:0, over:false, shadows:[], rg:{}, spawnT:1.0, gid:1, netT:0 }; this.hud(); },
+  spawn(){ const s=this.s; const id=s.gid++; const ic=['👤','🕴️','👹','🧟'][(Math.random()*4)|0]; const sp=emojiSprite(ic,1.2);
+    const ang=(Math.random()-0.5)*1.4; sp.position.set(Math.sin(ang)*6, 1.6+Math.random()*2, -9); scene.add(sp);
+    const sh={id, sp, em:ic, z:-9, speed:0.7+Math.random()*0.7, done:false}; sp.userData.__cl={hid:id}; s.shadows.push(sh); tone(110,0.3,'sawtooth',0.06); },
+  banish(sh){ const s=this.s; if(!sh||sh.done)return; sh.done=true; s.banished++; tone(500,0.08,'sine',0.1); mFlash('good'); scene.remove(sh.sp); sh.sp=null; s.shadows=s.shadows.filter(x=>x!==sh); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,1.1,4); camera.lookAt(0,2.6,-8); camera.rotation.z=Math.sin(performance.now()*0.002)*0.02;
+    if(role==='client'){ this.hud(); return; }
+    s.time-=dt; if(s.time<=0){ s.over=true; const t='🌅 Vocês acordaram!', st='Vultos afastados: <b>'+s.banished+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    s.spawnT-=dt; if(s.spawnT<=0){ s.spawnT=0.9+Math.random()*0.9; this.spawn(); }
+    for(const sh of s.shadows){ if(!sh.sp)continue; sh.z+=sh.speed*dt*2.2; sh.sp.position.z=sh.z; sh.sp.scale.setScalar(1.2+(sh.z+9)/9*2.2);
+      if(sh.z>=2 && !sh.done){ sh.done=true; s.panic=Math.min(100,s.panic+26); scene.remove(sh.sp); sh.sp=null; tone(80,0.4,'sawtooth',0.16); mFlash('bad'); } }
+    s.shadows=s.shadows.filter(x=>!x.done);
+    if(s.panic>=100){ s.over=true; tone(60,0.8,'sawtooth',0.2); const t='💀 O pesadelo venceu', st='Vultos afastados: <b>'+s.banished+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    s.panic=Math.max(0,s.panic-2*dt);
+    if(role==='host'){ s.netT-=dt; if(s.netT<=0){ s.netT=0.08; netSend({t:'m_pe', g:s.shadows.filter(x=>x.sp).map(x=>({i:x.id,e:x.em,x:+x.sp.position.x.toFixed(2),y:+x.sp.position.y.toFixed(2),z:+x.sp.position.z.toFixed(2),s:+x.sp.scale.x.toFixed(2)})), p:s.panic, b:s.banished}); } }
+    this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_ban'){ if(MINI.role==='host'){ const sh=s.shadows.find(x=>x.id===d.i); if(sh)this.banish(sh); } }
+    else if(d.t==='m_pe'){ if(MINI.role==='client'){ s.panic=d.p; s.banished=d.b; const seen={};
+        for(const gg of d.g){ seen[gg.i]=1; let sp=s.rg[gg.i]; if(!sp){ sp=emojiSprite(gg.e,1.2); sp.userData.__cl={hid:gg.i}; scene.add(sp); s.rg[gg.i]=sp; } sp.position.set(gg.x,gg.y,gg.z); sp.scale.setScalar(gg.s); }
+        for(const id in s.rg){ if(!seen[id]){ scene.remove(s.rg[id]); delete s.rg[id]; } } this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>😱 Pânico <span style="display:inline-block;width:130px;height:9px;background:rgba(255,255,255,.15);border-radius:5px;vertical-align:middle"><span style="display:block;height:100%;width:'+s.panic+'%;background:linear-gradient(90deg,#4dd06a,#ff2d2d);border-radius:5px"></span></span></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🛏️ Paralisia do sono! Cliquem nos vultos 👤 que se aproximam pra afastá-los'); },
+  onClick(x,y){ const s=this.s; const role=MINI.role||'solo';
+    if(role==='client'){ const list=Object.keys(s.rg).map(id=>({obj:s.rg[id]})); const cl=ui3dPick(x,y,list); if(cl&&cl.hid!=null) netSend({t:'m_ban',i:cl.hid}); }
+    else { const cl=ui3dPick(x,y,s.shadows.map(sh=>({obj:sh.sp}))); if(cl&&cl.hid!=null){ const sh=s.shadows.find(x=>x.id===cl.hid); if(sh)this.banish(sh); } } },
+  onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
