@@ -6587,6 +6587,185 @@ miniRegister('silencio',{
   onKey(){}, exit(){ this.s=null; }
 });
 
+// 🎨🛣️ ====== REDESIGNS 3: Pintor (desenho), Estrada (dirigir na cidade) ======
+
+// 🎨 PINTOR 3D — copie o desenho do modelo na sua tela
+const PNT_COLS=[0x444452,0xff4d4d,0x4a8cff,0x4dd06a,0xffd84d];
+const PNT_PATTERNS=[
+  [0,1,0,1,0, 1,1,1,1,1, 1,1,1,1,1, 0,1,1,1,0, 0,0,1,0,0],          // coração
+  [0,0,1,0,0, 0,1,1,1,0, 1,1,1,1,1, 0,2,2,2,0, 0,2,0,2,0],          // casa
+  [0,0,4,0,0, 0,0,4,0,0, 4,4,4,4,4, 0,4,4,4,0, 4,0,0,0,4],          // estrela
+  [0,4,4,4,0, 4,0,4,0,4, 4,4,4,4,4, 4,0,0,0,4, 0,4,4,4,0],          // rosto
+  [0,0,3,0,0, 0,3,3,3,0, 3,3,3,3,3, 0,0,1,0,0, 0,0,1,0,0],          // árvore
+];
+miniRegister('pintor',{
+  name:'Pintor', ic:'🎨', tip:'Pinte a SUA tela (frente) igual ao MODELO (atrás). Clique numa cor e depois nas células',
+  enter(){ scene.background=new THREE.Color(0x10131c); scene.fog=new THREE.FogExp2(0x10131c,0.015);
+    scene.add(new THREE.HemisphereLight(0xc0c8e0,0x202430,1.6)); const l=new THREE.PointLight(0xffffff,1.0,40); l.position.set(0,6,6); scene.add(l);
+    const s=this.s={ score:0, time:120, over:false, sel:1, grid:new Array(25).fill(0), target:[] };
+    this.pCells=[]; this.mCells=[]; const N=5, sz=0.62, gap=0.06, step=sz+gap, off=(N-1)/2*step;
+    for(let j=0;j<N;j++)for(let i=0;i<N;i++){ const idx=j*N+i; const x=i*step-off, y=4.2-j*step;
+      const pm=new THREE.Mesh(new THREE.BoxGeometry(sz,sz,0.18), new THREE.MeshStandardMaterial({color:PNT_COLS[0],roughness:0.6})); pm.position.set(x-2.0,y,-2); pm.userData.__cl={cell:idx}; scene.add(pm); this.pCells.push(pm);
+      const mm=new THREE.Mesh(new THREE.BoxGeometry(sz*0.7,sz*0.7,0.12), new THREE.MeshStandardMaterial({color:PNT_COLS[0],roughness:0.6})); mm.position.set(x+2.4,y,-2.6); scene.add(mm); this.mCells.push(mm); }
+    // paleta
+    this.pal=[]; for(let c=0;c<PNT_COLS.length;c++){ const b=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.7,0.3), new THREE.MeshStandardMaterial({color:PNT_COLS[c],roughness:0.4,emissive:PNT_COLS[c],emissiveIntensity:0.3}));
+      b.position.set((c-2)*0.95-2.0, 0.7, -1.4); b.userData.__cl={col:c}; scene.add(b); this.pal.push(b); }
+    // rótulos
+    const t1=make3DText('SUA TELA',2.4,{fs:48,color:'#fff'}); t1.position.set(-2.0,6.0,-2); scene.add(t1);
+    const t2=make3DText('MODELO',2.0,{fs:48,color:'#9fe8ff'}); t2.position.set(2.4,6.0,-2.6); scene.add(t2);
+    this.newPattern(); this.highlightPal(); this.hud();
+  },
+  newPattern(){ const s=this.s; s.target=PNT_PATTERNS[(Math.random()*PNT_PATTERNS.length)|0].slice(); s.grid.fill(0); s.locked=false;
+    this.pCells.forEach((m,i)=>m.material.color.setHex(PNT_COLS[0])); this.mCells.forEach((m,i)=>m.material.color.setHex(PNT_COLS[s.target[i]])); },
+  highlightPal(){ this.pal.forEach((b,c)=>{ b.material.emissiveIntensity = c===this.s.sel?1.1:0.25; b.scale.setScalar(c===this.s.sel?1.25:1.0); }); },
+  pickColor(c){ this.s.sel=c; tone(420+c*60,0.05,'square',0.08); this.highlightPal(); },
+  paint(i){ const s=this.s; if(s.locked)return; s.grid[i]=s.sel; this.pCells[i].material.color.setHex(PNT_COLS[s.sel]); tone(500,0.04,'sine',0.07);
+    if(s.grid.every((v,k)=>v===s.target[k])){ s.locked=true; s.score++; tone(740,0.12,'sine',0.12); setTimeout(()=>tone(1050,0.12,'sine',0.1),100); mFlash('good'); showMsg('🎨 Desenho perfeito! +1',1100); setTimeout(()=>{ if(this.s&&!this.s.over) this.newPattern(); },700); } this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; camera.position.set(0,3,5.2); camera.lookAt(0,2.6,-2.2); camera.rotation.z=0;
+    s.time-=dt; if(s.time<=0){ s.over=true; miniOver('⏱️ Tempo esgotado','Desenhos completos: <b>'+s.score+'</b>'); return; } this.hud(); },
+  hud(){ const s=this.s; mStats('<span>🎨 <b>'+s.score+'</b> desenhos</span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>');
+    mRule('🖌️ Clique numa COR na paleta e pinte sua tela igual ao modelo. Deixe os quadrados cinza em branco!'); },
+  onClick(x,y){ const cl=ui3dPick(x,y, this.pCells.map(m=>({obj:m})).concat(this.pal.map(b=>({obj:b})))); if(!cl)return; if(cl.col!=null) this.pickColor(cl.col); else if(cl.cell!=null) this.paint(cl.cell); }, onKey(){},
+  exit(){ this.s=null; }
+});
+
+// 🛣️ ESTRADA 3D — dirija pela cidade movimentada até a bandeira sem bater
+miniRegister('estrada',{
+  name:'Estrada', ic:'🛣️', tip:'↑ acelera · ↓ freia · ←→ esterça. Chegue na 🏁 sem bater nos prédios ou carros!',
+  enter(){ scene.background=new THREE.Color(0x1a2030); scene.fog=new THREE.FogExp2(0x1a2030,0.012);
+    scene.add(new THREE.HemisphereLight(0xbcd0ff,0x223018,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.7); sun.position.set(10,16,8); scene.add(sun);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120), new THREE.MeshStandardMaterial({color:0x33333a,roughness:0.95})); ground.rotation.x=-Math.PI/2; scene.add(ground);
+    const s=this.s={ x:0,z:0,yaw:0,vel:0, lives:3, deliveries:0, over:false, dest:null, crashCool:0, time:0 };
+    this.buildings=[]; this.traffic=[];
+    const RS=14, BS=8;  // espaçamento de ruas / tamanho do quarteirão
+    for(let bx=-2;bx<=2;bx++)for(let bz=-2;bz<=2;bz++){ if(bx===0&&bz===0)continue; const cx=bx*RS, cz=bz*RS;
+      const h=4+Math.random()*8; const col=[0x55607a,0x6a5a7a,0x4a6a6a,0x7a6a5a][(Math.random()*4)|0];
+      const b=new THREE.Mesh(new THREE.BoxGeometry(BS,h,BS), new THREE.MeshStandardMaterial({color:col,roughness:0.85})); b.position.set(cx,h/2,cz); scene.add(b);
+      this.buildings.push({x:cx,z:cz,half:BS/2}); }
+    // faixas de ruas (visual)
+    for(let k=-2;k<=2;k++){ const lh=new THREE.Mesh(new THREE.PlaneGeometry(120,1.2), new THREE.MeshStandardMaterial({color:0x2a2a30})); lh.rotation.x=-Math.PI/2; lh.position.set(0,0.02,k*RS); scene.add(lh);
+      const lv=new THREE.Mesh(new THREE.PlaneGeometry(1.2,120), new THREE.MeshStandardMaterial({color:0x2a2a30})); lv.rotation.x=-Math.PI/2; lv.position.set(k*RS,0.02,0); scene.add(lv); }
+    // tráfego: carros andando pelas ruas
+    for(let i=0;i<8;i++){ const horiz=Math.random()<0.5; const lane=([-2,-1,1,2][(Math.random()*4)|0])*RS;
+      const car=new THREE.Group(); const body=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.8,3), new THREE.MeshStandardMaterial({color:[0xffd84d,0x4dd06a,0xffffff,0xff7b5b][(Math.random()*4)|0],roughness:0.5})); body.position.y=0.5; car.add(body); scene.add(car);
+      const t={car, horiz, lane, p:-50+Math.random()*100, dir:Math.random()<0.5?1:-1, speed:5+Math.random()*5}; this.traffic.push(t); }
+    // carro do jogador
+    this.car=new THREE.Group(); const pb=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.7,2.6), new THREE.MeshStandardMaterial({color:0xff3b3b,roughness:0.5})); pb.position.y=0.45; this.car.add(pb);
+    const cab=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.5,1.1), new THREE.MeshStandardMaterial({color:0x331010})); cab.position.set(0,0.95,-0.1); this.car.add(cab); scene.add(this.car);
+    this.flag=emojiSprite('🏁',1.6); scene.add(this.flag);
+    this.newDest(); this.hud();
+  },
+  newDest(){ const s=this.s; const RS=14; const opts=[-2,-1,1,2]; let dx,dz; do{ dx=opts[(Math.random()*4)|0]*RS; dz=opts[(Math.random()*4)|0]*RS; }while(Math.hypot(dx-s.x,dz-s.z)<18);
+    s.dest={x:dx,z:dz}; this.flag.position.set(dx,1.6,dz); },
+  crash(){ const s=this.s; if(s.crashCool>0)return; s.crashCool=1.2; s.lives--; s.vel=-s.vel*0.3; tone(120,0.3,'sawtooth',0.16); mFlash('bad'); showMsg('💥 Batida!',900);
+    if(s.lives<=0){ s.over=true; miniOver('🚗💥 Carro destruído!','Entregas: <b>'+s.deliveries+'</b>'); } this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; if(s.crashCool>0)s.crashCool-=dt; s.time+=dt;
+    const accel=16,maxV=22; if(keys['ArrowUp']||keys['KeyW'])s.vel+=accel*dt; if(keys['ArrowDown']||keys['KeyS'])s.vel-=accel*dt;
+    s.vel*=(1-0.7*dt); s.vel=Math.max(-maxV/2,Math.min(maxV,s.vel));
+    const steer=2.2; if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA'])s.yaw+=steer*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD'])s.yaw-=steer*dt*(s.vel>0?1:-1); }
+    const nx=s.x-Math.sin(s.yaw)*s.vel*dt, nz=s.z-Math.cos(s.yaw)*s.vel*dt;
+    // colisão com prédios
+    let hit=false; for(const b of this.buildings){ if(Math.abs(nx-b.x)<b.half+0.9 && Math.abs(nz-b.z)<b.half+0.9){ hit=true; break; } }
+    if(Math.abs(nx)>56||Math.abs(nz)>56) hit=true;
+    if(hit){ this.crash(); } else { s.x=nx; s.z=nz; }
+    this.car.position.set(s.x,0,s.z); this.car.rotation.y=s.yaw;
+    // tráfego
+    for(const t of this.traffic){ t.p+=t.dir*t.speed*dt; if(t.p>56)t.p=-56; if(t.p<-56)t.p=56;
+      if(t.horiz){ t.car.position.set(t.p,0,t.lane); t.car.rotation.y=t.dir>0?Math.PI/2:-Math.PI/2; } else { t.car.position.set(t.lane,0,t.p); t.car.rotation.y=t.dir>0?0:Math.PI; }
+      if(Math.hypot(t.car.position.x-s.x, t.car.position.z-s.z)<2.0) this.crash(); }
+    // destino
+    if(Math.hypot(s.x-s.dest.x,s.z-s.dest.z)<3.5){ s.deliveries++; tone(880,0.12,'sine',0.12); setTimeout(()=>tone(1180,0.12,'sine',0.1),100); mFlash('good'); showMsg('🏁 Chegou! Nova entrega',1100); this.newDest(); }
+    // câmera atrás
+    const cd=8,ch=4.5; camera.position.set(s.x+Math.sin(s.yaw)*cd, ch, s.z+Math.cos(s.yaw)*cd); camera.lookAt(s.x,0.8,s.z); camera.rotation.z=0; this.hud(); },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>📦 Entregas <b>'+s.deliveries+'</b></span><span>🏎️ '+Math.round(Math.abs(s.vel)*8)+' km/h</span>');
+    mRule('🛣️ Dirija até a 🏁 sem bater! ↑ acelera · ↓ freia · ←→ esterça'); },
+  onClick(){}, onKey(){}, exit(){ this.s=null; }
+});
+
+// 👻✈️ ====== REDESIGNS 4: Caça-Fantasmas (mansão FPS), Controlador de Voo (pilotar) ======
+
+// 👻 CAÇA-FANTASMAS 3D — ande pela mansão e capture os fantasmas sem ser pego
+miniRegister('fantasma',{
+  name:'Caça-Fantasmas', ic:'👻', tip:'W/S/A/D anda · ←→ giram · clique no fantasma pra capturar. Não deixe encostar em você!',
+  enter(){ scene.background=new THREE.Color(0x0a0812); scene.fog=new THREE.FogExp2(0x0a0812,0.05);
+    scene.add(new THREE.HemisphereLight(0x4a4a66,0x12101a,0.9)); const lamp=new THREE.PointLight(0xffe0b0,0.8,20); lamp.position.set(0,6,0); scene.add(lamp);
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(44,44), new THREE.MeshStandardMaterial({color:0x2a2230,roughness:1})); fl.rotation.x=-Math.PI/2; scene.add(fl);
+    const s=this.s={ x:0,y:1.6,z:0,yaw:0, lives:3, captured:0, goal:12, over:false, ghosts:[], spawnT:0.5, hurtCool:0 };
+    this.walls=[]; const R=20; const mkWall=(x,z,w,d)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,5,d), new THREE.MeshStandardMaterial({color:0x4a3f55,roughness:0.9})); m.position.set(x,2.5,z); scene.add(m); this.walls.push({x,z,w,d}); };
+    mkWall(0,-R,2*R,1); mkWall(0,R,2*R,1); mkWall(-R,0,1,2*R); mkWall(R,0,1,2*R);
+    // divisórias internas (cômodos da mansão)
+    for(const [x,z,w,d] of [[-8,-6,10,1],[8,6,10,1],[-6,8,1,8],[6,-8,1,8],[0,0,1,10],[-12,4,8,1]]) mkWall(x,z,w,d);
+    // móveis decorativos
+    for(let i=0;i<10;i++){ const f=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,1.4), new THREE.MeshStandardMaterial({color:0x5a4a3a,roughness:0.9})); f.position.set(-16+Math.random()*32,0.7,-16+Math.random()*32); scene.add(f); }
+    this.hud();
+  },
+  spawn(){ const s=this.s; const sp=emojiSprite(Math.random()<0.5?'👻':'👹',1.6); sp.position.set(-17+Math.random()*34, 1.4+Math.random()*1.5, -17+Math.random()*34); scene.add(sp);
+    s.ghosts.push({sp, vx:(Math.random()-0.5), vz:(Math.random()-0.5), chase:Math.random()<0.5, done:false}); sp.userData.__cl={ghost:s.ghosts[s.ghosts.length-1]}; },
+  capture(g){ const s=this.s; if(g.done)return; g.done=true; s.captured++; tone(720,0.08,'sine',0.1); setTimeout(()=>tone(1040,0.08,'sine',0.1),70); mFlash('good');
+    scene.remove(g.sp); g.sp=null; s.ghosts=s.ghosts.filter(x=>x!==g);
+    if(s.captured>=s.goal){ s.over=true; miniOver('🏆 Mansão limpa!','Você capturou todos os '+s.goal+' fantasmas!'); } this.hud(); },
+  hurt(){ const s=this.s; if(s.hurtCool>0)return; s.hurtCool=1.5; s.lives--; tone(120,0.4,'sawtooth',0.16); mFlash('bad'); showMsg('👻 Um fantasma te assustou!',1100);
+    if(s.lives<=0){ s.over=true; miniOver('💀 Os fantasmas te pegaram','Capturados: <b>'+s.captured+'</b> de '+s.goal); } this.hud(); },
+  collide(nx,nz){ for(const w of this.walls){ if(Math.abs(nx-w.x)<w.w/2+0.5 && Math.abs(nz-w.z)<w.d/2+0.5) return true; } return Math.abs(nx)>19.5||Math.abs(nz)>19.5; },
+  update(dt){ const s=this.s; if(!s||s.over)return; if(s.hurtCool>0)s.hurtCool-=dt;
+    if(keys['ArrowLeft'])s.yaw+=2.0*dt; if(keys['ArrowRight'])s.yaw-=2.0*dt;
+    const fwd={x:-Math.sin(s.yaw),z:-Math.cos(s.yaw)}, rgt={x:Math.cos(s.yaw),z:-Math.sin(s.yaw)};
+    let mx=0,mz=0; if(keys['KeyW']){mx+=fwd.x;mz+=fwd.z;} if(keys['KeyS']){mx-=fwd.x;mz-=fwd.z;} if(keys['KeyD']){mx+=rgt.x;mz+=rgt.z;} if(keys['KeyA']){mx-=rgt.x;mz-=rgt.z;}
+    const ml=Math.hypot(mx,mz); if(ml>0){ mx/=ml; mz/=ml; const sp=5.0; const nx=s.x+mx*sp*dt, nz=s.z+mz*sp*dt; if(!this.collide(nx,s.z))s.x=nx; if(!this.collide(s.x,nz))s.z=nz; }
+    camera.position.set(s.x,s.y,s.z); camera.rotation.order='YXZ'; camera.rotation.y=s.yaw; camera.rotation.x=0; camera.rotation.z=0;
+    s.spawnT-=dt; if(s.spawnT<=0 && s.ghosts.length<6){ s.spawnT=1.2+Math.random(); this.spawn(); }
+    for(const g of s.ghosts){ if(!g.sp)continue; let dx,dz; if(g.chase){ dx=s.x-g.sp.position.x; dz=s.z-g.sp.position.z; const d=Math.hypot(dx,dz)||1; dx/=d; dz/=d; } else { dx=g.vx; dz=g.vz; if(Math.random()<0.02){ g.vx=(Math.random()-0.5); g.vz=(Math.random()-0.5); } }
+      const gs=g.chase?2.2:1.4; g.sp.position.x+=dx*gs*dt; g.sp.position.z+=dz*gs*dt; g.sp.position.x=Math.max(-19,Math.min(19,g.sp.position.x)); g.sp.position.z=Math.max(-19,Math.min(19,g.sp.position.z));
+      if(Math.hypot(g.sp.position.x-s.x, g.sp.position.z-s.z)<1.3) this.hurt(); }
+    this.hud(); },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>👻 <b>'+s.captured+'</b>/'+s.goal+'</span>');
+    mRule('🔦 Ande pela mansão (W/S/A/D · ←→) e clique nos fantasmas pra capturá-los. Fuja dos que perseguem!'); },
+  onClick(x,y){ const cl=ui3dPick(x,y,this.s.ghosts.map(g=>({obj:g.sp}))); if(cl&&cl.ghost) this.capture(cl.ghost); }, onKey(){},
+  exit(){ this.s=null; }
+});
+
+// ✈️ CONTROLADOR DE VOO 3D — pilote o avião até o outro país sem cair
+miniRegister('voo',{
+  name:'Controlador de Voo', ic:'✈️', tip:'↑↓ sobe/desce · ←→ vira. Pilote até o outro país 🌍 sem bater no chão ou nas montanhas!',
+  enter(){ scene.background=new THREE.Color(0x6ab0ff); scene.fog=new THREE.FogExp2(0x6ab0ff,0.004);
+    scene.add(new THREE.HemisphereLight(0xffffff,0x6a8ab0,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.9); sun.position.set(20,40,10); scene.add(sun);
+    const sea=new THREE.Mesh(new THREE.PlaneGeometry(2000,2000), new THREE.MeshStandardMaterial({color:0x2a6abf,roughness:0.4,metalness:0.3})); sea.rotation.x=-Math.PI/2; scene.add(sea);
+    const s=this.s={ x:0,y:30,z:0, yaw:0, pitch:0, speed:24, dist:900, over:false, mountains:[], clouds:[] };
+    // montanhas pelo caminho (obstáculos)
+    for(let i=0;i<14;i++){ const h=20+Math.random()*40; const m=new THREE.Mesh(new THREE.ConeGeometry(10+Math.random()*10,h,7), new THREE.MeshStandardMaterial({color:0x5a6a4a,roughness:0.95}));
+      const mz=-80-i*60-Math.random()*30, mx=(Math.random()-0.5)*120; m.position.set(mx,h/2,mz); scene.add(m); s.mountains.push({x:mx,z:mz,r:12,h}); }
+    for(let i=0;i<40;i++){ const c=emojiSprite('☁️',6+Math.random()*4); c.position.set((Math.random()-0.5)*300, 20+Math.random()*40, -Math.random()*900); scene.add(c); s.clouds.push(c); }
+    // destino (outro país)
+    this.dest=emojiSprite('🌍',16); this.dest.position.set(0,40,-940); scene.add(this.dest);
+    this.runway=new THREE.Mesh(new THREE.BoxGeometry(20,0.5,80), new THREE.MeshStandardMaterial({color:0x333,roughness:0.9})); this.runway.position.set(0,0.3,-940); scene.add(this.runway);
+    // avião
+    this.plane=new THREE.Group(); const body=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,5,10), new THREE.MeshStandardMaterial({color:0xeeeeee,roughness:0.4})); body.rotation.x=Math.PI/2; this.plane.add(body);
+    const wing=new THREE.Mesh(new THREE.BoxGeometry(7,0.3,1.4), new THREE.MeshStandardMaterial({color:0xccccdd})); this.plane.add(wing);
+    const tail=new THREE.Mesh(new THREE.BoxGeometry(0.3,1.4,1), new THREE.MeshStandardMaterial({color:0xff5d6d})); tail.position.set(0,0.7,2.2); this.plane.add(tail); scene.add(this.plane);
+    this.hud();
+  },
+  crash(msg){ const s=this.s; s.over=true; tone(90,0.6,'sawtooth',0.2); mFlash('bad'); miniOver('💥 '+msg,'Distância percorrida: <b>'+Math.round(900-s.dist)+'</b> de 900 km'); },
+  update(dt){ const s=this.s; if(!s||s.over)return;
+    if(keys['ArrowLeft'])s.yaw+=0.7*dt; if(keys['ArrowRight'])s.yaw-=0.7*dt;
+    if(keys['ArrowUp']||keys['KeyW'])s.pitch=Math.min(0.5,s.pitch+0.8*dt); else if(keys['ArrowDown']||keys['KeyS'])s.pitch=Math.max(-0.5,s.pitch-0.8*dt); else s.pitch*=(1-1.5*dt);
+    // avança
+    const fx=-Math.sin(s.yaw)*Math.cos(s.pitch), fz=-Math.cos(s.yaw)*Math.cos(s.pitch), fy=Math.sin(s.pitch);
+    s.x+=fx*s.speed*dt; s.z+=fz*s.speed*dt; s.y+=fy*s.speed*dt;
+    s.dist=Math.max(0, 940+s.z);   // dist restante até z=-940 (s.z fica negativo conforme avança)
+    if(s.y<2){ this.crash('Você caiu no mar!'); return; }
+    if(s.y>120){ s.y=120; s.pitch=Math.min(s.pitch,0); }
+    for(const m of s.mountains){ if(Math.hypot(s.x-m.x,s.z-m.z)<m.r && s.y<m.h+2){ this.crash('Bateu numa montanha!'); return; } }
+    // chegou?
+    if(-s.z>=930){ if(s.y<18){ s.over=true; tone(880,0.2,'sine',0.14); setTimeout(()=>tone(1180,0.2,'sine',0.12),120); miniOver('🛬 Pouso perfeito no outro país!','✈️ Viagem internacional concluída! 🌍'); }
+      else { showMsg('🛬 Chegou! DESÇA (↓) pra pousar na pista!',1200); } }
+    this.plane.position.set(s.x,s.y,s.z); this.plane.rotation.set(s.pitch, s.yaw, 0);
+    const cd=12; camera.position.set(s.x+Math.sin(s.yaw)*cd, s.y+3-Math.sin(s.pitch)*cd, s.z+Math.cos(s.yaw)*cd);
+    camera.lookAt(s.x,s.y,s.z); camera.rotation.z=0; this.hud(); },
+  hud(){ const s=this.s; mStats('<span>✈️ Altitude <b>'+Math.round(s.y)+'m</b></span><span>📍 Faltam <b>'+Math.round(s.dist)+' km</b></span><span>⚡ '+Math.round(s.speed*10)+' km/h</span>');
+    mRule('🌍 Pilote até o outro país! ↑/↓ sobe/desce · ←→ vira · desça na pista pra pousar'); },
+  onClick(){}, onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -6685,7 +6864,7 @@ document.getElementById('hunterBack').onclick=()=>{ document.getElementById('hun
 document.getElementById('hunterExit').onclick=hunterExit;
 document.getElementById('hunterOverMenu').onclick=hunterExit;
 // modos de decisão (bancada)
-['hospital','voo','tele','juiz'].forEach(k=>{
+['hospital','tele','juiz'].forEach(k=>{
   const cap=k.charAt(0).toUpperCase()+k.slice(1);
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>qStart(k);
 });
@@ -6693,7 +6872,7 @@ document.getElementById('qExit').onclick=qExit;
 document.getElementById('qAgain').onclick=()=>qStart(q.key);
 document.getElementById('qOverMenu').onclick=qExit;
 // modos arcade (mira/clique)
-['defesa','fantasma','ninja','pintor'].forEach(k=>{
+['defesa','ninja'].forEach(k=>{
   const cap=k.charAt(0).toUpperCase()+k.slice(1);
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>agStart(k);
 });
@@ -6701,7 +6880,7 @@ document.getElementById('aExit').onclick=agExit;
 document.getElementById('aAgain').onclick=()=>agStart(ag.key);
 document.getElementById('aOverMenu').onclick=agExit;
 // minigames (framework)
-[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig']].forEach(([k,cap])=>{
+[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo']].forEach(([k,cap])=>{
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>miniStart(k);
 });
 document.getElementById('mExit').onclick=miniExit;
