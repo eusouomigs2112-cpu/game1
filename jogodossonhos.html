@@ -7036,6 +7036,54 @@ miniRegister('pesadelo',{
   onKey(){}, exit(){ this.s=null; }
 });
 
+// 🎯👥 ====== MOTOR DE ALVOS CO-OP (Defesa Antiaérea, Ninja) ======
+function mTargetScene(bg){ scene.background=new THREE.Color(bg); scene.fog=new THREE.FogExp2(bg,0.012);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({color:0x161824,roughness:0.95})); floor.rotation.x=-Math.PI/2; floor.position.y=-2.2; scene.add(floor);
+  scene.add(new THREE.HemisphereLight(0x9fb0e0,0x202436,1.7)); const l=new THREE.PointLight(0xffffff,1.0,60); l.position.set(0,8,10); scene.add(l); }
+function makeTargetMini(cfg){ return {
+  name:cfg.name, ic:cfg.ic, coop:true, coopDesc:cfg.coopDesc, tip:cfg.tip,
+  enter(role){ mTargetScene(cfg.bg); const s=this.s={ score:0, lives:3, time:cfg.dur, over:false, items:[], rg:{}, spawnT:0.6, gid:1, netT:0 }; this.hud(); },
+  spawn(){ const s=this.s; const nb=cfg.burst||1; for(let k=0;k<nb;k++){ const d=cfg.spawnOne(); const id=s.gid++; const sp=emojiSprite(d.emoji,1.3); sp.position.set(d.x,d.y,0); scene.add(sp);
+    sp.userData.__cl={tid:id}; s.items.push({id, sp, emoji:d.emoji, good:d.good, x:d.x, y:d.y, vx:d.vx, vy:d.vy, age:0}); } },
+  hit(it){ const s=this.s; if(!it)return; if(it.good){ s.score+=10; tone(720,0.08,'square',0.1); setTimeout(()=>tone(1040,0.08,'square',0.1),60); mFlash('good'); }
+    else { s.lives--; tone(150,0.3,'sawtooth',0.16); mFlash('bad'); showMsg('❌ Esse não!',900); if(s.lives<=0)this.end('💀 Fim — '+cfg.name); }
+    scene.remove(it.sp); it.sp=null; s.items=s.items.filter(x=>x!==it); this.hud(); },
+  end(t){ const s=this.s; s.over=true; const st='Pontos: <b>'+s.score+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,2.5,9.5); camera.lookAt(0,3,0); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    s.time-=dt; if(s.time<=0){ this.end('🏁 Tempo! — '+cfg.name); return; }
+    s.spawnT-=dt; if(s.spawnT<=0){ s.spawnT=cfg.spawn*(0.7+Math.random()*0.6); this.spawn(); }
+    const grav=cfg.motion==='toss'?9.0:0;
+    for(const it of s.items){ if(!it.sp)continue; it.age+=dt; it.vy-=grav*dt; it.x+=it.vx*dt; it.y+=it.vy*dt; it.sp.position.set(it.x,it.y,0);
+      let esc=false; if(cfg.motion==='cross'){ if(it.x<-9.2||it.x>9.2)esc=true; } else { if(it.vy<0&&it.y<-1.6)esc=true; }
+      if(esc){ if(it.good){ s.lives--; tone(170,0.18,'sawtooth',0.12); if(s.lives<=0){ scene.remove(it.sp); it.sp=null; this.end('💀 Fim — '+cfg.name); return; } } scene.remove(it.sp); it.sp=null; } }
+    s.items=s.items.filter(x=>x.sp);
+    if(role==='host'){ s.netT-=dt; if(s.netT<=0){ s.netT=0.06; netSend({t:'m_tg', g:s.items.map(x=>({i:x.id,e:x.emoji,x:+x.x.toFixed(2),y:+x.y.toFixed(2)})), sc:s.score, l:s.lives, ti:Math.ceil(s.time)}); } }
+    this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_thit'){ if(MINI.role==='host'){ const it=s.items.find(x=>x.id===d.i); if(it)this.hit(it); } }
+    else if(d.t==='m_tg'){ if(MINI.role==='client'){ s.score=d.sc; s.lives=d.l; s._t=d.ti; const seen={};
+        for(const gg of d.g){ seen[gg.i]=1; let sp=s.rg[gg.i]; if(!sp){ sp=emojiSprite(gg.e,1.3); sp.userData.__cl={tid:gg.i}; scene.add(sp); s.rg[gg.i]=sp; } sp.position.set(gg.x,gg.y,0); }
+        for(const id in s.rg){ if(!seen[id]){ scene.remove(s.rg[id]); delete s.rg[id]; } } this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; const tm=(MINI.role==='client')?(s._t||0):Math.max(0,Math.ceil(s.time)); mStats('<span>'+mLives(s.lives)+'</span><span>⭐ <b>'+s.score+'</b></span><span>⏱️ '+tm+'s</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('<b>'+cfg.ic+' '+cfg.name+'</b><br>'+cfg.rule); },
+  onClick(x,y){ const s=this.s; const role=MINI.role||'solo';
+    if(role==='client'){ const list=Object.keys(s.rg).map(id=>({obj:s.rg[id]})); const cl=ui3dPick(x,y,list); if(cl&&cl.tid!=null) netSend({t:'m_thit',i:cl.tid}); }
+    else { const cl=ui3dPick(x,y,s.items.map(i=>({obj:i.sp}))); if(cl&&cl.tid!=null){ const it=s.items.find(x=>x.id===cl.tid); if(it)this.hit(it); } } },
+  onKey(){}, exit(){ this.s=null; }
+}; }
+miniRegister('defesa', makeTargetMini({ name:'Defesa Antiaérea', ic:'🚁', bg:0x0a1424, dur:75, spawn:0.45, burst:2, motion:'cross',
+  coopDesc:'Defendam o céu juntos! Pontos e vidas compartilhados.', tip:'Clique nos inimigos ✈️🚁 antes de cruzarem — não atire nos 🪂 aliados',
+  rule:'Clique nos inimigos ✈️🚁🛩️ antes deles cruzarem o céu! NÃO atire nos 🪂 aliados.',
+  spawnOne(){ const enemy=Math.random()<0.82; const fromL=Math.random()<0.5; const ev=['✈️','🚁','🛩️'];
+    return { emoji:enemy?ev[(Math.random()*ev.length)|0]:'🪂', good:enemy, x:fromL?-8.5:8.5, y:1+Math.random()*5.5, vx:(fromL?1:-1)*(2.6+Math.random()*2.2), vy:0 }; } }));
+miniRegister('ninja', makeTargetMini({ name:'Ninja', ic:'🥷', bg:0x140a14, dur:75, spawn:0.85, motion:'toss',
+  coopDesc:'Cortem as frutas juntos! Pontos e vidas compartilhados.', tip:'Corte as frutas no ar — não corte as bombas 💣',
+  rule:'Corte as frutas 🍉🍎🍊 no ar! NÃO corte as bombas 💣.',
+  spawnOne(){ const bomb=Math.random()<0.22; const fr=['🍉','🍎','🍊','🍋','🥝','🍇'];
+    return { emoji:bomb?'💣':fr[(Math.random()*fr.length)|0], good:!bomb, x:-5+Math.random()*10, y:-0.5, vx:(Math.random()-0.5)*2.2, vy:7.5+Math.random()*1.8 }; } }));
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -7142,15 +7190,12 @@ document.getElementById('qExit').onclick=qExit;
 document.getElementById('qAgain').onclick=()=>qStart(q.key);
 document.getElementById('qOverMenu').onclick=qExit;
 // modos arcade (mira/clique)
-['defesa','ninja'].forEach(k=>{
-  const cap=k.charAt(0).toUpperCase()+k.slice(1);
-  const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>agStart(k);
-});
+/* Defesa e Ninja agora são minigames co-op (ver wiring de minis abaixo) */
 document.getElementById('aExit').onclick=agExit;
 document.getElementById('aAgain').onclick=()=>agStart(ag.key);
 document.getElementById('aOverMenu').onclick=agExit;
 // minigames (framework)
-[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo']].forEach(([k,cap])=>{
+[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo'],['defesa','Defesa'],['ninja','Ninja']].forEach(([k,cap])=>{
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>mcOpen(k);
 });
 document.getElementById('mExit').onclick=miniExit;
