@@ -3452,8 +3452,8 @@ function onNetData(d){
   else if(d.t==='tr_state'){ if(net.role==='client'){ tr.wanted=d.wanted||[]; tr.lives=d.lives; tr.score=d.score; tr.processed=d.processed; tr.correct=d.correct; tr.streak=d.streak; tr.best=d.best; tr.barTarget=d.bar; tr.cur=d.car?Object.assign({group:null},d.car):null; trUpdateHud(); } }
   else if(d.t==='tr_over'){ trOver(); }
   // ---- Minigames (co-op genérico) ----
-  else if(d.t==='mini_begin'){ miniStart(d.key, 'client'); }
-  else if(d.t && d.t.charAt(0)==='m' && d.t.charAt(1)==='_'){ if(MINI.cur && MINI.cur.onNet) MINI.cur.onNet(d); }
+  else if(d.t==='mini_begin'){ if(typeof QGAMES!=='undefined' && QGAMES[d.key]) qStart(d.key,'client'); else miniStart(d.key, 'client'); }
+  else if(d.t && d.t.charAt(0)==='m' && d.t.charAt(1)==='_'){ if(gameState==='quiz'){ qOnNet(d); } else if(MINI.cur && MINI.cur.onNet){ MINI.cur.onNet(d); } }
 }
 function hostAdvance(){
   if(phase>=MAX_PHASE){ netSend({t:'win'}); winGame(); return; }
@@ -5462,7 +5462,7 @@ const QGAMES={
     gen(){ const n=1+((Math.random()*99)|0), par=n%2===0;
       return {prompt:`💣 Código da bomba:<br><b style="font-size:52px">${n}</b>`,
         options:[{l:'✂️ Fio Azul',ok:par},{l:'✂️ Fio Vermelho',ok:!par}], why:par?'era PAR (azul)':'era ÍMPAR (vermelho)'}; } },
-  hospital:{ name:'Triagem do Hospital', ic:'🏥', bg:0x12202a, pat:9,
+  hospital:{ coop:true, name:'Triagem do Hospital', ic:'🏥', bg:0x12202a, pat:9,
     rule:'Mande o paciente pra sala certa pelos sintomas.',
     _d:[['🦴 Quebrou o braço','Ortopedia'],['🦴 Torceu o tornozelo','Ortopedia'],['❤️ Dor no peito','Cardiologia'],['❤️ Coração disparado','Cardiologia'],['🩹 Mancha na pele','Dermatologia'],['🩹 Coceira e alergia','Dermatologia']],
     gen(){ const [s,r]=qPick1(this._d), rooms=['Ortopedia','Cardiologia','Dermatologia'];
@@ -5485,14 +5485,14 @@ const QGAMES={
     _d:[['Tudo em ordem ✅',true],['Passaporte vencido',false],['Foto não confere',false],['Sem visto',false],['Documentos ok ✅',true]],
     gen(){ const [s,ok]=qPick1(this._d);
       return {prompt:`🛂 Passaporte: <b>${s}</b>`, options:[{l:'🟢 Carimbar',ok},{l:'🔴 Negar',ok:!ok}], why:ok?'estava válido':'estava irregular'}; } },
-  tele:{ name:'Telemarketing', ic:'📞', bg:0x101a16, pat:9,
+  tele:{ coop:true, name:'Telemarketing', ic:'📞', bg:0x101a16, pat:9,
     rule:'Encaminhe o cliente pro setor certo.',
     _d:[['Quero cancelar o plano','Cancelamento'],['Minha internet caiu','Suporte Técnico'],['Dúvida na minha fatura','Financeiro'],['Quero contratar mais','Vendas'],['Sinal sem funcionar','Suporte Técnico'],['Cobrança errada','Financeiro']],
     gen(){ const [s,d]=qPick1(this._d), all=['Suporte Técnico','Financeiro','Cancelamento','Vendas'];
       const others=all.filter(x=>x!==d), opt=[d, others.splice((Math.random()*others.length)|0,1)[0], others.splice((Math.random()*others.length)|0,1)[0]];
       for(let i=opt.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [opt[i],opt[j]]=[opt[j],opt[i]]; }
       return {prompt:`📞 Cliente: "<b>${s}</b>"<br><span style="font-size:14px;opacity:.7">Qual setor?</span>`, options:opt.map(x=>({l:x,ok:x===d})), why:'era '+d}; } },
-  juiz:{ name:'Juiz', ic:'⚖️', bg:0x1a1410, pat:9,
+  juiz:{ coop:true, name:'Juiz', ic:'⚖️', bg:0x1a1410, pat:9,
     rule:'Decida pelo que as provas mostram.',
     _d:[['Digitais na arma + álibi falso','Culpado'],['Câmera filmou o crime','Culpado'],['Confessou com provas','Culpado'],['Álibi confirmado, sem provas','Inocente'],['Outra pessoa confessou','Inocente'],['Nenhuma prova contra ele','Inocente']],
     gen(){ const [s,v]=qPick1(this._d);
@@ -5521,37 +5521,49 @@ function qScene(bg){
   q.opts3d=[];
 }
 function qClearOpts(){ if(q.opts3d&&q.opts3d.length) dispose3D(q.opts3d); q.opts3d=[]; }
-function qNext(){
-  q.cur=q.cfg.gen(); q.cur.patience=1;
-  if(q.promptSpr) set3DText(q.promptSpr, q.cur.prompt);
+function qRenderOpts(prompt, labels){
+  if(q.promptSpr) set3DText(q.promptSpr, prompt);
   qClearOpts();
-  const opts=q.cur.options, n=opts.length;
-  // layout: 2/3 em linha; 4 em grade 2x2
-  const cols = n>=4?2:n, rows=Math.ceil(n/cols);
+  const n=labels.length, cols = n>=4?2:n, rows=Math.ceil(n/cols);
   const w = n>=4?3.2 : n===3?2.7 : 3.4, h=1.0, gx=w+0.4, gy=h+0.35;
   const pal=[0x4a6abf,0xbf5a7a,0x4aaf6a,0xb08a3a];
-  opts.forEach((o,i)=>{ const cI=i%cols, rI=(i/cols)|0;
+  labels.forEach((l,i)=>{ const cI=i%cols, rI=(i/cols)|0;
     const bx=(cI-(cols-1)/2)*gx, by=1.95 - rI*gy + (rows-1)*gy/2;
-    const b=make3DButton((i+1)+'.  '+o.l, w, h, pal[i%pal.length]);
+    const b=make3DButton((i+1)+'.  '+l, w, h, pal[i%pal.length]);
     b.position.set(bx, by, -2.0); b.userData.__cl={fn:()=>qPick(i), idx:i};
     scene.add(b); q.opts3d.push({obj:b, fn:()=>qPick(i)}); });
 }
+function qNext(){
+  q.cur=q.cfg.gen(); q.cur.patience=1;
+  qRenderOpts(q.cur.prompt, q.cur.options.map(o=>o.l));
+  if(q.role==='host') netSend({t:'m_q', p:q.cur.prompt, o:q.cur.options.map(o=>o.l)});
+}
 function qFlash(k){ const f=document.getElementById('qFlash'); if(!f)return; f.className=k; setTimeout(()=>{f.className='';},260); }
-function qPick(i){ if(!q.cur||q.over) return; const o=q.cur.options[i]; if(!o) return; qResolve(o.ok); }
+function qPick(i){ if(q.over) return;
+  if(q.role==='client'){ netSend({t:'m_qa', i}); return; }   // cliente pede; host decide
+  if(!q.cur) return; const o=q.cur.options[i]; if(!o) return; qResolve(o.ok); }
 function qResolve(ok){
   if(!q.cur) return; const why=q.cur.why; q.processed++;
   if(ok){ q.correct++; q.streak++; if(q.streak>q.best)q.best=q.streak; q.score+=10+(q.streak-1)*2;
     tone(660,0.1,'square',0.12); setTimeout(()=>tone(990,0.1,'square',0.1),80); qFlash('good'); }
   else { q.lives--; q.streak=0; tone(150,0.3,'sawtooth',0.16); qFlash('bad'); showMsg('❌ Errado — '+why,2000); }
   qClearOpts(); q.cur=null; q.cool=0.5; qUpdateHud();
+  if(q.role==='host') netSend({t:'m_qs', lv:q.lives, sc:q.score, pr:q.processed, co:q.correct, sk:q.streak, bs:q.best, ok, why});
   if(q.lives<=0) qOver();
 }
 function updateQuiz(dt){
   camera.position.set(0,3.0,4.2); camera.lookAt(0,3.2,-4); camera.rotation.z=0;
-  if(q.over) return;
+  if(q.over || q.role==='client') return;   // cliente: host é autoritativo
   if(q.cur){ q.cur.patience-=dt/q.cfg.pat; if(q.patFill){ q.patFill.scale.x=Math.max(0.001,q.cur.patience); q.patFill.material.color.setHex(q.cur.patience<0.3?0xff5d5d:0xffce5b); }
     if(q.cur.patience<=0) qResolve(false); }
   else { q.cool-=dt; if(q.cool<=0) qNext(); }
+}
+function qOnNet(d){
+  if(d.t==='m_q'){ if(q.role==='client'){ q.cur=null; qRenderOpts(d.p, d.o); } }
+  else if(d.t==='m_qa'){ if(q.role==='host') qPick(d.i); }
+  else if(d.t==='m_qs'){ if(q.role==='client'){ q.lives=d.lv; q.score=d.sc; q.processed=d.pr; q.correct=d.co; q.streak=d.sk; q.best=d.bs;
+      qFlash(d.ok?'good':'bad'); if(!d.ok&&d.why) showMsg('❌ Errado — '+d.why,2000); qClearOpts(); qUpdateHud(); } }
+  else if(d.t==='m_qover'){ qOver(); }
 }
 function qUpdateHud(){
   if(document.getElementById('qHud').classList.contains('hidden')) return;
@@ -5561,27 +5573,30 @@ function qUpdateHud(){
   document.getElementById('qRule').innerHTML='<b>'+q.cfg.ic+' '+q.cfg.name+'</b><br>'+q.cfg.rule;
 }
 function qOver(){
-  if(q.over)return; q.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  if(q.over)return; q.over=true; if(q.role==='host') netSend({t:'m_qover'}); if(document.pointerLockElement) document.exitPointerLock();
   const acc=q.processed?Math.round(q.correct/q.processed*100):100;
   document.getElementById('qOverTitle').textContent='🏁 Fim — '+q.cfg.name;
   document.getElementById('qOverStats').innerHTML=`Decisões: <b>${q.processed}</b><br>Acertos: <b>${q.correct}</b> · Precisão: <b>${acc}%</b><br>Melhor sequência: <b>${q.best}</b> · Pontos: <b>${q.score}</b>`;
   document.getElementById('qHud').classList.add('hidden'); document.getElementById('qOver').classList.remove('hidden');
 }
-function qStart(key){
-  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
-  spectator=false; q.key=key; q.cfg=QGAMES[key]; q=qFresh();
-  ['modes','start','device','qOver','death','win'].forEach(id=>{const el=document.getElementById(id); if(el) el.classList.add('hidden');});
+function qStart(key, role){
+  role=role||'solo';
+  if(role==='solo'){ net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } } else { net.role=role; }
+  spectator=false; q.key=key; q.cfg=QGAMES[key]; q=qFresh(); q.role=role;
+  ['modes','start','device','qOver','death','win','miniCoop'].forEach(id=>{const el=document.getElementById(id); if(el) el.classList.add('hidden');});
   initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
   qScene(q.cfg.bg);
   player.yaw=0; player.pitch=0; gameState='quiz'; introActive=false; hiding=false; player.dead=false; qte.active=false;
   ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   document.getElementById('qHud').classList.remove('hidden');
   const card=document.getElementById('qCard'); if(card) card.style.display='none';   // opções agora são 3D
-  q.cool=0.4; qUpdateHud();
+  q.cool = role==='client' ? 9999 : 0.4;   // cliente aguarda a 1ª questão do host
+  qUpdateHud();
   showMsg(q.cfg.ic+' '+q.cfg.name+' — '+q.cfg.rule,4500);
 }
 function qExit(){
-  q.over=true; qClearOpts(); if(document.pointerLockElement) document.exitPointerLock();
+  q.over=true; qClearOpts(); if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; q.role='solo';
+  if(document.pointerLockElement) document.exitPointerLock();
   document.getElementById('qHud').classList.add('hidden'); document.getElementById('qOver').classList.add('hidden');
   document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
   document.getElementById('minimap').style.display = minimapOn?'block':'none';
@@ -6797,9 +6812,11 @@ miniRegister('voo',{
 // 👥 ====== CO-OP GENÉRICO PROS MINIGAMES (menu + Caça-Fantasmas) ======
 const mc={ key:null };
 function mcInfo(h){ const e=mEl('mcInfo'); if(e) e.innerHTML=h; }
-function mcOpen(key){ const g=MINI.games[key]; if(!g) return;
-  if(!g.coop){ miniStart(key,'solo'); return; }
-  mc.key=key; mEl('mcTitle').innerHTML=g.ic+' '+g.name; mEl('mcDesc').textContent=g.coopDesc||'Jogue sozinho ou chame um amigo pra jogar junto online.';
+function mcStart(key, role){ if(mc.kind==='quiz') qStart(key, role); else miniStart(key, role); }
+function mcOpen(key){ const mg=MINI.games[key], qg=(typeof QGAMES!=='undefined')?QGAMES[key]:null; const g=mg||qg; if(!g) return;
+  mc.kind = mg?'mini':'quiz'; const coop = mg?mg.coop:qg.coop;
+  if(!coop){ mcStart(key,'solo'); return; }
+  mc.key=key; mEl('mcTitle').innerHTML=g.ic+' '+g.name; mEl('mcDesc').textContent=(mg&&mg.coopDesc)||'Joguem juntos online — pontos e vidas compartilhados — ou sozinho.';
   mEl('mcPanel').style.display='none'; mEl('mcJoinRow').style.display='none'; mcInfo('');
   mEl('modes').classList.add('hidden'); mEl('miniCoop').classList.remove('hidden');
 }
@@ -6808,7 +6825,7 @@ function mcHost(){ if(typeof Peer==='undefined'){ mcInfo('❌ Rede indisponível
   net.nick=sanitizeNick(mEl('mcNick').value); net.role='host'; mcInfo('Criando sala...');
   const code=genCode(); net.peer=new Peer('jds-'+code, PEER_OPTS); try{ wireVoice(); }catch(e){}
   net.peer.on('open', ()=>{ net.id=code; mcInfo('Sala criada! Código: <code>'+code+'</code><br>Envie ao amigo e aguarde...'); });
-  net.peer.on('connection', conn=>{ wireConn(conn); conn.on('open', ()=>{ mcInfo('✅ Amigo entrou! Começando...'); netSend({t:'mini_begin', key:mc.key}); try{ startVoiceCall(conn.peer); }catch(e){} miniStart(mc.key,'host'); }); });
+  net.peer.on('connection', conn=>{ wireConn(conn); conn.on('open', ()=>{ mcInfo('✅ Amigo entrou! Começando...'); netSend({t:'mini_begin', key:mc.key}); try{ startVoiceCall(conn.peer); }catch(e){} mcStart(mc.key,'host'); }); });
   net.peer.on('error', e=>{ if(e.type==='unavailable-id'){ try{net.peer.destroy();}catch(_){} mcHost(); return; } mcInfo('❌ Erro: '+e.type); });
 }
 function mcConnect(){ const code=mEl('mcCode').value.trim().toUpperCase(); if(code.length!==5){ mcInfo('O código tem 5 caracteres.'); return; }
@@ -7660,7 +7677,7 @@ document.getElementById('hunterOverMenu').onclick=hunterExit;
 // modos de decisão (bancada)
 ['hospital','tele','juiz'].forEach(k=>{
   const cap=k.charAt(0).toUpperCase()+k.slice(1);
-  const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>qStart(k);
+  const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>mcOpen(k);
 });
 document.getElementById('qExit').onclick=qExit;
 document.getElementById('qAgain').onclick=()=>qStart(q.key);
@@ -7678,7 +7695,7 @@ document.getElementById('mExit').onclick=miniExit;
 document.getElementById('mAgain').onclick=()=>miniStart(MINI.key, MINI.role||'solo');
 document.getElementById('mOverMenu').onclick=miniExit;
 // menu genérico de co-op
-document.getElementById('mcSolo').onclick=()=>miniStart(mc.key,'solo');
+document.getElementById('mcSolo').onclick=()=>mcStart(mc.key,'solo');
 document.getElementById('mcCoop').onclick=()=>{ document.getElementById('mcPanel').style.display='block'; };
 document.getElementById('mcHost').onclick=mcHost;
 document.getElementById('mcJoin').onclick=()=>{ document.getElementById('mcJoinRow').style.display='flex'; mcInfo('Digite o código do amigo e clique Conectar.'); };
