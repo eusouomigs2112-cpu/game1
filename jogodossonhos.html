@@ -7213,6 +7213,80 @@ miniRegister('imig',{
   onKey(){}, exit(){ this.s=null; }
 });
 
+// 📹🕯️👥 ====== CO-OP: Câmeras (FNAF) e Ritual (Simon) ======
+
+// 📹 CÂMERAS co-op
+miniRegister('cameras',{
+  name:'Câmeras', ic:'📹', coop:true, coopDesc:'Vigiem a noite juntos! Qualquer um fecha as portas — energia e noite compartilhadas.',
+  tip:'Clique na porta do lado do barulho pra fechá-la — a energia acaba!',
+  enter(role){ scene.background=new THREE.Color(0x1a1a26); scene.fog=new THREE.FogExp2(0x1a1a26,0.022);
+    scene.add(new THREE.HemisphereLight(0x8a90b0,0x252535,1.5)); const lamp=new THREE.PointLight(0xfff0d8,1.6,40); lamp.position.set(0,7,2); scene.add(lamp); const lamp2=new THREE.PointLight(0xbcd0ff,0.9,30); lamp2.position.set(0,4,5); scene.add(lamp2);
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(30,30), new THREE.MeshStandardMaterial({color:0x2a2838,roughness:1})); fl.rotation.x=-Math.PI/2; scene.add(fl);
+    const back=new THREE.Mesh(new THREE.BoxGeometry(16,9,0.4), new THREE.MeshStandardMaterial({color:0x33334a,roughness:0.9})); back.position.set(0,4.5,-7); scene.add(back);
+    const s=this.s={ power:100, time:90, over:false, L:false, R:false, side:null, warnT:0, grace:0, netT:0 };
+    const mkDoor=(x)=>{ const g=new THREE.Group(); const fr=new THREE.Mesh(new THREE.BoxGeometry(2.4,4,0.3), new THREE.MeshStandardMaterial({color:0x3a3550,roughness:0.8})); fr.position.y=2; g.add(fr);
+      const dr=new THREE.Mesh(new THREE.BoxGeometry(2,3.6,0.5), new THREE.MeshStandardMaterial({color:0x6a6a7a,roughness:0.6,metalness:0.3})); dr.position.set(0,5,0); g.add(dr); g.userData.dr=dr; g.position.set(x,0,-4); g.rotation.y=x<0?0.5:-0.5; scene.add(g); return g; };
+    this.dL=mkDoor(-4); this.dL.userData.__cl={side:'L'}; this.dR=mkDoor(4); this.dR.userData.__cl={side:'R'};
+    this.monster=emojiSprite('👹',2.2); this.monster.position.set(0,2.5,-9); this.monster.material.opacity=0; scene.add(this.monster);
+    if(role!=='client') this.sched(); this.render(); this.hud();
+  },
+  sched(){ const s=this.s; s.side=Math.random()<0.5?'L':'R'; s.warnT=1.0+Math.random()*1.4; s.grace=2.4; },
+  toggle(side){ const s=this.s; if(s.over)return; if(side==='L')s.L=!s.L; else s.R=!s.R; tone(s[side]?260:200,0.09,'square',0.1); this.render(); if(MINI.role==='host')this.bcast(); },
+  render(){ const s=this.s; const set=(g,closed)=>{ g.userData.dr.position.y=closed?2:5; g.userData.dr.material.color.setHex(closed?0xff6d6d:0x6a6a7a); }; set(this.dL,s.L); set(this.dR,s.R);
+    const warn=s.warnT<=0; this.monster.material.opacity=warn?0.95:0.0; if(warn){ this.monster.position.set(s.side==='L'?-3.4:3.4,2.6,-6); } },
+  bcast(){ if(MINI.role==='host') netSend({t:'m_ca', p:Math.round(this.s.power), ti:Math.ceil(this.s.time), L:this.s.L, R:this.s.R, w:this.s.warnT<=0, sd:this.s.side}); },
+  caught(){ const s=this.s; s.over=true; tone(80,0.6,'sawtooth',0.2); mFlash('bad'); const t='💀 O monstro entrou!', st='Resistiram <b>'+Math.ceil(90-s.time)+'s</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,2.2,4); camera.lookAt(0,2,-5); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    s.time-=dt; if(s.time<=0){ s.over=true; const t='🌅 Sobreviveram a noite!', st='Energia: <b>'+Math.round(s.power)+'%</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    let drain=2.0; if(s.L)drain+=7; if(s.R)drain+=7; s.power-=drain*dt; if(s.power<=0){ s.power=0; this.caught(); return; }
+    if(s.warnT>0){ s.warnT-=dt; if(s.warnT<=0){ this.render(); this.bcast(); } }
+    else { s.grace-=dt; const safe=s.side==='L'?s.L:s.R; if(safe){ this.sched(); this.render(); this.bcast(); } else if(s.grace<=0){ this.caught(); return; } }
+    if(role==='host'){ s.netT-=dt; if(s.netT<=0){ s.netT=0.25; this.bcast(); } } this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_dr'){ if(MINI.role==='host') this.toggle(d.s); }
+    else if(d.t==='m_ca'){ if(MINI.role==='client'){ s.power=d.p; s.time=d.ti; s.L=d.L; s.R=d.R; s.warnT=d.w?-1:1; s.side=d.sd; this.render(); this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>🔋 <b>'+Math.round(s.power)+'%</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>'+(s.warnT<=0?'<span style="color:#ff6d6d">⚠️ '+(s.side==='L'?'ESQUERDA':'DIREITA')+'!</span>':'')+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('📹 Cliquem na porta do lado do barulho a tempo. Portas fechadas gastam energia!'); },
+  onClick(x,y){ const role=MINI.role||'solo'; const cl=ui3dPick(x,y,[{obj:this.dL},{obj:this.dR}]); if(!cl)return; if(role==='client')netSend({t:'m_dr',s:cl.side}); else this.toggle(cl.side); },
+  onKey(code){ const role=MINI.role||'solo'; let side=code==='KeyA'?'L':code==='KeyD'?'R':null; if(side){ if(role==='client')netSend({t:'m_dr',s:side}); else this.toggle(side); } },
+  exit(){ this.s=null; }
+});
+
+// 🕯️ RITUAL co-op
+miniRegister('ritual',{
+  name:'Ritual', ic:'🕯️', coop:true, coopDesc:'Façam o ritual juntos! Memorizem e repitam a ordem das velas — vidas compartilhadas.',
+  tip:'Memorize a ordem que as velas acendem e clique nelas na mesma ordem',
+  enter(role){ mDarkScene(0x140a18,0.04); const s=this.s={ seq:[], pos:0, round:0, lives:3, over:false, mode:'show', showT:0.6, idx:0, n:5 };
+    const altar=new THREE.Mesh(new THREE.BoxGeometry(8,0.5,2), new THREE.MeshStandardMaterial({color:0x3a2a4a,roughness:0.8})); altar.position.set(0,0.25,-4); scene.add(altar);
+    this.candles=[]; for(let i=0;i<s.n;i++){ const g=new THREE.Group(); const wax=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.3,1.4,12), new THREE.MeshStandardMaterial({color:0xe8e0d0,roughness:0.8})); wax.position.y=0.7; g.add(wax);
+      const flame=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,8), new THREE.MeshStandardMaterial({color:0xffb030,emissive:0xff8000,emissiveIntensity:0,transparent:true,opacity:0})); flame.position.y=1.55; g.add(flame);
+      const lt=new THREE.PointLight(0xffa030,0,6); lt.position.y=1.6; g.add(lt); g.position.set((i-(s.n-1)/2)*1.5,0.5,-4); g.userData.__cl={ci:i}; g.userData.flame=flame; g.userData.lt=lt; scene.add(g); this.candles.push(g); }
+    if(role!=='client') this.nextRound(); this.hud(); },
+  light(i,on){ const g=this.candles[i]; if(!g)return; g.userData.flame.material.opacity=on?1:0; g.userData.flame.material.emissiveIntensity=on?1.5:0; g.userData.lt.intensity=on?1.6:0; },
+  flash(i){ this.light(i,true); setTimeout(()=>this.light(i,false),380); if(MINI.role==='host')netSend({t:'m_rl',i}); },
+  nextRound(){ const s=this.s; if(!s||s.over)return; if(s.round>=8){ s.over=true; const t='🏆 Ritual completo!',st='Rodadas: <b>'+s.round+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    s.round++; s.seq.push((Math.random()*s.n)|0); s.pos=0; s.mode='show'; s.idx=0; s.showT=0.6; this.bcast(); this.hud(); },
+  bcast(){ if(MINI.role==='host') netSend({t:'m_rs', r:this.s.round, lv:this.s.lives, m:this.s.mode}); },
+  tap(i){ const s=this.s; if(s.over||s.mode!=='play')return; this.light(i,true); setTimeout(()=>this.light(i,false),200); tone(440+i*70,0.12,'sine',0.12);
+    if(i===s.seq[s.pos]){ s.pos++; if(s.pos>=s.seq.length){ tone(880,0.15,'sine',0.12); s.mode='wait'; this.bcast(); setTimeout(()=>this.nextRound(),550); } }
+    else { s.lives--; tone(120,0.4,'sawtooth',0.16); mFlash('bad'); s.pos=0;
+      if(s.lives<=0){ s.over=true; const t='💀 Ritual falhou',st='Rodadas: <b>'+s.round+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); } else { showMsg('❌ Errou — observem de novo',1400); setTimeout(()=>{ if(this.s){ this.s.mode='show'; this.s.idx=0; this.s.showT=0.5; this.bcast(); } },700); } } this.bcast(); this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,2.6,2.5); camera.lookAt(0,1.2,-4); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    if(s.mode==='show'){ s.showT-=dt; if(s.showT<=0){ if(s.idx<s.seq.length){ this.flash(s.seq[s.idx]); tone(440+s.seq[s.idx]*70,0.18,'sine',0.12); s.idx++; s.showT=0.66; } else { s.mode='play'; this.bcast(); } } } this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_rt'){ if(MINI.role==='host') this.tap(d.i); }
+    else if(d.t==='m_rl'){ if(MINI.role==='client'){ this.light(d.i,true); setTimeout(()=>this.light(d.i,false),380); tone(440+d.i*70,0.18,'sine',0.12); } }
+    else if(d.t==='m_rs'){ if(MINI.role==='client'){ s.round=d.r; s.lives=d.lv; s.mode=d.m; this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>🔮 Rodada <b>'+s.round+'</b>/8</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule(s.mode==='show'?'👀 <b>Observem</b> a ordem das velas...':'🕯️ Cliquem as velas na ordem certa'); },
+  onClick(x,y){ const role=MINI.role||'solo'; const cl=ui3dPick(x,y,this.candles.map(g=>({obj:g}))); if(!cl||cl.ci==null)return; if(role==='client')netSend({t:'m_rt',i:cl.ci}); else this.tap(cl.ci); },
+  onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
