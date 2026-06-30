@@ -7287,6 +7287,116 @@ miniRegister('ritual',{
   onKey(){}, exit(){ this.s=null; }
 });
 
+// 🎨🌉🏙️👥 ====== CO-OP: Pintor, Engenheiro, Prefeito ======
+
+// 🎨 PINTOR co-op
+miniRegister('pintor',{
+  name:'Pintor', ic:'🎨', coop:true, coopDesc:'Pintem juntos a mesma tela igual ao modelo!',
+  tip:'Pinte a SUA tela igual ao MODELO. Clique numa cor e depois nas células',
+  enter(role){ scene.background=new THREE.Color(0x10131c); scene.fog=new THREE.FogExp2(0x10131c,0.015);
+    scene.add(new THREE.HemisphereLight(0xc0c8e0,0x202430,1.6)); const l=new THREE.PointLight(0xffffff,1.0,40); l.position.set(0,6,6); scene.add(l);
+    const s=this.s={ score:0, time:120, over:false, sel:1, grid:new Array(25).fill(0), target:[], locked:false };
+    this.pCells=[]; this.mCells=[]; const N=5, sz=0.62, gap=0.06, step=sz+gap, off=(N-1)/2*step;
+    for(let j=0;j<N;j++)for(let i=0;i<N;i++){ const idx=j*N+i; const x=i*step-off, y=4.2-j*step;
+      const pm=new THREE.Mesh(new THREE.BoxGeometry(sz,sz,0.18), new THREE.MeshStandardMaterial({color:PNT_COLS[0],roughness:0.6})); pm.position.set(x-2.0,y,-2); pm.userData.__cl={cell:idx}; scene.add(pm); this.pCells.push(pm);
+      const mm=new THREE.Mesh(new THREE.BoxGeometry(sz*0.7,sz*0.7,0.12), new THREE.MeshStandardMaterial({color:PNT_COLS[0],roughness:0.6})); mm.position.set(x+2.4,y,-2.6); scene.add(mm); this.mCells.push(mm); }
+    this.pal=[]; for(let c=0;c<PNT_COLS.length;c++){ const bnd=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.7,0.3), new THREE.MeshStandardMaterial({color:PNT_COLS[c],roughness:0.4,emissive:PNT_COLS[c],emissiveIntensity:0.3})); bnd.position.set((c-2)*0.95-2.0,0.7,-1.4); bnd.userData.__cl={col:c}; scene.add(bnd); this.pal.push(bnd); }
+    const _t1=make3DText('SUA TELA',2.4,{fs:48,color:'#fff'}); _t1.position.set(-2.0,6.0,-2); scene.add(_t1);
+    const _t2=make3DText('MODELO',2.0,{fs:48,color:'#9fe8ff'}); _t2.position.set(2.4,6.0,-2.6); scene.add(_t2);
+    if(role!=='client') this.newPattern(); this.highlightPal(); this.hud();
+  },
+  newPattern(){ const s=this.s; s.target=PNT_PATTERNS[(Math.random()*PNT_PATTERNS.length)|0].slice(); s.grid.fill(0); s.locked=false; this.recolor(); if(MINI.role==='host')this.bcast(); },
+  recolor(){ const s=this.s; this.pCells.forEach((m,i)=>m.material.color.setHex(PNT_COLS[s.grid[i]||0])); this.mCells.forEach((m,i)=>m.material.color.setHex(PNT_COLS[s.target[i]||0])); },
+  bcast(){ if(MINI.role==='host') netSend({t:'m_pt', g:this.s.grid.join(''), tg:this.s.target.join(''), sc:this.s.score}); },
+  highlightPal(){ this.pal.forEach((bd,c)=>{ bd.material.emissiveIntensity=c===this.s.sel?1.1:0.25; bd.scale.setScalar(c===this.s.sel?1.25:1.0); }); },
+  pickColor(c){ this.s.sel=c; tone(420+c*60,0.05,'square',0.08); this.highlightPal(); },
+  paint(i,col){ const s=this.s; if(s.locked)return; s.grid[i]=col; this.pCells[i].material.color.setHex(PNT_COLS[col]); tone(500,0.04,'sine',0.07);
+    if(s.grid.every((v,k)=>v===s.target[k])){ s.locked=true; s.score++; tone(740,0.12,'sine',0.12); setTimeout(()=>tone(1050,0.12,'sine',0.1),100); mFlash('good'); showMsg('🎨 Desenho perfeito! +1',1100); setTimeout(()=>{ if(this.s&&!this.s.over) this.newPattern(); },700); }
+    if(MINI.role==='host')this.bcast(); this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,3,5.2); camera.lookAt(0,2.6,-2.2); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    s.time-=dt; if(s.time<=0){ s.over=true; const t='⏱️ Tempo esgotado',st='Desenhos completos: <b>'+s.score+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; } this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_paint'){ if(MINI.role==='host') this.paint(d.i,d.c); }
+    else if(d.t==='m_pt'){ if(MINI.role==='client'){ s.grid=d.g.split('').map(Number); s.target=d.tg.split('').map(Number); s.score=d.sc; this.recolor(); this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>🎨 <b>'+s.score+'</b> desenhos</span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🖌️ Cliquem numa COR e pintem igual ao modelo. Deixem os quadrados cinza em branco!'); },
+  onClick(x,y){ const s=this.s; const role=MINI.role||'solo'; const cl=ui3dPick(x,y, this.pCells.map(m=>({obj:m})).concat(this.pal.map(bd=>({obj:bd})))); if(!cl)return;
+    if(cl.col!=null) this.pickColor(cl.col); else if(cl.cell!=null){ if(role==='client')netSend({t:'m_paint',i:cl.cell,c:s.sel}); else this.paint(cl.cell,s.sel); } },
+  onKey(){}, exit(){ this.s=null; }
+});
+
+// 🌉 ENGENHEIRO co-op
+miniRegister('engenheiro',{
+  name:'Engenheiro', ic:'🌉', coop:true, coopDesc:'Construam a ponte juntos! Preencham os vãos de água.',
+  tip:'Cliquem só nos vãos de água 💧 pra pôr vigas',
+  enter(role){ scene.background=new THREE.Color(0x0c1622); scene.fog=new THREE.FogExp2(0x0c1622,0.02);
+    scene.add(new THREE.HemisphereLight(0xbcd0ff,0x203040,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.7); sun.position.set(8,12,6); scene.add(sun);
+    const water=new THREE.Mesh(new THREE.PlaneGeometry(40,12), new THREE.MeshStandardMaterial({color:0x1a4a8a,roughness:0.3,metalness:0.4})); water.rotation.x=-Math.PI/2; water.position.set(0,-1,0); scene.add(water);
+    const plat=(x)=>{ const p=new THREE.Mesh(new THREE.BoxGeometry(4,1.5,4), new THREE.MeshStandardMaterial({color:0x5a6a4a,roughness:0.9})); p.position.set(x,-0.2,0); scene.add(p); }; plat(-7); plat(7);
+    const s=this.s={ len:5, built:0, over:false, time:90, cells:[], lock:false, netT:0 }; if(role!=='client') this.newLevel(); this.hud(); },
+  buildCells(spec){ const s=this.s; for(const c of (s.cells||[])) if(c.mesh) scene.remove(c.mesh); s.cells=[]; const sp=1.3, x0=-(spec.length-1)/2*sp;
+    spec.forEach((c,i)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(1.15,0.5,2.4), new THREE.MeshStandardMaterial({color:c.filled?0x9a7a4a:(c.gap?0x2a6aaa:0x7a6a55),roughness:0.85,transparent:c.gap&&!c.filled,opacity:(c.gap&&!c.filled)?0.5:1}));
+      m.position.set(x0+i*sp, (c.gap&&!c.filled)?-0.5:0.5, 0); m.userData.__cl={i}; scene.add(m); s.cells.push({gap:c.gap, filled:c.filled, mesh:m}); }); },
+  newLevel(){ const s=this.s; const spec=[]; for(let i=0;i<s.len;i++){ const gap=Math.random()<0.62; spec.push({gap, filled:!gap}); }
+    if(!spec.some(c=>c.gap)){ spec[(Math.random()*s.len)|0]={gap:true,filled:false}; } this.buildCells(spec); this.bcast(); this.hud(); },
+  bcast(){ if(MINI.role==='host') netSend({t:'m_en', c:this.s.cells.map(c=>({g:c.gap,f:c.filled})), b:this.s.built}); },
+  place(i){ const s=this.s; if(s.over||s.lock)return; const c=s.cells[i]; if(!c){return;} if(!c.gap){ tone(140,0.2,'sawtooth',0.12); mFlash('bad'); showMsg('🪨 Aí já é firme! Só a água 💧',1100); return; }
+    if(c.filled)return; c.filled=true; c.mesh.material.color.setHex(0x9a7a4a); c.mesh.material.transparent=false; c.mesh.material.opacity=1; c.mesh.position.y=0.5; tone(420,0.06,'square',0.1);
+    if(MINI.role==='host')this.bcast(); if(s.cells.every(x=>x.filled)) this.cross(); },
+  cross(){ const s=this.s; s.built++; s.lock=true; tone(660,0.14,'sine',0.12); mFlash('good'); showMsg('🚛 Ponte completa!',1000);
+    setTimeout(()=>{ if(this.s){ this.s.lock=false; this.s.len=Math.min(9,this.s.len+1); this.newLevel(); } },950); this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,4,11); camera.lookAt(0,0,0); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    s.time-=dt; if(s.time<=0){ s.over=true; const t='⏱️ Fim do turno',st='Pontes: <b>'+s.built+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; } this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_place'){ if(MINI.role==='host') this.place(d.i); }
+    else if(d.t==='m_en'){ if(MINI.role==='client'){ s.built=d.b; this.buildCells(d.c.map(c=>({gap:c.g,filled:c.f}))); this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>🌉 <b>'+s.built+'</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('💧 Cliquem em cada vão de água pra pôr vigas e completar a ponte. 🪨 já é firme.'); },
+  onClick(x,y){ const role=MINI.role||'solo'; const cl=ui3dPick(x,y,this.s.cells.map(c=>({obj:c.mesh}))); if(!cl||cl.i==null)return; if(role==='client')netSend({t:'m_place',i:cl.i}); else this.place(cl.i); },
+  onKey(){}, exit(){ this.s=null; }
+});
+
+// 🏙️ PREFEITO co-op
+miniRegister('prefeito',{
+  name:'Prefeito', ic:'🏙️', coop:true, coopDesc:'Construam a cidade juntos! Dinheiro e felicidade compartilhados.',
+  tip:'Paguem trabalhadores pra construir o que a cidade pede',
+  enter(role){ scene.background=new THREE.Color(0x141022); scene.fog=new THREE.FogExp2(0x141022,0.02);
+    scene.add(new THREE.HemisphereLight(0xc0b0ff,0x202038,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.7); sun.position.set(6,12,6); scene.add(sun);
+    const gp=new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({color:0x2a2a3a,roughness:1})); gp.rotation.x=-Math.PI/2; gp.position.y=-0.05; scene.add(gp);
+    const s=this.s={ cols:5, rows:4, happy:0, goal:200, money:300, income:0, over:false, need:null, cost:0, happyGain:0, built:0, netT:0 };
+    this.TYPES=[['🏠',50,8],['🏥',120,18],['🏫',100,15],['🌳',30,4],['🏭',90,12],['🏪',60,9]]; this.lots=[]; const sp=1.5;
+    for(let j=0;j<s.rows;j++)for(let i=0;i<s.cols;i++){ const t=new THREE.Mesh(new THREE.BoxGeometry(1.3,0.2,1.3), new THREE.MeshStandardMaterial({color:0x4a4a5a,roughness:0.9}));
+      t.position.set((i-(s.cols-1)/2)*sp,0.1,(j-(s.rows-1)/2)*sp); t.userData.__cl={idx:this.lots.length, filled:false, ty:null}; scene.add(t); this.lots.push(t); }
+    if(role!=='client') this.newNeed(); this.hud();
+  },
+  newNeed(){ const t=this.TYPES[(Math.random()*this.TYPES.length)|0]; this.s.need=t[0]; this.s.cost=t[1]; this.s.happyGain=t[2]; if(MINI.role==='host')this.bcast(); this.hud(); },
+  bcast(){ if(MINI.role==='host') netSend({t:'m_pr', mo:Math.round(this.s.money), hp:this.s.happy, nd:this.s.need, co:this.s.cost, bu:this.s.built, lots:this.lots.map(l=>l.userData.__cl.filled?l.userData.__cl.ty:'')}); },
+  placeBuilding(t,ty){ const h=0.8+((t.userData.__cl.idx*53)%12)/10; const b=new THREE.Mesh(new THREE.BoxGeometry(1.0,h,1.0), new THREE.MeshStandardMaterial({color:0x6a5ab0,roughness:0.6})); b.position.set(t.position.x,h/2+0.1,t.position.z); scene.add(b);
+    const lab=emojiSprite(ty,1.0); lab.position.set(t.position.x,h+0.7,t.position.z); scene.add(lab); t.userData.__cl.filled=true; t.userData.__cl.ty=ty; },
+  build(t){ const s=this.s; if(s.over)return; if(t.userData.__cl.filled){ tone(160,0.12,'sawtooth',0.1); return; }
+    if(s.money<s.cost){ tone(150,0.25,'sawtooth',0.14); mFlash('bad'); showMsg('💸 Sem dinheiro! Espere os impostos',1400); return; }
+    s.money-=s.cost; this.placeBuilding(t,s.need); s.built++; s.happy+=s.happyGain; s.income+=2; tone(520,0.06,'square',0.1); mFlash('good');
+    if(s.happy>=s.goal){ s.over=true; const tt='🏆 Cidade próspera!',st='Prédios: <b>'+s.built+'</b> · 💰 $'+Math.round(s.money); if(MINI.role==='host')netSend({t:'m_over',t1:tt,st}); miniOver(tt,st); return; }
+    if(this.lots.every(x=>x.userData.__cl.filled)){ s.over=true; const tt='🏙️ Cidade lotada!',st='Felicidade: <b>'+s.happy+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:tt,st}); miniOver(tt,st); return; }
+    this.newNeed(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,7,8); camera.lookAt(0,0,0); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    s.money+=s.income*dt; if(role==='host'){ s.netT-=dt; if(s.netT<=0){ s.netT=0.5; this.bcast(); } } this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_build'){ if(MINI.role==='host') this.build(this.lots[d.i]); }
+    else if(d.t==='m_pr'){ if(MINI.role==='client'){ s.money=d.mo; s.happy=d.hp; s.need=d.nd; s.cost=d.co; s.built=d.bu;
+        d.lots.forEach((ty,i)=>{ const lot=this.lots[i]; if(ty && !lot.userData.__cl.filled) this.placeBuilding(lot,ty); }); this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>💰 <b>$'+Math.round(s.money)+'</b></span><span>📈 +$'+s.income+'/s</span><span>😊 <b>'+s.happy+'</b>/'+s.goal+'</span>'+(s.need?'<span>Pedido: <b style="font-size:20px">'+s.need+'</b> ($'+s.cost+')</span>':'')+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🏗️ A cidade pede '+(s.need||'')+' — cliquem num terreno pra pagar a obra ($'+s.cost+')'); },
+  onClick(x,y){ const role=MINI.role||'solo'; const cl=ui3dPick(x,y,this.lots.map(t=>({obj:t}))); if(!cl||cl.idx==null)return; if(role==='client')netSend({t:'m_build',i:cl.idx}); else this.build(this.lots[cl.idx]); },
+  onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
