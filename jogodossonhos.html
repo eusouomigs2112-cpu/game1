@@ -6493,6 +6493,100 @@ miniRegister('imig',{
   exit(){ this.s=null; }
 });
 
+// 🏙️🛏️🤫 ====== REDESIGNS 2: Prefeito (dinheiro), Pesadelo (paralisia), Silêncio (escuta) ======
+
+// 🏙️ PREFEITO 3D — pague trabalhadores pra construir; gere renda; alcance a meta
+miniRegister('prefeito',{
+  name:'Prefeito', ic:'🏙️', tip:'Pague trabalhadores pra construir o que a cidade pede e alcance a felicidade',
+  enter(){ scene.background=new THREE.Color(0x141022); scene.fog=new THREE.FogExp2(0x141022,0.02);
+    scene.add(new THREE.HemisphereLight(0xc0b0ff,0x202038,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.7); sun.position.set(6,12,6); scene.add(sun);
+    const gp=new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.MeshStandardMaterial({color:0x2a2a3a,roughness:1})); gp.rotation.x=-Math.PI/2; gp.position.y=-0.05; scene.add(gp);
+    const s=this.s={ cols:5, rows:4, happy:0, goal:200, money:300, income:0, over:false, need:null, cost:0, built:0 };
+    this.TYPES=[['🏠',50,8],['🏥',120,18],['🏫',100,15],['🌳',30,4],['🏭',90,12],['🏪',60,9]]; this.lots=[]; const sp=1.5;
+    for(let j=0;j<s.rows;j++)for(let i=0;i<s.cols;i++){ const t=new THREE.Mesh(new THREE.BoxGeometry(1.3,0.2,1.3), new THREE.MeshStandardMaterial({color:0x4a4a5a,roughness:0.9}));
+      t.position.set((i-(s.cols-1)/2)*sp,0.1,(j-(s.rows-1)/2)*sp); t.userData.__cl={idx:this.lots.length, filled:false}; scene.add(t); this.lots.push(t); }
+    this.newNeed(); this.hud();
+  },
+  newNeed(){ const t=this.TYPES[(Math.random()*this.TYPES.length)|0]; this.s.need=t[0]; this.s.cost=t[1]; this.s.happyGain=t[2]; this.hud(); },
+  build(t){ const s=this.s; if(s.over)return; if(t.userData.__cl.filled){ tone(160,0.12,'sawtooth',0.1); return; }
+    if(s.money<s.cost){ tone(150,0.25,'sawtooth',0.14); mFlash('bad'); showMsg('💸 Sem dinheiro! Espere a renda dos impostos',1400); return; }
+    s.money-=s.cost; t.userData.__cl.filled=true; const h=0.8+Math.random()*1.2;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(1.0,h,1.0), new THREE.MeshStandardMaterial({color:0x6a5ab0,roughness:0.6})); b.position.set(t.position.x,h/2+0.1,t.position.z); scene.add(b);
+    const lab=emojiSprite(s.need,1.0); lab.position.set(t.position.x,h+0.7,t.position.z); scene.add(lab);
+    s.built++; s.happy+=s.happyGain; s.income+=2; tone(520,0.06,'square',0.1); mFlash('good');
+    if(s.happy>=s.goal){ s.over=true; miniOver('🏆 Cidade próspera!','Prédios: <b>'+s.built+'</b> · 💰 Caixa: <b>$'+Math.round(s.money)+'</b>'); return; }
+    if(this.lots.every(x=>x.userData.__cl.filled)){ s.over=true; miniOver('🏙️ Cidade lotada!','Prédios: <b>'+s.built+'</b> · Felicidade: <b>'+s.happy+'</b>'); return; }
+    this.newNeed(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; camera.position.set(0,7,8); camera.lookAt(0,0,0); camera.rotation.z=0;
+    s.money+=s.income*dt; this.hud(); },
+  hud(){ const s=this.s; mStats('<span>💰 <b>$'+Math.round(s.money)+'</b></span><span>📈 +$'+s.income+'/s</span><span>😊 <b>'+s.happy+'</b>/'+s.goal+'</span>'+(s.need?'<span>Pedido: <b style="font-size:20px">'+s.need+'</b> ($'+s.cost+')</span>':''));
+    mRule('🏗️ A cidade pede '+(s.need||'')+' — clique num terreno pra pagar a obra ($'+s.cost+'). Impostos geram renda!'); },
+  onClick(x,y){ const cl=ui3dPick(x,y,this.lots.map(t=>({obj:t}))); if(cl) this.build(this.lots[cl.idx]); }, onKey(){},
+  exit(){ this.s=null; }
+});
+
+// 🛏️ PESADELO 3D — paralisia do sono: resista aos vultos que se aproximam da cama
+miniRegister('pesadelo',{
+  name:'Pesadelo', ic:'🛏️', tip:'Paralisia do sono! Clique nos vultos que se aproximam pra afastá-los e sobreviva',
+  enter(){ scene.background=new THREE.Color(0x040308); scene.fog=new THREE.FogExp2(0x040308,0.08);
+    scene.add(new THREE.HemisphereLight(0x20203a,0x040406,0.6));
+    const room=new THREE.Mesh(new THREE.BoxGeometry(16,9,18), new THREE.MeshStandardMaterial({color:0x12101c,roughness:1,side:THREE.BackSide})); room.position.set(0,3,-4); scene.add(room);
+    // cama (vista de quem está deitado)
+    const bed=new THREE.Mesh(new THREE.BoxGeometry(3,0.6,5), new THREE.MeshStandardMaterial({color:0x2a2438,roughness:0.9})); bed.position.set(0,0.3,1.5); scene.add(bed);
+    const blanket=new THREE.Mesh(new THREE.BoxGeometry(3.1,0.4,3), new THREE.MeshStandardMaterial({color:0x3a2a4a,roughness:0.9})); blanket.position.set(0,0.7,2.6); scene.add(blanket);
+    const moon=new THREE.PointLight(0x6a7aff,0.5,30); moon.position.set(-5,7,-8); scene.add(moon);
+    const s=this.s={ panic:0, time:60, banished:0, over:false, shadows:[], spawnT:1.0 }; this.hud();
+  },
+  spawn(){ const s=this.s; const ic=['👤','🕴️','👹','🧟'][(Math.random()*4)|0]; const sp=emojiSprite(ic,1.2);
+    const ang=(Math.random()-0.5)*1.4; sp.position.set(Math.sin(ang)*6, 1.6+Math.random()*2, -9); scene.add(sp);
+    const sh={sp, z:-9, speed:0.7+Math.random()*0.7, done:false}; sp.userData.__cl={sh}; s.shadows.push(sh); tone(110,0.3,'sawtooth',0.06); },
+  banish(sh){ const s=this.s; if(sh.done)return; sh.done=true; s.banished++; tone(500,0.08,'sine',0.1); mFlash('good');
+    scene.remove(sh.sp); sh.sp=null; s.shadows=s.shadows.filter(x=>x!==sh); },
+  update(dt){ const s=this.s; if(!s||s.over)return; camera.position.set(0,1.1,4); camera.lookAt(0,2.6,-8); camera.rotation.z=Math.sin(performance.now()*0.002)*0.02;
+    s.time-=dt; if(s.time<=0){ s.over=true; miniOver('🌅 Você acordou! O pesadelo acabou.','Vultos afastados: <b>'+s.banished+'</b>'); return; }
+    s.spawnT-=dt; if(s.spawnT<=0){ s.spawnT=0.9+Math.random()*0.9; this.spawn(); }
+    for(const sh of s.shadows){ if(!sh.sp)continue; sh.z+=sh.speed*dt*2.2; sh.sp.position.z=sh.z; const sc=1.2+(sh.z+9)/9*2.2; sh.sp.scale.setScalar(sc);
+      if(sh.z>=2 && !sh.done){ sh.done=true; s.panic=Math.min(100,s.panic+26); scene.remove(sh.sp); sh.sp=null; tone(80,0.4,'sawtooth',0.16); mFlash('bad'); } }
+    s.shadows=s.shadows.filter(x=>!x.done);
+    if(s.panic>=100){ s.over=true; tone(60,0.8,'sawtooth',0.2); miniOver('💀 O pesadelo te consumiu','Vultos afastados: <b>'+s.banished+'</b>'); return; }
+    s.panic=Math.max(0,s.panic-2*dt); this.hud(); },
+  hud(){ const s=this.s; mStats('<span>😱 Pânico <span style="display:inline-block;width:130px;height:9px;background:rgba(255,255,255,.15);border-radius:5px;vertical-align:middle"><span style="display:block;height:100%;width:'+s.panic+'%;background:linear-gradient(90deg,#4dd06a,#ff2d2d);border-radius:5px"></span></span></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>');
+    mRule('🛏️ Você está paralisado! Clique nos vultos 👤 que se aproximam pra afastá-los antes que cheguem na cama'); },
+  onClick(x,y){ const cl=ui3dPick(x,y,this.s.shadows.map(sh=>({obj:sh.sp}))); if(cl&&cl.sh) this.banish(cl.sh); }, onKey(){},
+  exit(){ this.s=null; }
+});
+
+// 🤫 SILÊNCIO 3D — silencie os barulhos, mas NÃO clique quando o monstro está escutando
+miniRegister('silencio',{
+  name:'Silêncio', ic:'🤫', tip:'Silencie os barulhos — mas quando aparecer 👂 ESCUTANDO, não clique em nada!',
+  enter(){ mDarkScene(0x07060c,0.05); const s=this.s={ noise:0, lives:3, time:75, silenced:0, over:false, items:[], spawnT:0.8, listen:false, listenT:6, listenDur:0 };
+    this.SRC=['📞','🔔','🐶','👶','📺','⏰']; this.hud(); },
+  spawn(){ const s=this.s; const em=this.SRC[(Math.random()*this.SRC.length)|0]; const sp=emojiSprite(em,1.5);
+    sp.position.set(-6+Math.random()*12, 1.2+Math.random()*4, -4-Math.random()*7); scene.add(sp);
+    const it={sp,age:0,life:2.6,done:false}; sp.userData.__cl={it}; s.items.push(it); tone(300+Math.random()*200,0.05,'sine',0.05); },
+  silence(it){ const s=this.s; if(it.done)return; it.done=true; s.silenced++; tone(720,0.06,'sine',0.1);
+    scene.remove(it.sp); it.sp=null; s.items=s.items.filter(x=>x!==it); this.hud(); },
+  noiseUp(amt,msg){ const s=this.s; s.noise=Math.min(100,s.noise+amt); tone(130,0.2,'sawtooth',0.12); if(msg)showMsg(msg,1100);
+    if(s.noise>=100) this.hear(); this.hud(); },
+  hear(){ const s=this.s; s.noise=0; s.lives--; tone(90,0.5,'sawtooth',0.2); mFlash('bad'); showMsg('👹 O monstro te ouviu!',1400);
+    if(s.lives<=0){ s.over=true; miniOver('💀 O monstro te pegou','Barulhos silenciados: <b>'+s.silenced+'</b>'); } this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; camera.position.set(0,2,2.5); camera.lookAt(0,2.4,-6); camera.rotation.z=0;
+    s.time-=dt; if(s.time<=0){ s.over=true; miniOver('🏆 Você sobreviveu em silêncio!','Barulhos silenciados: <b>'+s.silenced+'</b>'); return; }
+    // fase de escuta: o monstro para e escuta — não clique!
+    if(s.listen){ s.listenDur-=dt; if(s.listenDur<=0){ s.listen=false; s.listenT=4+Math.random()*4; } }
+    else { s.listenT-=dt; if(s.listenT<=0){ s.listen=true; s.listenDur=2.2+Math.random()*1.3; showMsg('👂 O MONSTRO ESTÁ ESCUTANDO — fique parado!',1600); } }
+    if(!s.listen){ s.spawnT-=dt; if(s.spawnT<=0){ s.spawnT=0.9+Math.random()*1.1; this.spawn(); } }
+    for(const it of s.items){ if(!it.sp)continue; it.age+=dt; const left=Math.max(0,1-it.age/it.life); it.sp.scale.setScalar(0.6+left*1.0);
+      if(it.age>=it.life && !it.done){ it.done=true; s.noise=Math.min(100,s.noise+22); scene.remove(it.sp); it.sp=null; tone(140,0.2,'sawtooth',0.1); } }
+    s.items=s.items.filter(x=>!x.done); if(s.noise>=100) this.hear(); this.hud(); },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>🤫 <b>'+s.silenced+'</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>'+(s.listen?'<span style="color:#ff6d6d;font-weight:800">👂 ESCUTANDO!</span>':''));
+    mRule('🔊 Barulho: <span style="display:inline-block;width:140px;height:9px;background:rgba(255,255,255,.15);border-radius:5px;vertical-align:middle"><span style="display:block;height:100%;width:'+s.noise+'%;background:linear-gradient(90deg,#4dd06a,#ff4d4d);border-radius:5px"></span></span> — '+(s.listen?'<b style="color:#ff6d6d">NÃO clique agora!</b>':'clique pra silenciar')); },
+  onClick(x,y){ const s=this.s; if(s.over)return;
+    if(s.listen){ this.noiseUp(45,'🙊 Você fez barulho na hora errada!'); return; }   // clicar enquanto escuta = barulho
+    const cl=ui3dPick(x,y,this.s.items.map(i=>({obj:i.sp}))); if(cl&&cl.it) this.silence(cl.it); else this.noiseUp(10); },  // clicar no vazio também faz barulho
+  onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
