@@ -1165,7 +1165,7 @@ function updateLookBtn(){
   const b=document.getElementById('lookBtn'); if(!b) return;
   const show = lookFPS() && controlMode==='pc';
   b.style.display = show?'flex':'none';
-  b.innerHTML = lookMode ? '🖱️ Soltar mouse' : '👁️ Olhar / mirar';
+  b.innerHTML = lookMode ? '🖱️ Soltar mouse (P)' : '👁️ Olhar / mirar (P)';
   b.classList.toggle('on', lookMode);
 }
 let audioCtx = null;
@@ -1452,7 +1452,8 @@ function setupControls(){
     if(e.code==='KeyF'){ if(flashBat>0 && gameState!=='porteiro') flashOn=!flashOn; }     // 🔦 lanterna
     if(e.code==='KeyM'){ minimapOn=!minimapOn; const mm=document.getElementById('minimap'); if(mm) mm.style.display=minimapOn?'block':'none'; } // 🗺️
     if(e.code==='KeyW' && !wHeld){ wHeld=true; forwardPressed(); }  // 2x W = correr
-    if(e.code==='Escape'||e.code==='KeyP'){ if(gameState==='playing') pauseGame(); else if(gameState==='paused') resumeGame(); }
+    if(e.code==='KeyP'){ if(lookFPS()){ toggleLook(); return; } }                       // 🖱️ P trava/solta o mouse
+    if(e.code==='Escape'){ if(gameState==='playing') pauseGame(); else if(gameState==='paused') resumeGame(); }
     if(['Space','ControlLeft','ArrowUp','ArrowDown'].includes(e.code) && gameState==='playing') e.preventDefault();
   });
   document.addEventListener('keyup', e=>{ keys[e.code]=false;
