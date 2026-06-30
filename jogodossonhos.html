@@ -7397,6 +7397,169 @@ miniRegister('prefeito',{
   onKey(){}, exit(){ this.s=null; }
 });
 
+// 🏎️🤸✈️🎢🪓👥 ====== CO-OP DE MOVIMENTO (avatares + corrida/soma) ======
+// helpers de corrida co-op
+function mRaceSync(s){ if(MINI.role&&MINI.role!=='solo'){ s._nt=(s._nt||0); } }
+function mPartner(emoji){ const sp=emojiSprite(emoji,1.4); sp.visible=false; scene.add(sp); return sp; }
+function mFinish(self, title, mine){ // mine=true se fui eu que terminei
+  const s=self.s; if(s.over)return; s.over=true; if(MINI.role&&MINI.role!=='solo') netSend({t:'m_fin'});
+  miniOver(title, mine?'🏁 Você chegou primeiro! 🏆':'O parceiro chegou primeiro — boa corrida!'); }
+
+// 🪓 LENHADOR co-op — cortes somam pra meta de 200 (host soma)
+miniRegister('lenhador',{
+  name:'Lenhador', ic:'🪓', coop:true, coopDesc:'Cortem juntos! Os cortes dos dois somam pra meta de 200 árvores.',
+  tip:'Corte (clique/espaço) e desvie dos galhos com A/D',
+  enter(role){ const s=this.s={ side:'L', logs:[], score:0, total:0, time:1.0, over:false, t:0 };
+    scene.background=new THREE.Color(0x132014); scene.fog=new THREE.FogExp2(0x132014,0.02);
+    scene.add(new THREE.HemisphereLight(0xbfe0a8,0x223018,1.6)); const pl=new THREE.PointLight(0xfff0d0,1.0,40); pl.position.set(3,8,8); scene.add(pl);
+    const floor=new THREE.Mesh(new THREE.PlaneGeometry(40,40), new THREE.MeshStandardMaterial({color:0x2c4422,roughness:1})); floor.rotation.x=-Math.PI/2; scene.add(floor);
+    this.logMat=new THREE.MeshStandardMaterial({color:0x8a5a32,roughness:0.9}); this.branchMat=new THREE.MeshStandardMaterial({color:0x5e3c20,roughness:0.9});
+    this.group=new THREE.Group(); scene.add(this.group); this.lumber=makeNameSprite(); this.lumber.scale.set(1.6,1.6,1); setSpriteText(this.lumber,'🪓'); scene.add(this.lumber);
+    for(let i=0;i<8;i++) this.addLog(i===0?null:undefined); this.layout(); this.hud(); },
+  addLog(forceBranch){ const m=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,1,12), this.logMat); let br=forceBranch===null?null:(Math.random()<0.42?(Math.random()<0.5?'L':'R'):null);
+    const log={branch:br,mesh:m,bmesh:null}; this.group.add(m); if(br){ const bx=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.5,0.5),this.branchMat); bx.position.x=br==='L'?-1.4:1.4; m.add(bx); log.bmesh=bx; } this.s.logs.push(log); },
+  layout(){ const s=this.s; s.logs.forEach((l,i)=>l.mesh.position.set(0,0.5+i*1.0,0)); this.lumber.position.set(s.side==='L'?-1.5:1.5,1.0,0.9); camera.position.set(0,4.2,8.5); camera.lookAt(0,3.5,0); camera.rotation.z=0; },
+  chop(){ const s=this.s; if(s.over)return; const danger=s.logs[1]; if(danger&&danger.branch===s.side){ this.die(); return; }
+    const bot=s.logs.shift(); this.group.remove(bot.mesh); this.addLog(); s.score++; s.time=Math.min(1,s.time+0.05); tone(380,0.06,'square',0.12); this.layout();
+    if(MINI.role==='client') netSend({t:'m_chop'}); else { s.total++; this.checkWin(); if(MINI.role==='host') netSend({t:'m_lt',tt:s.total}); } this.hud(); },
+  checkWin(){ const s=this.s; if(s.total>=200){ s.over=true; const t='🏆 200 árvores cortadas!',st='Juntos vocês são lenhadores lendários! 🪓'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); } },
+  setSide(side){ const s=this.s; if(s.over)return; s.side=side; this.layout(); },
+  die(){ const s=this.s; if(s.over)return; tone(120,0.4,'sawtooth',0.18); mFlash('bad');
+    if(MINI.role==='client'){ netSend({t:'m_dead'}); s.over=true; miniOver('💀 Esmagado por um galho!','Toras da dupla: <b>'+s.total+'</b>'); }
+    else { s.over=true; const t='💀 Esmagado por um galho!',st='Toras da dupla: <b>'+s.total+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); } },
+  update(dt){ const s=this.s; if(!s||s.over)return; s.t+=dt; s.time-=dt*0.13; if(s.time<=0){ this.die(); return; } this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_chop'){ if(MINI.role==='host'){ s.total++; this.checkWin(); netSend({t:'m_lt',tt:s.total}); this.hud(); } }
+    else if(d.t==='m_lt'){ s.total=d.tt; this.hud(); }
+    else if(d.t==='m_dead'){ if(MINI.role==='host'){ s.over=true; const t='💀 O parceiro caiu!',st='Toras da dupla: <b>'+s.total+'</b>'; netSend({t:'m_over',t1:t,st}); miniOver(t,st); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; const sh=(MINI.role&&MINI.role!=='solo'); mStats('<span>🌲 <b>'+(sh?s.total:s.score)+'</b>/200'+(sh?' 👥':'')+'</span><span style="flex:1;min-width:120px">⏱️ <span style="display:inline-block;width:120px;height:8px;background:rgba(255,255,255,.15);border-radius:5px;vertical-align:middle"><span style="display:block;height:100%;width:'+Math.max(0,s.time*100)+'%;background:linear-gradient(90deg,#ffce5b,#ff7b5b);border-radius:5px"></span></span></span>');
+    mRule('🪓 Cortem <b>200 árvores</b> juntos! <b>Espaço/Clique</b> corta · <b>A/D</b> troca de lado'); },
+  onClick(x,y){ const s=this.s; if(s.over)return; this.setSide(x<window.innerWidth/2?'L':'R'); this.chop(); },
+  onKey(code){ const s=this.s; if(s.over)return; if(code==='KeyA'||code==='ArrowLeft')this.setSide('L'); else if(code==='KeyD'||code==='ArrowRight')this.setSide('R'); else if(code==='Space'||code==='Enter'||code==='KeyW'||code==='ArrowUp')this.chop(); },
+  exit(){ this.s=null; }
+});
+
+// 🏎️ KART co-op — corrida de 3 voltas; vê o carro do parceiro
+miniRegister('kart',{
+  name:'Kart', ic:'🏎️', coop:true, coopDesc:'Corrida a dois! Veja o carro do parceiro e dispute as 3 voltas.',
+  tip:'↑ acelera · ↓ freia · ←→ esterça. Complete 3 voltas!',
+  enter(role){ scene.background=new THREE.Color(0x16203a); scene.fog=new THREE.FogExp2(0x16203a,0.008);
+    scene.add(new THREE.HemisphereLight(0xbcd0ff,0x223018,1.5)); const sun=new THREE.DirectionalLight(0xffffff,0.7); sun.position.set(10,16,8); scene.add(sun);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120), new THREE.MeshStandardMaterial({color:0x2c5a2c,roughness:1})); ground.rotation.x=-Math.PI/2; scene.add(ground);
+    const s=this.s={ x:0,z:18, yaw:Math.PI, vel:0, lap:0, laps:3, cp:0, over:false, time:0, gates:[], netT:0 };
+    const RX=22, RZ=14; for(let a=0;a<64;a++){ const t=a/64*Math.PI*2; const seg=new THREE.Mesh(new THREE.BoxGeometry(5,0.1,3.2), new THREE.MeshStandardMaterial({color:0x33333a,roughness:0.95})); seg.position.set(Math.sin(t)*RX,0.05,Math.cos(t)*RZ); seg.rotation.y=-t; scene.add(seg); }
+    [0,Math.PI/2,Math.PI,Math.PI*1.5].forEach((t,i)=>{ const px=Math.sin(t)*RX, pz=Math.cos(t)*RZ; s.gates.push({x:px,z:pz}); const col=i===0?0xffe14d:0x5b8cff;
+      const mk=(dx,dz)=>{ const p=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,3,8),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.4})); p.position.set(px+dx,1.5,pz+dz); scene.add(p); }; mk(Math.cos(t)*2.6,-Math.sin(t)*2.6); mk(-Math.cos(t)*2.6,Math.sin(t)*2.6); });
+    this.car=new THREE.Group(); const body=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.6,2.4),new THREE.MeshStandardMaterial({color:role==='client'?0x3b8cff:0xff4d4d,roughness:0.5})); body.position.y=0.5; this.car.add(body); scene.add(this.car);
+    if(role!=='solo'){ this.rcar=new THREE.Group(); const rb=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.6,2.4),new THREE.MeshStandardMaterial({color:role==='client'?0xff4d4d:0x3b8cff,roughness:0.5})); rb.position.y=0.5; this.rcar.add(rb); this.rcar.visible=false; scene.add(this.rcar); if(role==='client')s.x=2; }
+    this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; s.time+=dt;
+    const accel=14,maxV=20; if(keys['ArrowUp']||keys['KeyW'])s.vel+=accel*dt; if(keys['ArrowDown']||keys['KeyS'])s.vel-=accel*dt; s.vel*=(1-0.8*dt); s.vel=Math.max(-maxV/2,Math.min(maxV,s.vel));
+    if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA'])s.yaw+=2.0*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD'])s.yaw-=2.0*dt*(s.vel>0?1:-1); }
+    s.x+=-Math.sin(s.yaw)*s.vel*dt; s.z+=-Math.cos(s.yaw)*s.vel*dt; this.car.position.set(s.x,0,s.z); this.car.rotation.y=s.yaw;
+    const g=s.gates[s.cp]; if(g&&Math.hypot(s.x-g.x,s.z-g.z)<3.2){ s.cp++; tone(s.cp===1?880:600,0.1,'sine',0.1); if(s.cp>=s.gates.length){ s.cp=0; s.lap++; tone(990,0.2,'sine',0.12); showMsg('🏁 Volta '+s.lap+'/'+s.laps,1200); if(s.lap>=s.laps){ mFinish(this,'🏆 Corrida completa!',true); return; } } }
+    if(role!=='solo'){ this.rcar&&net.mAv&&(this.rcar.visible=true,this.rcar.position.set(net.mAv.x,0,net.mAv.z),this.rcar.rotation.y=net.mAv.yaw||0); s.netT-=dt; if(s.netT<=0){ s.netT=0.05; netSend({t:'m_av',x:+s.x.toFixed(2),z:+s.z.toFixed(2),yaw:+s.yaw.toFixed(2)}); } }
+    const cd=7,ch=4; camera.position.set(s.x+Math.sin(s.yaw)*cd,ch,s.z+Math.cos(s.yaw)*cd); camera.lookAt(s.x,1,s.z); camera.rotation.z=0; this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return; if(d.t==='m_av')net.mAv={x:d.x,z:d.z,yaw:d.yaw}; else if(d.t==='m_fin'){ if(!s.over){ s.over=true; miniOver('🏁 Corrida encerrada','O parceiro completou as 3 voltas primeiro!'); } } else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>🏁 Volta <b>'+Math.min(s.lap+1,s.laps)+'</b>/'+s.laps+'</span><span>🚩 CP '+s.cp+'/'+s.gates.length+'</span><span>🏎️ '+Math.round(Math.abs(s.vel)*8)+' km/h</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('↑ acelera · ↓ freia · ←→ esterça · passem pelos portões na ordem'); },
+  onClick(){}, onKey(){}, exit(){ this.s=null; }
+});
+
+// 🤸✈️🎢👥 ====== CO-OP DE MOVIMENTO 2 (Parkour, Voo, Montanha) ======
+
+// 🤸 PARKOUR co-op — mesmo percurso (fixo), corrida até a bandeira
+const PK_PLATS=[[0,0.5,0,3,3],[2.5,1.0,-3.5,2,2],[-1.5,1.8,-7,2,2],[1.5,1.2,-10.5,2,2],[3.5,2.2,-14,1.8,1.8],[0.5,1.6,-17.5,2,2],[-2.5,2.6,-21,1.8,1.8],[1.0,2.0,-24.5,2,2],[3.0,3.0,-28,1.8,1.8],[0.0,2.4,-31.5,2,2],[-2.0,3.2,-35,2,2],[0.5,3.0,-39,3,3]];
+miniRegister('parkour',{
+  name:'Parkour', ic:'🤸', coop:true, coopDesc:'Corrida de parkour! Mesmo percurso — quem chegar na bandeira primeiro vence.',
+  tip:'W/S/A/D anda · setas ←→ giram · Espaço pula. Chegue na bandeira!',
+  enter(role){ scene.background=new THREE.Color(0x0e1830); scene.fog=new THREE.FogExp2(0x0e1830,0.012);
+    scene.add(new THREE.HemisphereLight(0xaac0ff,0x202840,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.position.set(6,14,6); scene.add(sun);
+    const s=this.s={ pos:{x:0,y:1.4,z:0}, vy:0, yaw:Math.PI, onGround:true, plats:[], over:false, time:0, cp:{x:0,y:1.4,z:0}, deaths:0, netT:0 };
+    PK_PLATS.forEach((p,i)=>{ const goal=i===PK_PLATS.length-1; const m=new THREE.Mesh(new THREE.BoxGeometry(p[3],0.6,p[4]), new THREE.MeshStandardMaterial({color:goal?0x32ff9a:0x5a6acd,roughness:0.7,emissive:goal?0x0a4a2a:0x000000}));
+      m.position.set(p[0],p[1],p[2]); scene.add(m); s.plats.push({x:p[0],y:p[1]+0.3,z:p[2],w:p[3],d:p[4],goal}); if(goal){ const fl=makeNameSprite(); fl.scale.set(1.6,1.6,1); setSpriteText(fl,'🏁'); fl.position.set(p[0],p[1]+1.4,p[2]); scene.add(fl); } });
+    if(role!=='solo'){ this.partner=mPartner('🧍'); }
+    this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; s.time+=dt;
+    if(keys['ArrowLeft'])s.yaw+=2.2*dt; if(keys['ArrowRight'])s.yaw-=2.2*dt;
+    const fwd={x:-Math.sin(s.yaw),z:-Math.cos(s.yaw)}, rgt={x:Math.cos(s.yaw),z:-Math.sin(s.yaw)};
+    let mx=0,mz=0; if(keys['KeyW']){mx+=fwd.x;mz+=fwd.z;} if(keys['KeyS']){mx-=fwd.x;mz-=fwd.z;} if(keys['KeyD']){mx+=rgt.x;mz+=rgt.z;} if(keys['KeyA']){mx-=rgt.x;mz-=rgt.z;}
+    const ml=Math.hypot(mx,mz); if(ml>0){ s.pos.x+=(mx/ml)*5.2*dt; s.pos.z+=(mz/ml)*5.2*dt; }
+    s.vy-=16*dt; s.pos.y+=s.vy*dt; s.onGround=false;
+    for(const p of s.plats){ if(Math.abs(s.pos.x-p.x)<=p.w/2+0.3 && Math.abs(s.pos.z-p.z)<=p.d/2+0.3){ if(s.vy<=0 && s.pos.y<=p.y+0.05 && s.pos.y>=p.y-0.8){ s.pos.y=p.y; s.vy=0; s.onGround=true; s.cp={x:p.x,y:p.y,z:p.z};
+      if(p.goal){ mFinish(this,'🏆 Você chegou!',true); return; } } } }
+    if(s.pos.y<-9){ s.deaths++; tone(160,0.25,'sawtooth',0.14); s.pos={...s.cp,y:s.cp.y+0.5}; s.vy=0; mFlash('bad'); }
+    if(role!=='solo'){ this.partner&&net.mAv&&(this.partner.visible=true,this.partner.position.set(net.mAv.x,net.mAv.y+0.2,net.mAv.z)); s.netT-=dt; if(s.netT<=0){ s.netT=0.05; netSend({t:'m_av',x:+s.pos.x.toFixed(2),y:+s.pos.y.toFixed(2),z:+s.pos.z.toFixed(2),yaw:+s.yaw.toFixed(2)}); } }
+    camera.position.set(s.pos.x,s.pos.y+1.5,s.pos.z); camera.rotation.order='YXZ'; camera.rotation.y=s.yaw; camera.rotation.x=-0.18; camera.rotation.z=0; this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return; if(d.t==='m_av')net.mAv={x:d.x,y:d.y,z:d.z,yaw:d.yaw}; else if(d.t==='m_fin'){ if(!s.over){ s.over=true; miniOver('🏁 Corrida encerrada','O parceiro chegou na bandeira primeiro!'); } } else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>⏱️ '+s.time.toFixed(1)+'s</span><span>💀 '+s.deaths+'</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🤸 W/S/A/D anda · ←/→ giram · <b>Espaço</b> pula · cheguem na 🏁'); },
+  onClick(){ const s=this.s; if(s&&s.onGround){ s.vy=7.4; s.onGround=false; tone(520,0.07,'square',0.1); } },
+  onKey(code){ const s=this.s; if(s&&(code==='Space'||code==='ArrowUp')&&s.onGround){ s.vy=7.4; s.onGround=false; tone(520,0.07,'square',0.1); } },
+  exit(){ this.s=null; }
+});
+
+// ✈️ CONTROLADOR DE VOO co-op — corrida até o outro país (montanhas fixas)
+const VOO_MTS=[[10,-90,30],[-20,-150,38],[25,-210,28],[-15,-280,42],[18,-350,34],[-28,-420,30],[12,-500,40],[-10,-580,32],[22,-660,36],[-20,-740,38],[8,-820,30],[-16,-880,34]];
+miniRegister('voo',{
+  name:'Controlador de Voo', ic:'✈️', coop:true, coopDesc:'Corrida aérea! Pilotem até o outro país — quem pousar primeiro vence.',
+  tip:'↑↓ sobe/desce · ←→ vira. Pilote até o outro país 🌍 sem bater!',
+  enter(role){ scene.background=new THREE.Color(0x6ab0ff); scene.fog=new THREE.FogExp2(0x6ab0ff,0.004);
+    scene.add(new THREE.HemisphereLight(0xffffff,0x6a8ab0,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.9); sun.position.set(20,40,10); scene.add(sun);
+    const sea=new THREE.Mesh(new THREE.PlaneGeometry(2000,2000), new THREE.MeshStandardMaterial({color:0x2a6abf,roughness:0.4,metalness:0.3})); sea.rotation.x=-Math.PI/2; scene.add(sea);
+    const s=this.s={ x:(role==='client'?8:-8),y:30,z:0, yaw:0, pitch:0, speed:24, dist:900, over:false, mountains:[], netT:0 };
+    VOO_MTS.forEach(m=>{ const h=m[2]; const cone=new THREE.Mesh(new THREE.ConeGeometry(12,h,7), new THREE.MeshStandardMaterial({color:0x5a6a4a,roughness:0.95})); cone.position.set(m[0],h/2,m[1]); scene.add(cone); s.mountains.push({x:m[0],z:m[1],r:12,h}); });
+    for(let i=0;i<30;i++){ const c=emojiSprite('☁️',7); c.position.set((i*53%300)-150, 20+((i*31)%40), -((i*97)%900)); scene.add(c); }
+    this.dest=emojiSprite('🌍',16); this.dest.position.set(0,40,-940); scene.add(this.dest);
+    this.runway=new THREE.Mesh(new THREE.BoxGeometry(20,0.5,80),new THREE.MeshStandardMaterial({color:0x333,roughness:0.9})); this.runway.position.set(0,0.3,-940); scene.add(this.runway);
+    this.plane=new THREE.Group(); const body=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,5,10),new THREE.MeshStandardMaterial({color:0xeeeeee,roughness:0.4})); body.rotation.x=Math.PI/2; this.plane.add(body);
+    const wing=new THREE.Mesh(new THREE.BoxGeometry(7,0.3,1.4),new THREE.MeshStandardMaterial({color:0xccccdd})); this.plane.add(wing); scene.add(this.plane);
+    if(role!=='solo'){ this.partner=mPartner('✈️'); } this.hud(); },
+  crash(msg){ const s=this.s; if(s.over)return; s.over=true; tone(90,0.6,'sawtooth',0.2); mFlash('bad'); const st='Distância: <b>'+Math.round(900-s.dist)+'</b>/900 km'; if(MINI.role&&MINI.role!=='solo')netSend({t:'m_fin'}); miniOver('💥 '+msg,st); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo';
+    if(keys['ArrowLeft'])s.yaw+=0.7*dt; if(keys['ArrowRight'])s.yaw-=0.7*dt;
+    if(keys['ArrowUp']||keys['KeyW'])s.pitch=Math.min(0.5,s.pitch+0.8*dt); else if(keys['ArrowDown']||keys['KeyS'])s.pitch=Math.max(-0.5,s.pitch-0.8*dt); else s.pitch*=(1-1.5*dt);
+    const fx=-Math.sin(s.yaw)*Math.cos(s.pitch), fz=-Math.cos(s.yaw)*Math.cos(s.pitch), fy=Math.sin(s.pitch);
+    s.x+=fx*s.speed*dt; s.z+=fz*s.speed*dt; s.y+=fy*s.speed*dt; s.dist=Math.max(0,940+s.z);
+    if(s.y<2){ this.crash('Você caiu no mar!'); return; } if(s.y>120){ s.y=120; s.pitch=Math.min(s.pitch,0); }
+    for(const m of s.mountains){ if(Math.hypot(s.x-m.x,s.z-m.z)<m.r && s.y<m.h+2){ this.crash('Bateu numa montanha!'); return; } }
+    if(-s.z>=930){ if(s.y<18){ mFinish(this,'🛬 Pouso perfeito!',true); return; } else showMsg('🛬 Chegou! DESÇA (↓) pra pousar!',1200); }
+    this.plane.position.set(s.x,s.y,s.z); this.plane.rotation.set(s.pitch,s.yaw,0);
+    if(role!=='solo'){ this.partner&&net.mAv&&(this.partner.visible=true,this.partner.position.set(net.mAv.x,net.mAv.y,net.mAv.z)); s.netT-=dt; if(s.netT<=0){ s.netT=0.06; netSend({t:'m_av',x:+s.x.toFixed(1),y:+s.y.toFixed(1),z:+s.z.toFixed(1)}); } }
+    const cd=12; camera.position.set(s.x+Math.sin(s.yaw)*cd, s.y+3-Math.sin(s.pitch)*cd, s.z+Math.cos(s.yaw)*cd); camera.lookAt(s.x,s.y,s.z); camera.rotation.z=0; this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return; if(d.t==='m_av')net.mAv={x:d.x,y:d.y,z:d.z}; else if(d.t==='m_fin'){ if(!s.over){ s.over=true; miniOver('🏁 Voo encerrado','O parceiro chegou ao outro país primeiro!'); } } else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>✈️ Alt <b>'+Math.round(s.y)+'m</b></span><span>📍 Faltam <b>'+Math.round(s.dist)+' km</b></span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🌍 Pilotem até o outro país! ↑/↓ sobe/desce · ←→ vira · desça na pista pra pousar'); },
+  onClick(){}, onKey(){}, exit(){ this.s=null; }
+});
+
+// 🎢 MONTANHA-RUSSA co-op — mesmo trilho, controlam a velocidade; veem o parceiro
+miniRegister('montanha',{
+  name:'Montanha-russa', ic:'🎢', coop:true, coopDesc:'Passeio a dois no mesmo trilho! Cada um controla sua velocidade.',
+  tip:'↑/W acelera · ↓/S freia — controle a velocidade do carrinho',
+  enter(role){ scene.background=new THREE.Color(0x101830); scene.fog=new THREE.FogExp2(0x101830,0.006);
+    scene.add(new THREE.HemisphereLight(0xcfe0ff,0x203040,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.position.set(10,20,10); scene.add(sun);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,300),new THREE.MeshStandardMaterial({color:0x244a2a,roughness:1})); ground.rotation.x=-Math.PI/2; ground.position.y=-2; scene.add(ground);
+    const pts=[[0,3,0],[14,10,-8],[26,2,-24],[34,16,-44],[20,4,-60],[0,12,-70],[-22,3,-58],[-34,14,-38],[-26,6,-16],[-12,9,-2],[0,3,0]].map(p=>new THREE.Vector3(p[0],p[1],p[2]));
+    const curve=new THREE.CatmullRomCurve3(pts,true,'catmullrom',0.5); this.curve=curve;
+    const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,200,0.45,8,true),new THREE.MeshStandardMaterial({color:0xff5d6d,roughness:0.5,metalness:0.3})); scene.add(tube);
+    for(let i=0;i<40;i++){ const p=curve.getPointAt(i/40); if(p.y<=0)continue; const pil=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,p.y+2,6),new THREE.MeshStandardMaterial({color:0x888,roughness:0.9})); pil.position.set(p.x,(p.y-2)/2,p.z); scene.add(pil); }
+    const s=this.s={ t:0, speed:0.045, thrill:0, over:false, netT:0, ptT:0 };
+    if(role!=='solo'){ this.partner=mPartner('🎢'); } this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo';
+    const p=this.curve.getPointAt(s.t%1), ahead=this.curve.getPointAt((s.t+0.012)%1); const slope=ahead.y-p.y;
+    if(keys['ArrowUp']||keys['KeyW'])s.speed+=0.05*dt; if(keys['ArrowDown']||keys['KeyS'])s.speed-=0.08*dt; s.speed+=Math.max(0,-slope)*0.04*dt; s.speed=Math.max(0.012,Math.min(0.12,s.speed));
+    s.t+=s.speed*dt; s.thrill+=s.speed*dt*70+Math.max(0,-slope)*dt*8;
+    camera.position.copy(p); camera.position.y+=0.6; camera.lookAt(ahead.x,ahead.y+0.4,ahead.z); camera.rotation.z=Math.sin(s.t*20)*0.04*(s.speed/0.08);
+    if(role!=='solo'){ if(this.partner&&s.ptT!=null){ const pp=this.curve.getPointAt((s.ptT||0)%1); this.partner.visible=true; this.partner.position.set(pp.x,pp.y+0.5,pp.z); } s.netT-=dt; if(s.netT<=0){ s.netT=0.08; netSend({t:'m_mt',pt:+(s.t%1).toFixed(3)}); } }
+    if(s.t>=1){ mFinish(this,'🎢 Que passeio!',true); return; } this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return; if(d.t==='m_mt')s.ptT=d.pt; else if(d.t==='m_fin'){ if(!s.over){ s.over=true; miniOver('🎢 Passeio encerrado','Emoção total: <b>'+Math.round(s.thrill)+'</b><br>O parceiro terminou o trilho primeiro!'); } } else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>🎢 Emoção <b>'+Math.round(s.thrill)+'</b></span><span>⚡ '+Math.round(s.speed*900)+' km/h</span><span>📍 '+Math.round(s.t*100)+'%</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🎢 <b>↑/W</b> acelera · <b>↓/S</b> freia — controlem a velocidade!'); },
+  onClick(){}, onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
