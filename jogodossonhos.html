@@ -662,6 +662,18 @@
       <div class="ic">🏙️</div><div class="lb">PREFEITO</div>
       <div class="ds">Construa o que a cidade pede e alcance a meta de felicidade</div>
     </div>
+    <div class="devbtn" id="modeParkour">
+      <div class="ic">🤸</div><div class="lb">PARKOUR</div>
+      <div class="ds">Pule pelas plataformas flutuantes até a bandeira sem cair</div>
+    </div>
+    <div class="devbtn" id="modeKart">
+      <div class="ic">🏎️</div><div class="lb">KART</div>
+      <div class="ds">Dirija pela pista e complete 3 voltas no menor tempo</div>
+    </div>
+    <div class="devbtn" id="modeMontanha">
+      <div class="ic">🎢</div><div class="lb">MONTANHA-RUSSA</div>
+      <div class="ds">Curta o passeio sobre os trilhos e grite de emoção nas descidas</div>
+    </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
 </div>
@@ -5970,6 +5982,119 @@ miniRegister('prefeito',{
   onClick(){}, onKey(){}, exit(){ const c=mCenter(); if(c)c.innerHTML=''; this.s=null; }
 });
 
+// 🤸🏎️🎢 ====== LOTE MOVIMENTO: Parkour, Kart, Montanha-russa ======
+
+// 🤸 ---- PARKOUR (pule pelas plataformas até o objetivo) ----
+miniRegister('parkour',{
+  name:'Parkour', ic:'🤸', tip:'W/S/A/D anda · setas ←→ giram · Espaço pula. Chegue na bandeira!',
+  enter(){ scene.background=new THREE.Color(0x0e1830); scene.fog=new THREE.FogExp2(0x0e1830,0.012);
+    scene.add(new THREE.HemisphereLight(0xaac0ff,0x202840,1.4));
+    const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.position.set(6,14,6); scene.add(sun);
+    const s=this.s={ pos:{x:0,y:2,z:0}, vy:0, yaw:Math.PI, onGround:true, plats:[], over:false, time:0, cp:{x:0,y:2,z:0}, deaths:0, won:false };
+    const mat=[0x6a5acd,0x4aa3df,0x3ad07a,0xffb347,0xff6d8a];
+    let x=0,z=0,y=0.5; this.add(x,y,z,3,3);
+    for(let i=1;i<=11;i++){ z-=3.2+Math.random()*2.0; x+=(Math.random()-0.5)*5; y+=(Math.random()<0.5?0:(Math.random()<0.5?1:-0.8));
+      const w=(i===11)?3:(1.6+Math.random()*1.2); this.add(x,y,z,w,w, i===11); }
+    s.pos={x:0,y:1.4,z:0}; s.cp={...s.pos};
+    this.hud();
+  },
+  add(x,y,z,w,d,goal){ const s=this.s; const m=new THREE.Mesh(new THREE.BoxGeometry(w,0.6,d),
+      new THREE.MeshStandardMaterial({color:goal?0x32ff9a:0x5a6acd, roughness:0.7, emissive:goal?0x0a4a2a:0x000000}));
+    m.position.set(x,y,z); scene.add(m); s.plats.push({x,y:y+0.3,z,w,d,goal,mesh:m});
+    if(goal){ const fl=makeNameSprite(); fl.scale.set(1.6,1.6,1); setSpriteText(fl,'🏁'); fl.position.set(x,y+1.4,z); scene.add(fl); } },
+  update(dt){ const s=this.s; if(!s||s.over)return; s.time+=dt;
+    if(keys['ArrowLeft']) s.yaw+=2.2*dt; if(keys['ArrowRight']) s.yaw-=2.2*dt;
+    const fwd={x:-Math.sin(s.yaw),z:-Math.cos(s.yaw)}, rgt={x:Math.cos(s.yaw),z:-Math.sin(s.yaw)};
+    let mx=0,mz=0; if(keys['KeyW']){mx+=fwd.x;mz+=fwd.z;} if(keys['KeyS']){mx-=fwd.x;mz-=fwd.z;} if(keys['KeyD']){mx+=rgt.x;mz+=rgt.z;} if(keys['KeyA']){mx-=rgt.x;mz-=rgt.z;}
+    const ml=Math.hypot(mx,mz)||1; const sp=5.2; s.pos.x+=(mx/ml)*sp*dt*(mx||mz?1:0); s.pos.z+=(mz/ml)*sp*dt*(mx||mz?1:0);
+    s.vy-=16*dt; s.pos.y+=s.vy*dt; s.onGround=false;
+    for(const p of s.plats){ if(Math.abs(s.pos.x-p.x)<=p.w/2+0.3 && Math.abs(s.pos.z-p.z)<=p.d/2+0.3){
+      if(s.vy<=0 && s.pos.y<=p.y+0.05 && s.pos.y>=p.y-0.8){ s.pos.y=p.y; s.vy=0; s.onGround=true; s.cp={x:p.x,y:p.y,z:p.z};
+        if(p.goal && !s.won){ s.won=true; s.over=true; miniOver('🏆 Você chegou!','Tempo: <b>'+s.time.toFixed(1)+'s</b> · Quedas: <b>'+s.deaths+'</b>'); return; } } } }
+    if(s.pos.y<-9){ s.deaths++; tone(160,0.25,'sawtooth',0.14); s.pos={...s.cp,y:s.cp.y+0.5}; s.vy=0; mFlash('bad'); }
+    const eye=1.5; camera.position.set(s.pos.x, s.pos.y+eye, s.pos.z);
+    camera.rotation.order='YXZ'; camera.rotation.y=s.yaw; camera.rotation.x=-0.18; camera.rotation.z=0;
+    this.hud(); },
+  hud(){ const s=this.s; mStats('<span>⏱️ '+s.time.toFixed(1)+'s</span><span>💀 '+s.deaths+'</span>');
+    mRule('🤸 W/S/A/D anda · ←/→ giram · <b>Espaço</b> pula · caiu volta no checkpoint'); },
+  onClick(){ const s=this.s; if(s&&s.onGround){ s.vy=7.4; s.onGround=false; tone(520,0.07,'square',0.1); } },
+  onKey(code){ const s=this.s; if(s&&(code==='Space'||code==='ArrowUp')&&s.onGround){ s.vy=7.4; s.onGround=false; tone(520,0.07,'square',0.1); } },
+  exit(){ this.s=null; }
+});
+
+// 🏎️ ---- KART (complete 3 voltas passando pelos checkpoints) ----
+miniRegister('kart',{
+  name:'Kart', ic:'🏎️', tip:'↑ acelera · ↓ freia/ré · ←→ esterça. Passe pelos portões e complete 3 voltas!',
+  enter(){ scene.background=new THREE.Color(0x16203a); scene.fog=new THREE.FogExp2(0x16203a,0.008);
+    scene.add(new THREE.HemisphereLight(0xbcd0ff,0x223018,1.5));
+    const sun=new THREE.DirectionalLight(0xffffff,0.7); sun.position.set(10,16,8); scene.add(sun);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120), new THREE.MeshStandardMaterial({color:0x2c5a2c,roughness:1})); ground.rotation.x=-Math.PI/2; scene.add(ground);
+    const s=this.s={ x:0,z:18, yaw:Math.PI, vel:0, lap:0, laps:3, cp:0, over:false, time:0, gates:[] };
+    // pista oval (anel visual)
+    const RX=22, RZ=14; const ring=new THREE.Mesh(new THREE.TorusGeometry(1,1,8,64), null);
+    for(let a=0;a<64;a++){ const t=a/64*Math.PI*2; const px=Math.sin(t)*RX, pz=Math.cos(t)*RZ;
+      const seg=new THREE.Mesh(new THREE.BoxGeometry(5,0.1,3.2), new THREE.MeshStandardMaterial({color:0x33333a,roughness:0.95}));
+      seg.position.set(px,0.05,pz); seg.rotation.y=-t; scene.add(seg); }
+    // 4 portões (checkpoints) em ordem
+    const GA=[0,Math.PI/2,Math.PI,Math.PI*1.5];
+    GA.forEach((t,i)=>{ const px=Math.sin(t)*RX, pz=Math.cos(t)*RZ; s.gates.push({x:px,z:pz,i});
+      const col=i===0?0xffe14d:0x5b8cff; const post=(dx,dz)=>{ const p=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,3,8), new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.4})); p.position.set(px+dx,1.5,pz+dz); scene.add(p); };
+      const off=Math.cos(t)*0; post(Math.cos(t)*2.6, -Math.sin(t)*2.6); post(-Math.cos(t)*2.6, Math.sin(t)*2.6); });
+    this.car=new THREE.Group(); const body=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.6,2.4), new THREE.MeshStandardMaterial({color:0xff4d4d,roughness:0.5}));
+    body.position.y=0.5; this.car.add(body);
+    const top=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.5,1.1), new THREE.MeshStandardMaterial({color:0x331010})); top.position.set(0,0.95,-0.2); this.car.add(top);
+    scene.add(this.car); this.hud();
+  },
+  update(dt){ const s=this.s; if(!s||s.over)return; s.time+=dt;
+    const accel=14, maxV=20; if(keys['ArrowUp']||keys['KeyW']) s.vel+=accel*dt; if(keys['ArrowDown']||keys['KeyS']) s.vel-=accel*dt;
+    s.vel*=(1-0.8*dt); s.vel=Math.max(-maxV/2,Math.min(maxV,s.vel));
+    const steer=2.0; if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA']) s.yaw+=steer*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD']) s.yaw-=steer*dt*(s.vel>0?1:-1); }
+    s.x+=-Math.sin(s.yaw)*s.vel*dt; s.z+=-Math.cos(s.yaw)*s.vel*dt;
+    this.car.position.set(s.x,0,s.z); this.car.rotation.y=s.yaw;
+    const g=s.gates[s.cp]; if(g && Math.hypot(s.x-g.x,s.z-g.z)<3.2){ s.cp++; tone(s.cp===1?880:600,0.1,'sine',0.1);
+      if(s.cp>=s.gates.length){ s.cp=0; s.lap++; tone(990,0.2,'sine',0.12); showMsg('🏁 Volta '+s.lap+'/'+s.laps,1200);
+        if(s.lap>=s.laps){ s.over=true; miniOver('🏆 Corrida completa!','3 voltas em <b>'+s.time.toFixed(1)+'s</b>'); return; } } }
+    // câmera atrás do carro
+    const camD=7, camH=4; camera.position.set(s.x+Math.sin(s.yaw)*camD, camH, s.z+Math.cos(s.yaw)*camD);
+    camera.lookAt(s.x,1,s.z); camera.rotation.z=0; this.hud(); },
+  hud(){ const s=this.s; mStats('<span>🏁 Volta <b>'+Math.min(s.lap+1,s.laps)+'</b>/'+s.laps+'</span><span>🚩 CP '+s.cp+'/'+s.gates.length+'</span><span>⏱️ '+s.time.toFixed(1)+'s</span><span>🏎️ '+Math.round(Math.abs(s.vel)*8)+' km/h</span>');
+    mRule('↑ acelera · ↓ freia/ré · ←/→ esterça · passe pelos portões na ordem'); },
+  onClick(){}, onKey(){}, exit(){ this.s=null; }
+});
+
+// 🎢 ---- MONTANHA-RUSSA (passeio sobre trilhos; emoção nas descidas) ----
+miniRegister('montanha',{
+  name:'Montanha-russa', ic:'🎢', tip:'Aproveite o passeio! Aperte ESPAÇO nas descidas pra ganhar emoção',
+  enter(){ scene.background=new THREE.Color(0x101830); scene.fog=new THREE.FogExp2(0x101830,0.006);
+    scene.add(new THREE.HemisphereLight(0xcfe0ff,0x203040,1.4));
+    const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.position.set(10,20,10); scene.add(sun);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,300), new THREE.MeshStandardMaterial({color:0x244a2a,roughness:1})); ground.rotation.x=-Math.PI/2; ground.position.y=-2; scene.add(ground);
+    const pts=[[0,3,0],[14,10,-8],[26,2,-24],[34,16,-44],[20,4,-60],[0,12,-70],[-22,3,-58],[-34,14,-38],[-26,6,-16],[-12,9,-2],[0,3,0]].map(p=>new THREE.Vector3(p[0],p[1],p[2]));
+    const curve=new THREE.CatmullRomCurve3(pts,true,'catmullrom',0.5); this.curve=curve;
+    const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,200,0.45,8,true), new THREE.MeshStandardMaterial({color:0xff5d6d,roughness:0.5,metalness:0.3})); scene.add(tube);
+    const tube2=new THREE.Mesh(new THREE.TubeGeometry(curve,200,0.2,6,true), new THREE.MeshStandardMaterial({color:0xffffff})); scene.add(tube2);
+    // pilares
+    for(let i=0;i<40;i++){ const p=curve.getPointAt(i/40); if(p.y<=0)continue; const pil=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,p.y+2,6), new THREE.MeshStandardMaterial({color:0x888,roughness:0.9})); pil.position.set(p.x,(p.y-2)/2,p.z); scene.add(pil); }
+    const s=this.s={ t:0, speed:0.0, thrill:0, over:false, prevY:pts[0].y, boosts:0 };
+    this.hud();
+  },
+  update(dt){ const s=this.s; if(!s||s.over)return;
+    const p=this.curve.getPointAt(s.t%1); const ahead=this.curve.getPointAt((s.t+0.012)%1);
+    const slope=ahead.y-p.y; // descida (slope<0) acelera
+    s.speed = Math.min(0.12, 0.045 + Math.max(0,-slope)*0.16);
+    s.t += s.speed*dt;
+    s.thrill += Math.max(0,-slope)*dt*14;
+    camera.position.copy(p); camera.position.y+=0.6; camera.lookAt(ahead.x,ahead.y+0.4,ahead.z); camera.rotation.z=Math.sin(s.t*20)*0.04;
+    if(slope<-0.1) { /* descida */ }
+    if(s.t>=1){ s.over=true; const score=Math.round(s.thrill)+s.boosts*25; miniOver('🎢 Que passeio!','Emoção: <b>'+Math.round(s.thrill)+'</b> · Bônus: <b>'+(s.boosts*25)+'</b><br>Pontuação: <b>'+score+'</b>'); return; }
+    this.hud(); },
+  boost(){ const s=this.s; if(!s||s.over)return; const p=this.curve.getPointAt(s.t%1); const ahead=this.curve.getPointAt((s.t+0.012)%1);
+    if(ahead.y-p.y<-0.05){ s.boosts++; s.thrill+=12; tone(740,0.1,'sine',0.12); mFlash('good'); showMsg('🙌 EBA!',500); } },
+  hud(){ const s=this.s; mStats('<span>🎢 Emoção <b>'+Math.round(s.thrill)+'</b></span><span>🙌 '+s.boosts+'</span><span>📍 '+Math.round(s.t*100)+'%</span>');
+    mRule('🎢 Curta o passeio! Aperte <b>Espaço</b> nas descidas pra gritar de emoção 🙌'); },
+  onClick(){ this.boost(); }, onKey(code){ if(code==='Space'||code==='ArrowUp') this.boost(); }, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -6084,7 +6209,7 @@ document.getElementById('aExit').onclick=agExit;
 document.getElementById('aAgain').onclick=()=>agStart(ag.key);
 document.getElementById('aOverMenu').onclick=agExit;
 // minigames (framework)
-[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito']].forEach(([k,cap])=>{
+[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha']].forEach(([k,cap])=>{
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>miniStart(k);
 });
 document.getElementById('mExit').onclick=miniExit;
