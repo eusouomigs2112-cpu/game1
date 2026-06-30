@@ -446,6 +446,12 @@
     grid-template-columns:64px 64px; gap:12px; pointer-events:none; }
   #actions .tbtn { position:relative; width:64px; height:64px; font-size:13px; font-weight:700; flex-direction:column; gap:2px; }
   #actions .tbtn .em { font-size:22px; }
+  #lookBtn{ position:fixed; bottom:16px; right:16px; z-index:30; display:none; align-items:center; gap:6px;
+    font-family:"Segoe UI",system-ui,sans-serif; font-size:14px; font-weight:800; color:#fff;
+    padding:11px 17px; border-radius:13px; border:1px solid rgba(124,92,255,.55); background:rgba(20,15,34,.85);
+    cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.4); }
+  #lookBtn.on{ background:rgba(124,92,255,.55); border-color:#caa8ff; }
+  #lookBtn:active{ transform:translateY(1px); }
 </style>
 </head>
 <body>
@@ -1075,6 +1081,7 @@
   <div class="sub">ESC para continuar</div>
 </div>
 
+<button id="lookBtn" style="display:none">👁️ Olhar / mirar</button>
 <script>/* three r160 */
 console.warn('Scripts "build/three.js" and "build/three.min.js" are deprecated with r150+, and will be removed with r160. Please use ES Modules or alternatives: https://threejs.org/docs/index.html#manual/en/introduction/Installation'),
 /**
@@ -1144,6 +1151,23 @@ let qte={active:false,presses:0,need:6,until:0,cool:0};   // ⚡ escapar ao ser 
 let slideTime=0, slideCool=0;       // 🤸 deslizar
 let speakCool=8;                    // 🗣️ monstro chama/"imita a voz" (síntese de fala)
 let spectator=false;                // 👁️ modo espectador (monstro nunca pega)
+// 🖱️ controle do mouse: "olhar" (gira a câmera) vs livre (clica menus/anda). Botão no canto alterna.
+let lookMode=false;
+function lookFPS(){ return gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='hide'||gameState==='hunter'; }
+function setLook(on){
+  lookMode=!!on;
+  try{ if(typeof renderer!=='undefined' && renderer.domElement) renderer.domElement.style.cursor = lookMode?'none':''; }catch(e){}
+  if(!lookMode && document.pointerLockElement){ try{ document.exitPointerLock(); }catch(e){} }
+  updateLookBtn();
+}
+function toggleLook(){ setLook(!lookMode); }
+function updateLookBtn(){
+  const b=document.getElementById('lookBtn'); if(!b) return;
+  const show = lookFPS() && controlMode==='pc';
+  b.style.display = show?'flex':'none';
+  b.innerHTML = lookMode ? '🖱️ Soltar mouse' : '👁️ Olhar / mirar';
+  b.classList.toggle('on', lookMode);
+}
 let audioCtx = null;
 
 // dificuldade
@@ -1435,7 +1459,7 @@ function setupControls(){
     if(e.code==='KeyW'){ wHeld=false; forwardReleased(); }
   });
 
-  canvas.addEventListener('click', ()=>{ if((gameState==='playing'||gameState==='porteiro'||gameState==='survival'||gameState==='pizza'||gameState==='transito'||gameState==='hide'||gameState==='hunter') && controlMode==='pc') canvas.requestPointerLock(); });
+  canvas.addEventListener('click', ()=>{ if(lookFPS() && controlMode==='pc' && !lookMode) setLook(true); });
   canvas.addEventListener('contextmenu', e=>{ if(gameState==='survival') e.preventDefault(); });
   // 🎯 modos arcade: clique/toque mira nos alvos (cursor livre, sem pointer lock)
   window.addEventListener('pointerdown', e=>{ if(gameState!=='arcade') return; if(e.target&&e.target.closest&&e.target.closest('button')) return; agClickAt(e.clientX, e.clientY); });
@@ -1445,7 +1469,8 @@ function setupControls(){
   window.addEventListener('pointerdown', e=>{ if(gameState!=='quiz'||q.over) return; if(e.target&&e.target.closest&&e.target.closest('button')) return; const hit=ui3dPick(e.clientX,e.clientY,q.opts3d); if(hit&&hit.fn) hit.fn(); });
   // 🧟 sobrevivência: clique atira (ou coloca barricada se construindo); botão direito alterna construir
   document.addEventListener('mousedown', e=>{
-    if(gameState!=='survival' || document.pointerLockElement!==canvas) return;
+    if(gameState!=='survival' || !lookMode) return;
+    if(e.target&&e.target.closest&&e.target.closest('button')) return;
     if(e.button===0){ if(sv.building) svPlaceWall(); else svFire(); }
     else if(e.button===2){ svToggleBuild(); }
   });
@@ -1454,7 +1479,7 @@ function setupControls(){
 
   document.addEventListener('mousemove', e=>{
     if(introActive) return;                       // trava o olhar durante a intro
-    if(document.pointerLockElement===canvas){
+    if(lookMode && lookFPS()){
       player.yaw   -= e.movementX * 0.0022;
       player.pitch -= e.movementY * 0.0022;
       player.pitch = Math.max(-1.4, Math.min(1.4, player.pitch));
@@ -2834,6 +2859,7 @@ function navNext(x,z){
 function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(clock.getDelta(),0.05);
+  updateLookBtn();
 
   if(gameState==='playing'){
     updatePlayer(dt);
@@ -3167,7 +3193,7 @@ function beginPlay(sp){
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
   buildPhase(start);
   playIntro();   // animação de "acordar no sonho"
-  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  if(controlMode==='pc') setLook(true);
 }
 // dispara a animação de entrada (câmera + pálpebras abrindo)
 function playIntro(){
@@ -3219,7 +3245,7 @@ function updateQTE(){
 }
 function die(){
   roar();
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   if(isMP()){
     player.dead=true;
     netSend({t:'caught'});
@@ -3237,7 +3263,7 @@ function die(){
   }
 }
 function winGame(){
-  gameState='win'; if(document.pointerLockElement) document.exitPointerLock();
+  gameState='win'; setLook(false);
   stopAmbience(); silenceAudioSoon(500);   // silencia a trilha ao vencer
   document.getElementById('win').classList.remove('hidden');
 }
@@ -3248,7 +3274,7 @@ function backToLobby(){
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
   net.role='solo'; net.peer=null; net.conn=null; net.remoteState=null; net.monster=null; net.nick=null;
   net.roster={}; net.playerId=null; net.isCoord=false; net._joining=null;
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   document.getElementById('touch').classList.remove('on');
   ['death','win','start'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   document.getElementById('mpInfo').innerHTML='';
@@ -3262,14 +3288,14 @@ function backToLobby(){
 function pauseGame(){
   if(gameState!=='playing') return;
   gameState='paused';
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   document.getElementById('pause').classList.remove('hidden');
 }
 function resumeGame(){
   if(gameState!=='paused') return;
   gameState='playing';
   document.getElementById('pause').classList.add('hidden');
-  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  if(controlMode==='pc') setLook(true);
 }
 function quitToLobby(){
   document.getElementById('pause').classList.add('hidden');
@@ -3983,7 +4009,7 @@ function ptUpdateHud(){
 }
 function ptOver(){
   if(pt.over) return; pt.over=true;
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   const acc=pt.processed?Math.round(pt.correct/pt.processed*100):100;
   document.getElementById('ptOverTitle').textContent = pt.lives>0 ? '🏁 Turno encerrado' : '💀 Fim do turno!';
   document.getElementById('ptOverStats').innerHTML=
@@ -4010,7 +4036,7 @@ function ptEnter(){
   ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   document.getElementById('ptHud').classList.remove('hidden');
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
-  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  if(controlMode==='pc') setLook(true);
   if(isMP()) createRemoteAvatar();
   ptUpdateHud();
   showMsg('🚪 Plantão começou! Confira o registro à esquerda.',3500);
@@ -4056,7 +4082,7 @@ function ptExitGame(){
   if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
   net.role='solo'; net.conn=null; net.remoteState=null; net.remoteAvatar=null;
   try{ stopVoice(); }catch(e){}
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   document.getElementById('ptHud').classList.add('hidden');
   document.getElementById('ptOver').classList.add('hidden');
   document.getElementById('touch').classList.remove('on');
@@ -4653,11 +4679,11 @@ function svUpdateHud(){
 function svOpenShop(){
   if(sv.over) return; sv.shopOpen=true; svRenderShop();
   document.getElementById('svShop').classList.remove('hidden');
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
 }
 function svCloseShop(){
   sv.shopOpen=false; document.getElementById('svShop').classList.add('hidden');
-  if(controlMode==='pc' && gameState==='survival' && !sv.over) renderer.domElement.requestPointerLock();
+  if(controlMode==='pc' && gameState==='survival' && !sv.over) setLook(true);
 }
 function svRenderShop(){
   const box=document.getElementById('svShopList'); if(!box) return;
@@ -4693,7 +4719,7 @@ function svDoBuy(id){
 }
 function svOver(){
   if(sv.over) return; sv.over=true;
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   document.getElementById('svOverStats').innerHTML=
     `Você resistiu até a <b>onda ${sv.wave}</b>.<br>`+
     `🧟 Zumbis eliminados: <b>${sv.kills}</b><br>`+
@@ -4716,7 +4742,7 @@ function svEnter(){
   document.getElementById('svHud').classList.remove('hidden');
   document.getElementById('svShootBtn').textContent='🔫'; document.getElementById('svBuildBtn').classList.remove('on');
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
-  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  if(controlMode==='pc') setLook(true);
   if(isMP()) createRemoteAvatar();
   svSetWeaponView(sv.weapon);   // mostra a arma na mão
   svUpdateHud();
@@ -4764,7 +4790,7 @@ function svExit(){
   if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
   net.role='solo'; net.conn=null; net.remoteState=null; net.remoteAvatar=null;
   try{ stopVoice(); }catch(e){}
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   sv.shopOpen=false; document.getElementById('svShop').classList.add('hidden');
   document.getElementById('svHud').classList.add('hidden');
   document.getElementById('svOver').classList.add('hidden');
@@ -4887,7 +4913,7 @@ function pzMakeMenuBtns(){ const box=document.getElementById('pzMenuBtns'); box.
   for(const m of PZ_ING){ const b=document.createElement('button'); b.className='pzitem'; b.innerHTML=m.ic+'<span class="lb">'+m.n+'</span>'; b.onclick=()=>pzAdd(m.id); box.appendChild(b); } }
 function pzOver(){
   if(pz.over)return; pz.over=true;
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   const acc=pz.served?Math.round(pz.correct/pz.served*100):100;
   document.getElementById('pzOverStats').innerHTML=`Clientes atendidos: <b>${pz.served}</b><br>Acertos: <b>${pz.correct}</b><br>Precisão: <b>${acc}%</b> · Melhor sequência: <b>${pz.best}</b><br>Pontos: <b>${pz.score}</b>`;
   document.getElementById('pzHud').classList.add('hidden');
@@ -4906,7 +4932,7 @@ function pzEnter(){
   document.getElementById('pzHud').classList.remove('hidden');
   if(isMP()) createRemoteAvatar();
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
-  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  if(controlMode==='pc') setLook(true);
   pz.cool=0.6; pzUpdateHud();
   showMsg(isMP()?'🍕 Co-op! Os dois montam o pedido juntos. Junte os ingredientes e ✅ entregue.':'🍕 Lanchonete aberta! FAÇA a comida juntando os ingredientes (ex: 🍞 Pão + 🍖 Salsicha = 🌭) e ✅ entregue.',5500);
 }
@@ -4939,7 +4965,7 @@ function pzExit(){
   pz.queue=[]; pz.leaving=[]; if(pz._frontMesh){ scene.remove(pz._frontMesh); disposeObj(pz._frontMesh); pz._frontMesh=null; }
   if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; net.remoteState=null; net.remoteAvatar=null;
   try{ stopVoice(); }catch(e){}
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   document.getElementById('pzHud').classList.add('hidden');
   document.getElementById('pzOver').classList.add('hidden');
   document.getElementById('touch').classList.remove('on');
@@ -5077,7 +5103,7 @@ function trUpdateHud(){
   else pl.textContent='—';
 }
 function trOver(){
-  if(tr.over)return; tr.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  if(tr.over)return; tr.over=true; setLook(false);
   const acc=tr.processed?Math.round(tr.correct/tr.processed*100):100;
   document.getElementById('trOverStats').innerHTML=`Carros conferidos: <b>${tr.processed}</b><br>Acertos: <b>${tr.correct}</b> · Precisão: <b>${acc}%</b><br>Liberados certos: <b>${tr.passed}</b> · Barrados certos: <b>${tr.stopped}</b><br>Melhor sequência: <b>${tr.best}</b> · Pontos: <b>${tr.score}</b>`;
   document.getElementById('trHud').classList.add('hidden'); document.getElementById('trOver').classList.remove('hidden');
@@ -5094,7 +5120,7 @@ function trEnter(){
   document.getElementById('trHud').classList.remove('hidden');
   if(isMP()) createRemoteAvatar();
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
-  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  if(controlMode==='pc') setLook(true);
   tr.cool=0.8; trUpdateHud();
   showMsg(isMP()?'🚦 Co-op! Os dois conferem juntos. Barre PROCURADOS/irregulares e libere o resto.':'🚦 Confira a placa! Barre os PROCURADOS e irregulares (sem placa/fumaça). Libere o resto.',5000);
 }
@@ -5125,7 +5151,7 @@ function trExit(){
   tr.over=true; trClearCar(); tr.cur=null; if(tr._carMesh){ scene.remove(tr._carMesh); disposeObj(tr._carMesh); tr._carMesh=null; }
   if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; net.remoteState=null; net.remoteAvatar=null;
   try{ stopVoice(); }catch(e){}
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   document.getElementById('trHud').classList.add('hidden'); document.getElementById('trOver').classList.add('hidden');
   document.getElementById('touch').classList.remove('on');
   document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
@@ -5263,7 +5289,7 @@ function hideUpdateHud(){
   const st=document.getElementById('hideState'); if(st) st.textContent = hide.locked?'👁️ DETECTADO — fujam da visão!':(hideMoved()?'🚶 Mexendo (cuidado!)':'📦 Camuflado (parado)');
 }
 function hideOver(win){
-  if(hide.over)return; hide.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  if(hide.over)return; hide.over=true; setLook(false);
   document.getElementById('hideOverTitle').textContent = '💀 Você foi descoberto';
   document.getElementById('hideOverStats').innerHTML=`Aguentaram até a <b>rodada ${hide.round}</b>.<br>Quanto mais rodadas, mais esperto o caçador.`;
   document.getElementById('hideHud').classList.add('hidden'); document.getElementById('hideOver').classList.remove('hidden');
@@ -5282,7 +5308,7 @@ function hideEnter(){
   document.getElementById('hideHud').classList.remove('hidden');
   if(isMP()) createRemoteAvatar();
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
-  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  if(controlMode==='pc') setLook(true);
   hideUpdateHud();
   showMsg(isMP()?'🙈 Co-op! Vocês são caixas. FIQUEM PARADOS pra se esconder. Vidas compartilhadas!':'🙈 Você é uma caixa! FIQUE PARADO pra se esconder. Se mexer na frente do monstro, ele te acha.',6000);
 }
@@ -5312,7 +5338,7 @@ function hideConnect(){
 function hideExit(){
   hide.over=true; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; net.remoteState=null; net.hideMon=null; net.remoteAvatar=null;
   try{ stopVoice(); }catch(e){}
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   document.getElementById('hideHud').classList.add('hidden'); document.getElementById('hideOver').classList.add('hidden');
   document.getElementById('touch').classList.remove('on');
   document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
@@ -5390,7 +5416,7 @@ function hunterEnd(winner){
   netSend({t:'h_over', winner}); hunterShowResult(winner);
 }
 function hunterShowResult(winner){
-  hunter.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  hunter.over=true; setLook(false);
   const iWon = (winner==='surv' && hunter.role==='surv') || (winner==='hunter' && hunter.role==='hunter');
   document.getElementById('hunterOverTitle').textContent = iWon?'🏆 Você venceu!':'💀 Você perdeu';
   document.getElementById('hunterOverStats').innerHTML = winner==='surv'
@@ -5416,7 +5442,7 @@ function hunterEnter(){
   ['topbar','minimap','danger'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   document.getElementById('hunterHud').classList.remove('hidden');
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
-  if(controlMode==='pc') renderer.domElement.requestPointerLock();
+  if(controlMode==='pc') setLook(true);
   hunterUpdateHud();
   showMsg(hunter.role==='surv'?'🏃 FUJA até a porta azul antes do caçador te pegar!':'👹 Você é o monstro! Cace o fugitivo antes de ele escapar.',5000);
 }
@@ -5446,7 +5472,7 @@ function hunterExit(){
   hunter.over=true;
   if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; net.hMon=null; net.hSurv=null; net.remoteAvatar=null;
   try{ stopVoice(); }catch(e){}
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   document.getElementById('hunterHud').classList.add('hidden'); document.getElementById('hunterOver').classList.add('hidden');
   document.getElementById('touch').classList.remove('on');
   document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
@@ -5573,7 +5599,7 @@ function qUpdateHud(){
   document.getElementById('qRule').innerHTML='<b>'+q.cfg.ic+' '+q.cfg.name+'</b><br>'+q.cfg.rule;
 }
 function qOver(){
-  if(q.over)return; q.over=true; if(q.role==='host') netSend({t:'m_qover'}); if(document.pointerLockElement) document.exitPointerLock();
+  if(q.over)return; q.over=true; if(q.role==='host') netSend({t:'m_qover'}); setLook(false);
   const acc=q.processed?Math.round(q.correct/q.processed*100):100;
   document.getElementById('qOverTitle').textContent='🏁 Fim — '+q.cfg.name;
   document.getElementById('qOverStats').innerHTML=`Decisões: <b>${q.processed}</b><br>Acertos: <b>${q.correct}</b> · Precisão: <b>${acc}%</b><br>Melhor sequência: <b>${q.best}</b> · Pontos: <b>${q.score}</b>`;
@@ -5596,7 +5622,7 @@ function qStart(key, role){
 }
 function qExit(){
   q.over=true; qClearOpts(); if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; q.role='solo';
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   document.getElementById('qHud').classList.add('hidden'); document.getElementById('qOver').classList.add('hidden');
   document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
   document.getElementById('minimap').style.display = minimapOn?'block':'none';
@@ -5706,7 +5732,7 @@ function agHud(){
   document.getElementById('aRule').innerHTML='<b>'+ag.cfg.ic+' '+ag.cfg.name+'</b><br>'+ag.cfg.rule;
 }
 function agOver(){
-  if(ag.over)return; ag.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  if(ag.over)return; ag.over=true; setLook(false);
   for(const it of ag.items) agRemove(it); ag.items=[];
   const total=ag.hits+ag.miss; const won=ag.lives>0;
   document.getElementById('aOverTitle').textContent=(won?'🏁 Tempo! — ':'💀 Fim — ')+ag.cfg.name;
@@ -5727,7 +5753,7 @@ function agStart(key){
   agHud(); showMsg(ag.cfg.ic+' '+ag.cfg.name+' — '+ag.cfg.rule,4500);
 }
 function agExit(){
-  ag.over=true; if(document.pointerLockElement) document.exitPointerLock();
+  ag.over=true; setLook(false);
   for(const it of ag.items) agRemove(it); ag.items=[];
   document.getElementById('aHud').classList.add('hidden'); document.getElementById('aOver').classList.add('hidden');
   document.getElementById('topbar').style.display=''; document.getElementById('danger').style.display='';
@@ -5761,7 +5787,7 @@ function miniStart(key, role){
 }
 function updateMini(dt){ if(MINI.cur&&MINI.cur.update) MINI.cur.update(dt); }
 function miniOver(title,statsHtml){
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   mEl('mOverTitle').innerHTML=title; mEl('mOverStats').innerHTML=statsHtml;
   mEl('mHud').classList.add('hidden'); mEl('mOver').classList.remove('hidden');
 }
@@ -5769,7 +5795,7 @@ function miniExit(){
   if(MINI.cur&&MINI.cur.exit){ try{ MINI.cur.exit(); }catch(e){} }
   MINI.cur=null;
   if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; net.remoteAvatar=null; net.mAv=null; MINI.role='solo';
-  if(document.pointerLockElement) document.exitPointerLock();
+  setLook(false);
   mEl('mHud').classList.add('hidden'); mEl('mOver').classList.add('hidden'); const mc=mEl('miniCoop'); if(mc) mc.classList.add('hidden');
   const c=mCenter(); if(c) c.innerHTML='';
   mEl('topbar').style.display=''; mEl('danger').style.display='';
@@ -7578,6 +7604,7 @@ miniRegister('montanha',{
 });
 
 // ---------- BOTÕES ----------
+document.getElementById('lookBtn').onclick=(e)=>{ e.stopPropagation(); toggleLook(); };
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
 function chooseDevice(m){ controlMode=m;
