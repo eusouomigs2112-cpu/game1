@@ -680,6 +680,26 @@
       <div class="ic">🎢</div><div class="lb">MONTANHA-RUSSA</div>
       <div class="ds">Curta o passeio sobre os trilhos e grite de emoção nas descidas</div>
     </div>
+    <div class="devbtn" id="modeEscape">
+      <div class="ic">🗝️</div><div class="lb">SALA DE ESCAPE</div>
+      <div class="ds">Vasculhe os objetos, ache a chave escondida e fuja antes do tempo</div>
+    </div>
+    <div class="devbtn" id="modePerseguicao">
+      <div class="ic">🚓</div><div class="lb">PERSEGUIÇÃO POLICIAL</div>
+      <div class="ds">Dirija pela cidade e alcance o carro fugitivo antes que ele escape</div>
+    </div>
+    <div class="devbtn" id="modeInvasores">
+      <div class="ic">🛸</div><div class="lb">INVASORES</div>
+      <div class="ds">Destrua as naves alienígenas antes que elas pousem — poupe os aliados</div>
+    </div>
+    <div class="devbtn" id="modeRestaurante">
+      <div class="ic">🍣</div><div class="lb">RESTAURANTE A MIL</div>
+      <div class="ds">Sirva o prato certo pra cada cliente antes da paciência acabar</div>
+    </div>
+    <div class="devbtn" id="modeAvalanche">
+      <div class="ic">🏔️</div><div class="lb">AVALANCHE</div>
+      <div class="ds">Desça a montanha desviando dos obstáculos e fuja da neve que te persegue</div>
+    </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
 </div>
@@ -6882,6 +6902,11 @@ const INSTR={
   parkour:['Pule pelas plataformas flutuantes até a 🏁.','W A S D anda · ←/→ giram · Espaço pula.'],
   kart:['Complete 3 voltas passando pelos portões na ordem.','↑ acelera · ↓ freia · ←/→ esterça.'],
   montanha:['Curta o passeio controlando a velocidade do carrinho.','↑/W acelera · ↓/S freia.'],
+  invasores:['Destrua as naves alienígenas antes que pousem!','Clique (ou toque) nas naves inimigas — não atire nos 🛰️ aliados.'],
+  restaurante:['Sirva o prato certo para cada cliente da fila.','O cliente mostra o que quer; clique no prato igual na bancada.'],
+  escape:['Ache a chave escondida nos objetos e fuja da sala.','Clique nos objetos pra vasculhar; com a 🔑, clique na porta 🚪.'],
+  avalanche:['Desça a montanha fugindo da neve, sem bater.','←/→ (ou A/D) desvia dos 🌲🪨. Bater deixa a neve te alcançar.'],
+  perseguicao:['Persiga e capture o carro fugitivo pela cidade.','↑ acelera · ↓ freia · ←/→ esterça. Encoste no fugitivo 🚗.'],
 };
 function showHowto(g, startFn){
   mc._start=startFn;
@@ -7156,7 +7181,7 @@ function makeTargetMini(cfg){ return {
     s.spawnT-=dt; if(s.spawnT<=0){ s.spawnT=cfg.spawn*(0.7+Math.random()*0.6); this.spawn(); }
     const grav=cfg.motion==='toss'?9.0:0;
     for(const it of s.items){ if(!it.sp)continue; it.age+=dt; it.vy-=grav*dt; it.x+=it.vx*dt; it.y+=it.vy*dt; it.sp.position.set(it.x,it.y,0);
-      let esc=false; if(cfg.motion==='cross'){ if(it.x<-9.2||it.x>9.2)esc=true; } else { if(it.vy<0&&it.y<-1.6)esc=true; }
+      let esc=false; if(cfg.motion==='cross'){ if(it.x<-9.2||it.x>9.2)esc=true; } else if(cfg.motion==='descend'){ if(it.y<-1.4)esc=true; } else { if(it.vy<0&&it.y<-1.6)esc=true; }
       if(esc){ if(it.good){ s.lives--; tone(170,0.18,'sawtooth',0.12); if(s.lives<=0){ scene.remove(it.sp); it.sp=null; this.end('💀 Fim — '+cfg.name); return; } } scene.remove(it.sp); it.sp=null; } }
     s.items=s.items.filter(x=>x.sp);
     if(role==='host'){ s.netT-=dt; if(s.netT<=0){ s.netT=0.06; netSend({t:'m_tg', g:s.items.map(x=>({i:x.id,e:x.emoji,x:+x.x.toFixed(2),y:+x.y.toFixed(2)})), sc:s.score, l:s.lives, ti:Math.ceil(s.time)}); } }
@@ -7666,6 +7691,178 @@ miniRegister('montanha',{
   onClick(){}, onKey(){}, exit(){ this.s=null; }
 });
 
+// ⭐ ====== 5 NOVOS MODOS: Invasores, Restaurante a Mil, Sala de Escape, Avalanche, Perseguição ======
+
+// 🛸 INVASORES — naves descem; reaproveita o motor de alvos co-op (motion 'descend')
+miniRegister('invasores', makeTargetMini({ name:'Invasores', ic:'🛸', bg:0x05060f, dur:80, spawn:0.5, burst:1, motion:'descend',
+  coopDesc:'Defendam o planeta juntos! Pontos e vidas compartilhados.', tip:'Clique nas naves inimigas 👾🛸 antes que pousem — não atire nos 🛰️ aliados.',
+  rule:'Clique nas naves 👾🛸🚀 antes que cheguem ao chão! NÃO atire nos 🛰️ satélites aliados.',
+  spawnOne(){ const enemy=Math.random()<0.82; const ev=['👾','🛸','🚀']; return { emoji:enemy?ev[(Math.random()*ev.length)|0]:'🛰️', good:enemy, x:-8+Math.random()*16, y:7.5, vx:(Math.random()-0.5)*0.6, vy:-(1.4+Math.random()*1.6) }; } }));
+
+// 🍣 RESTAURANTE A MIL — sirva o prato certo pra cada cliente
+const RST_DISH=['🍣','🍔','🍕','🌭','🍜','🌮','🍝','🥗','🍩','🍦'];
+miniRegister('restaurante',{
+  name:'Restaurante a Mil', ic:'🍣', coop:true, coopDesc:'Atendam a fila juntos! Pontos e vidas compartilhados.',
+  tip:'O cliente mostra o prato que quer; clique no prato igual na bancada.',
+  enter(role){ mBooth(0x171022);
+    const desk=new THREE.Mesh(new THREE.BoxGeometry(11,1,2),new THREE.MeshStandardMaterial({color:0x5b4a8a,roughness:0.7})); desk.position.set(0,0.5,-0.5); scene.add(desk);
+    const s=this.s={ score:0, lives:3, over:false, want:null, opts:[], patience:1, cur:0, netT:0 };
+    this.client=emojiSprite('🙂',2.2); this.client.position.set(0,3.4,-3.5); scene.add(this.client);
+    this.bubble=make3DText('',2.2,{fs:130,cw:256,ch:256,bg:'rgba(255,255,255,.95)'}); this.bubble.position.set(2.2,4.2,-3.4); scene.add(this.bubble);
+    this.plates=[]; for(let i=0;i<4;i++){ const g=make3DButton('',2.0,1.0,0x4a3a8a); g.position.set((i-1.5)*2.3,1.4,0.4); g.userData.__cl={pi:i}; scene.add(g); this.plates.push(g); }
+    if(role!=='client') this.next(); this.hud();
+  },
+  next(){ const s=this.s; s.want=RST_DISH[(Math.random()*RST_DISH.length)|0]; const pool=[s.want];
+    while(pool.length<4){ const d=RST_DISH[(Math.random()*RST_DISH.length)|0]; if(!pool.includes(d)) pool.push(d); }
+    for(let i=pool.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    s.opts=pool; s.patience=1; this.render(); if(MINI.role==='host') netSend({t:'m_rest', w:s.want, o:s.opts, sc:s.score, lv:s.lives}); this.hud(); },
+  render(){ const s=this.s; set3DText(this.bubble, s.want||''); this.bubble.userData.tx.needsUpdate=true;
+    s.opts.forEach((d,i)=>{ btnSetText(this.plates[i], d); }); },
+  serve(i){ const s=this.s; if(s.over||!s.opts.length)return; const ok=s.opts[i]===s.want;
+    if(ok){ s.score++; tone(720,0.08,'sine',0.1); setTimeout(()=>tone(1040,0.08,'sine',0.1),60); mFlash('good'); setSpriteText&&0; set3DText(this.client,'😋'); }
+    else { s.lives--; tone(150,0.3,'sawtooth',0.16); mFlash('bad'); set3DText(this.client,'😠'); showMsg('❌ Prato errado!',900); }
+    s.opts=[];
+    if(s.lives<=0){ s.over=true; const t='🛑 Restaurante fechou', st='Clientes atendidos: <b>'+s.score+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    if(MINI.role==='host') netSend({t:'m_rest', w:s.want, o:[], sc:s.score, lv:s.lives});
+    setTimeout(()=>{ if(this.s&&!this.s.over){ set3DText(this.client,'🙂'); this.next(); } },600); this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,3,4.5); camera.lookAt(0,2.6,-3); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    if(s.opts.length){ s.patience-=dt/9; if(s.patience<=0){ this.serve(-1); } }
+    this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_serve'){ if(MINI.role==='host') this.serve(d.i); }
+    else if(d.t==='m_rest'){ if(MINI.role==='client'){ s.want=d.w; s.opts=d.o; s.score=d.sc; s.lives=d.lv; set3DText(this.client,'🙂'); this.render(); this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>🍽️ <b>'+s.score+'</b></span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🍽️ O cliente quer '+(s.want||'...')+' — clique no prato igual na bancada!'); },
+  onClick(x,y){ const role=MINI.role||'solo'; const cl=ui3dPick(x,y,this.plates.map(g=>({obj:g}))); if(!cl||cl.pi==null)return; if(this.s.opts.length===0)return; if(role==='client')netSend({t:'m_serve',i:cl.pi}); else this.serve(cl.pi); },
+  onKey(){}, exit(){ this.s=null; }
+});
+
+// 🗝️ SALA DE ESCAPE — ache a chave escondida nos objetos e fuja
+miniRegister('escape',{
+  name:'Sala de Escape', ic:'🗝️', coop:true, coopDesc:'Escapem juntos! Vasculhem os objetos e achem a chave.',
+  tip:'Clique nos objetos pra vasculhar. Ache a 🔑 chave, depois clique na porta 🚪.',
+  enter(role){ scene.background=new THREE.Color(0x14121c); scene.fog=new THREE.FogExp2(0x14121c,0.025);
+    scene.add(new THREE.HemisphereLight(0x9a90c0,0x201c30,1.2)); const l=new THREE.PointLight(0xfff0dd,1.2,30); l.position.set(0,6,3); scene.add(l);
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(30,30),new THREE.MeshStandardMaterial({color:0x2a2436,roughness:1})); fl.rotation.x=-Math.PI/2; scene.add(fl);
+    const wall=new THREE.Mesh(new THREE.BoxGeometry(20,10,0.5),new THREE.MeshStandardMaterial({color:0x3a3550,roughness:0.9})); wall.position.set(0,5,-6); scene.add(wall);
+    const s=this.s={ escaped:0, time:90, over:false, hasKey:false, n:6, keyIdx:0, found:[] };
+    this.door=new THREE.Mesh(new THREE.BoxGeometry(2.4,4.2,0.4),new THREE.MeshStandardMaterial({color:0x6a4326,roughness:0.7,emissive:0x000000})); this.door.position.set(0,2.1,-5.7); this.door.userData.__cl={door:true}; scene.add(this.door);
+    this.objs=[]; this.newRoom(role); this.hud();
+  },
+  newRoom(role){ const s=this.s; for(const o of this.objs) scene.remove(o); this.objs=[]; s.hasKey=false; s.found=[];
+    const ICS=['🖼️','🪴','📚','🛋️','🗄️','🧸','⏰','🪞']; s.n=Math.min(8,5+s.escaped);
+    s.keyIdx = (MINI.role==='client') ? -1 : (Math.random()*s.n)|0;
+    for(let i=0;i<s.n;i++){ const sp=emojiSprite(ICS[i%ICS.length],1.5); sp.position.set(-6+ (i%4)*4, 1.4 - ((i/4)|0)*2.4 + 1.2, -3.5); sp.userData.__cl={oi:i}; scene.add(sp); this.objs.push(sp); }
+    this.door.material.emissive.setHex(0x000000);
+    if(MINI.role==='host') netSend({t:'m_room', n:s.n, k:s.keyIdx, e:s.escaped}); this.hud(); },
+  search(i){ const s=this.s; if(s.over||s.found.includes(i))return; s.found.push(i);
+    if(i===s.keyIdx){ s.hasKey=true; set3DText(this.objs[i],'🔑'); tone(880,0.12,'sine',0.12); mFlash('good'); showMsg('🔑 Você achou a chave! Vá pra porta.',1600); this.door.material.emissive.setHex(0x2a6a2a); }
+    else { set3DText(this.objs[i],'❌'); tone(300,0.08,'square',0.08); }
+    if(MINI.role==='host') netSend({t:'m_search', i, key:i===s.keyIdx}); },
+  tryDoor(){ const s=this.s; if(s.over)return; if(!s.hasKey){ tone(150,0.2,'sawtooth',0.12); showMsg('🔒 Trancada! Ache a chave primeiro.',1200); return; }
+    s.escaped++; tone(660,0.12,'sine',0.12); setTimeout(()=>tone(990,0.12,'sine',0.1),100); mFlash('good'); showMsg('🚪 Escaparam! Próxima sala...',1400);
+    if(MINI.role==='host') netSend({t:'m_escaped'}); setTimeout(()=>{ if(this.s&&!this.s.over) this.newRoom(MINI.role); },800); this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,2.2,3); camera.lookAt(0,2,-5); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    s.time-=dt; if(s.time<=0){ s.over=true; const t='⏱️ Tempo esgotado', st='Salas escapadas: <b>'+s.escaped+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; } this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_search'){ if(MINI.role==='host') this.search(d.i); else { set3DText(this.objs[d.i], d.key?'🔑':'❌'); if(d.key){ s.hasKey=true; this.door.material.emissive.setHex(0x2a6a2a); } } }
+    else if(d.t==='m_door'){ if(MINI.role==='host') this.tryDoor(); }
+    else if(d.t==='m_room'){ if(MINI.role==='client'){ s.escaped=d.e; this.newRoom('client'); } }
+    else if(d.t==='m_escaped'){ if(MINI.role==='client'){ s.escaped++; this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>🚪 Escapadas <b>'+s.escaped+'</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>'+(s.hasKey?'<span>🔑</span>':'')+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule(s.hasKey?'🔑 Você tem a chave — clique na porta 🚪 pra escapar!':'🔍 Clique nos objetos pra achar a chave escondida'); },
+  onClick(x,y){ const role=MINI.role||'solo'; const cl=ui3dPick(x,y,this.objs.map(o=>({obj:o})).concat([{obj:this.door}]));
+    if(!cl)return; if(cl.door){ if(role==='client')netSend({t:'m_door'}); else this.tryDoor(); }
+    else if(cl.oi!=null){ if(role==='client')netSend({t:'m_search',i:cl.oi}); else this.search(cl.oi); } },
+  onKey(){}, exit(){ this.s=null; }
+});
+
+// 🏔️ AVALANCHE — desça desviando dos obstáculos, fuja da neve
+miniRegister('avalanche',{
+  name:'Avalanche', ic:'🏔️', coop:true, coopDesc:'Desçam juntos! Vejam o parceiro e fujam da neve.',
+  tip:'←/→ (ou A/D) desvia dos obstáculos. A neve vem atrás — não bata!',
+  enter(role){ scene.background=new THREE.Color(0xcfe6ff); scene.fog=new THREE.FogExp2(0xcfe6ff,0.02);
+    scene.add(new THREE.HemisphereLight(0xffffff,0x9ab0c0,1.5)); const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.position.set(6,14,6); scene.add(sun);
+    const slope=new THREE.Mesh(new THREE.PlaneGeometry(24,400),new THREE.MeshStandardMaterial({color:0xf0f6ff,roughness:1})); slope.rotation.x=-Math.PI/2.2; scene.add(slope);
+    const s=this.s={ x:0, z:0, dist:0, danger:10, over:false, obs:[], spawnT:0, speed:14, netT:0 };
+    this.player=emojiSprite('⛷️',1.8); this.player.position.set(0,1,0); scene.add(this.player);
+    this.snow=new THREE.Mesh(new THREE.BoxGeometry(26,8,4),new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,transparent:true,opacity:0.92})); scene.add(this.snow);
+    if(role!=='solo'){ this.partner=emojiSprite('🏂',1.8); this.partner.visible=false; scene.add(this.partner); }
+    this.hud();
+  },
+  spawn(){ const s=this.s; const sp=emojiSprite(Math.random()<0.5?'🌲':'🪨',1.6); const lane=(-9+Math.random()*18); sp.position.set(lane, 1, -38); scene.add(sp); s.obs.push({sp,x:lane,z:-38}); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo';
+    if(keys['ArrowLeft']||keys['KeyA']) s.x-=8*dt; if(keys['ArrowRight']||keys['KeyD']) s.x+=8*dt; s.x=Math.max(-10,Math.min(10,s.x));
+    s.dist+=s.speed*dt; s.speed=Math.min(26,s.speed+dt*0.4); s.danger=Math.min(11,s.danger+ (role==='client'?0:0));
+    // obstáculos sobem em direção ao jogador (z aumenta)
+    s.spawnT-=dt; if(s.spawnT<=0){ s.spawnT=0.5+Math.random()*0.4; this.spawn(); }
+    let hit=false;
+    for(const o of s.obs){ o.z+=s.speed*dt; o.sp.position.set(o.x,1,o.z); if(o.z>-1.2 && o.z<1.2 && Math.abs(o.x-s.x)<1.3 && !o.done){ o.done=true; hit=true; } }
+    s.obs=s.obs.filter(o=>{ if(o.z>4){ scene.remove(o.sp); return false; } return true; });
+    if(hit){ s.danger-=3; tone(150,0.2,'sawtooth',0.14); mFlash('bad'); } else { s.danger=Math.min(11,s.danger+1.5*dt); }
+    this.player.position.set(s.x,1,0);
+    this.snow.position.set(0,3,-s.danger-1); this.snow.material.opacity=0.9;
+    if(s.danger<=0){ s.over=true; tone(90,0.6,'sawtooth',0.2); const t='❄️ A neve te alcançou!', st='Distância: <b>'+Math.round(s.dist)+'m</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    if(s.dist>=1500){ s.over=true; const t='🏆 Você escapou da montanha!', st='Distância: <b>'+Math.round(s.dist)+'m</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    if(role!=='solo'){ if(this.partner&&net.mAv){ this.partner.visible=true; this.partner.position.set(net.mAv.x,1,2); } s.netT-=dt; if(s.netT<=0){ s.netT=0.06; netSend({t:'m_av',x:+s.x.toFixed(2)}); } }
+    camera.position.set(s.x*0.4,6,9); camera.lookAt(0,1,-8); camera.rotation.z=0; this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return; if(d.t==='m_av'){ net.mAv={x:d.x}; } else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>📏 <b>'+Math.round(s.dist)+'m</b>/1500</span><span>❄️ '+Math.max(0,Math.round(s.danger))+'m de vantagem</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🏔️ ←/→ (ou A/D) desvia dos 🌲🪨 — bater deixa a neve ❄️ chegar mais perto!'); },
+  onClick(){}, onKey(){}, exit(){ this.s=null; }
+});
+
+// 🚓 PERSEGUIÇÃO POLICIAL — dirija pela cidade e alcance o fugitivo
+miniRegister('perseguicao',{
+  name:'Perseguição Policial', ic:'🚓', coop:true, coopDesc:'Dois policiais atrás do fugitivo! Capturas compartilhadas.',
+  tip:'↑ acelera · ↓ freia · ←→ esterça. Encoste no carro fugitivo 🚗 pra capturar!',
+  enter(role){ scene.background=new THREE.Color(0x12162a); scene.fog=new THREE.FogExp2(0x12162a,0.012);
+    scene.add(new THREE.HemisphereLight(0xbcd0ff,0x223018,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.7); sun.position.set(10,16,8); scene.add(sun);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120),new THREE.MeshStandardMaterial({color:0x33333a,roughness:0.95})); ground.rotation.x=-Math.PI/2; scene.add(ground);
+    const s=this.s={ x:0,z:0,yaw:0,vel:0, caught:0, time:90, over:false, bx:20,bz:20,byaw:0, netT:0 };
+    this.buildings=[]; const RS=14,BS=8; let bi=0;
+    for(let bx=-2;bx<=2;bx++)for(let bz=-2;bz<=2;bz++){ if(bx===0&&bz===0)continue; const cx=bx*RS,cz=bz*RS; const h=4+((bi*37)%9); bi++;
+      const b=new THREE.Mesh(new THREE.BoxGeometry(BS,h,BS),new THREE.MeshStandardMaterial({color:0x55607a,roughness:0.85})); b.position.set(cx,h/2,cz); scene.add(b); this.buildings.push({x:cx,z:cz,half:BS/2}); }
+    this.car=new THREE.Group(); const pb=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.7,2.6),new THREE.MeshStandardMaterial({color:0x3b6cff,roughness:0.5})); pb.position.y=0.45; this.car.add(pb);
+    const sir=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.3,0.4),new THREE.MeshStandardMaterial({color:0xff3b3b,emissive:0xff0000,emissiveIntensity:0.6})); sir.position.set(0,1,0); this.car.add(sir); scene.add(this.car);
+    this.robber=new THREE.Group(); const rb=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.7,2.6),new THREE.MeshStandardMaterial({color:0x222,roughness:0.5})); rb.position.y=0.45; this.robber.add(rb); scene.add(this.robber);
+    if(role==='client') s.x=3;
+    if(role!=='solo'){ this.rcar=new THREE.Group(); const c2=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.7,2.6),new THREE.MeshStandardMaterial({color:0x3b8cff,roughness:0.5})); c2.position.y=0.45; this.rcar.add(c2); this.rcar.visible=false; scene.add(this.rcar); }
+    this.hud();
+  },
+  hitWall(nx,nz){ for(const b of this.buildings){ if(Math.abs(nx-b.x)<b.half+0.9&&Math.abs(nz-b.z)<b.half+0.9)return true; } return Math.abs(nx)>56||Math.abs(nz)>56; },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo';
+    const accel=16,maxV=22; if(keys['ArrowUp']||keys['KeyW'])s.vel+=accel*dt; if(keys['ArrowDown']||keys['KeyS'])s.vel-=accel*dt; s.vel*=(1-0.7*dt); s.vel=Math.max(-maxV/2,Math.min(maxV,s.vel));
+    if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA'])s.yaw+=1.5*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD'])s.yaw-=1.5*dt*(s.vel>0?1:-1); }
+    const nx=s.x-Math.sin(s.yaw)*s.vel*dt, nz=s.z-Math.cos(s.yaw)*s.vel*dt; if(!this.hitWall(nx,nz)){ s.x=nx; s.z=nz; } else s.vel*=-0.2;
+    this.car.position.set(s.x,0,s.z); this.car.rotation.y=s.yaw;
+    // fugitivo (host autoritativo): foge do policial mais próximo
+    if(role!=='client'){ s.time-=dt;
+      let tx=s.x,tz=s.z; if(role==='host'&&net.mAv){ if(Math.hypot(net.mAv.x-s.bx,net.mAv.z-s.bz)<Math.hypot(s.x-s.bx,s.z-s.bz)){ tx=net.mAv.x; tz=net.mAv.z; } }
+      let ax=s.bx-tx, az=s.bz-tz; const d=Math.hypot(ax,az)||1; ax/=d; az/=d; const bsp=11;
+      let nbx=s.bx+ax*bsp*dt, nbz=s.bz+az*bsp*dt; if(this.hitWall(nbx,s.bz)){ nbx=s.bx; az+=(Math.random()-0.5); } if(this.hitWall(s.bx,nbz)) nbz=s.bz;
+      s.bx=Math.max(-54,Math.min(54,nbx)); s.bz=Math.max(-54,Math.min(54,nbz)); s.byaw=Math.atan2(-ax,-az);
+      const cap=(px,pz)=>Math.hypot(px-s.bx,pz-s.bz)<2.4;
+      if(cap(s.x,s.z)||(role==='host'&&net.mAv&&cap(net.mAv.x,net.mAv.z))){ s.caught++; tone(880,0.12,'sine',0.12); setTimeout(()=>tone(1180,0.12,'sine',0.1),100); mFlash('good'); showMsg('🚨 Capturado! Novo fugitivo.',1200); do{ s.bx=(Math.random()-0.5)*100; s.bz=(Math.random()-0.5)*100; }while(this.hitWall(s.bx,s.bz)); }
+      if(s.time<=0){ s.over=true; const t='⏱️ Tempo esgotado', st='Fugitivos capturados: <b>'+s.caught+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+      if(MINI.role==='host'){ s.netT-=dt; if(s.netT<=0){ s.netT=0.06; netSend({t:'m_chase', bx:+s.bx.toFixed(1), bz:+s.bz.toFixed(1), by:+s.byaw.toFixed(2), c:s.caught, ti:Math.ceil(s.time) }); } }
+    }
+    this.robber.position.set(s.bx,0,s.bz); this.robber.rotation.y=s.byaw;
+    if(role!=='solo'){ if(this.rcar&&net.mAv){ this.rcar.visible=true; this.rcar.position.set(net.mAv.x,0,net.mAv.z); this.rcar.rotation.y=net.mAv.yaw||0; } s.netT2=(s.netT2||0)-dt; if(s.netT2<=0){ s.netT2=0.05; netSend({t:'m_av',x:+s.x.toFixed(2),z:+s.z.toFixed(2),yaw:+s.yaw.toFixed(2)}); } }
+    const cd=8,ch=6,_k=Math.min(1,dt*3.2),_tx=s.x+Math.sin(s.yaw)*cd,_tz=s.z+Math.cos(s.yaw)*cd;
+    camera.position.x+=(_tx-camera.position.x)*_k; camera.position.y+=(ch-camera.position.y)*_k; camera.position.z+=(_tz-camera.position.z)*_k; camera.lookAt(s.x,0.8,s.z); camera.rotation.z=0; this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return; if(d.t==='m_av'){ net.mAv={x:d.x,z:d.z,yaw:d.yaw}; }
+    else if(d.t==='m_chase'){ if(MINI.role==='client'){ s.bx=d.bx; s.bz=d.bz; s.byaw=d.by; s.caught=d.c; s.time=d.ti; this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>🚨 Capturados <b>'+s.caught+'</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.time))+'s</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule('🚓 Encoste no carro fugitivo 🚗 pra capturar! ↑ acelera · ↓ freia · ←→ esterça'); },
+  onClick(){}, onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('lookBtn').onclick=(e)=>{ e.stopPropagation(); toggleLook(); };
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
@@ -7778,7 +7975,7 @@ document.getElementById('aExit').onclick=agExit;
 document.getElementById('aAgain').onclick=()=>agStart(ag.key);
 document.getElementById('aOverMenu').onclick=agExit;
 // minigames (framework)
-[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo'],['defesa','Defesa'],['ninja','Ninja']].forEach(([k,cap])=>{
+[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo'],['defesa','Defesa'],['ninja','Ninja'],['escape','Escape'],['perseguicao','Perseguicao'],['invasores','Invasores'],['restaurante','Restaurante'],['avalanche','Avalanche']].forEach(([k,cap])=>{
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>mcOpen(k);
 });
 document.getElementById('mExit').onclick=miniExit;
