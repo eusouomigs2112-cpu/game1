@@ -835,6 +835,29 @@
   <div class="btnrow"><button id="mAgain">🔁 Jogar de novo</button><button id="mOverMenu" class="ghost">↩ Menu</button></div>
 </div>
 
+<!-- MENU genérico de co-op pros minigames -->
+<div id="miniCoop" class="overlay hidden">
+  <h1 id="mcTitle">Modo</h1>
+  <p id="mcDesc">Jogue sozinho ou chame um amigo pra jogar junto online.</p>
+  <div class="btnrow">
+    <button id="mcSolo">🙂 Jogar Sozinho</button>
+    <button id="mcCoop" class="ghost">👥 Co-op (com amigo)</button>
+  </div>
+  <div id="mcPanel" style="display:none; margin-top:6px;">
+    <div style="font-size:13px; opacity:.7; letter-spacing:1px; margin-bottom:6px;">👥 OS DOIS JOGAM JUNTOS</div>
+    <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;"><input id="mcNick" placeholder="Seu nome" maxlength="12" autocomplete="off"/></div>
+    <div class="mp" style="margin-top:8px;">
+      <button id="mcHost" class="ghost" style="font-size:14px; padding:9px 18px;">🌐 Criar Sala</button>
+      <button id="mcJoin" class="ghost" style="font-size:14px; padding:9px 18px;">🔑 Entrar com código</button>
+    </div>
+    <div id="mcJoinRow" style="display:none; gap:8px; justify-content:center; margin-top:8px;">
+      <input id="mcCode" placeholder="CÓDIGO" maxlength="5" autocomplete="off"/><button id="mcConnect">Conectar</button>
+    </div>
+    <div id="mcInfo" class="mpinfo"></div>
+  </div>
+  <button class="ghost" id="mcBack" style="font-size:14px; margin-top:14px;">↩ Voltar</button>
+</div>
+
 <!-- MENU da Pizzaria (Solo / Co-op) -->
 <div id="pizzaMenu" class="overlay hidden">
   <h1>🍕 Pizzaria</h1>
@@ -3428,6 +3451,9 @@ function onNetData(d){
   else if(d.t==='tr_act'){ if(net.role!=='client') trDecide(d.go); }
   else if(d.t==='tr_state'){ if(net.role==='client'){ tr.wanted=d.wanted||[]; tr.lives=d.lives; tr.score=d.score; tr.processed=d.processed; tr.correct=d.correct; tr.streak=d.streak; tr.best=d.best; tr.barTarget=d.bar; tr.cur=d.car?Object.assign({group:null},d.car):null; trUpdateHud(); } }
   else if(d.t==='tr_over'){ trOver(); }
+  // ---- Minigames (co-op genérico) ----
+  else if(d.t==='mini_begin'){ miniStart(d.key, 'client'); }
+  else if(d.t && d.t.charAt(0)==='m' && d.t.charAt(1)==='_'){ if(MINI.cur && MINI.cur.onNet) MINI.cur.onNet(d); }
 }
 function hostAdvance(){
   if(phase>=MAX_PHASE){ netSend({t:'win'}); winGame(); return; }
@@ -5703,19 +5729,20 @@ function mRule(html){ const e=mEl('mRule'); if(e) e.innerHTML=html; }
 function mCenter(){ return mEl('mCenter'); }
 function mFlash(k){ const f=mEl('mFlash'); if(!f)return; f.className=k; setTimeout(()=>{f.className='';},220); }
 function mLives(n){ return '❤️'.repeat(Math.max(0,n))+'🖤'.repeat(Math.max(0,3-n)); }
-function miniStart(key){
-  net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; }
-  spectator=false; const g=MINI.games[key]; if(!g) return; MINI.cur=g; MINI.key=key;
-  ['modes','start','device','mOver','death','win'].forEach(id=>{const el=mEl(id); if(el) el.classList.add('hidden');});
+function miniStart(key, role){
+  role=role||'solo';
+  if(role==='solo'){ net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } } else { net.role=role; }
+  spectator=false; const g=MINI.games[key]; if(!g) return; MINI.cur=g; MINI.key=key; MINI.role=role; MINI.netT=0;
+  ['modes','start','device','mOver','death','win','miniCoop'].forEach(id=>{const el=mEl(id); if(el) el.classList.add('hidden');});
   initAudio(); if(audioCtx&&audioCtx.state==='suspended') audioCtx.resume();
   clearLevel();
   player.yaw=0; player.pitch=0; introActive=false; hiding=false; player.dead=false; qte.active=false;
   ['topbar','minimap','danger'].forEach(id=>{ const el=mEl(id); if(el) el.style.display='none'; });
   const c=mCenter(); if(c) c.innerHTML='';
   mEl('mHud').classList.remove('hidden'); gameState='mini';
-  mEl('mTitle').innerHTML=g.ic+' '+g.name;
+  mEl('mTitle').innerHTML=g.ic+' '+g.name+(role!=='solo'?' 👥':'');
   showMsg(g.ic+' '+g.name+(g.tip?' — '+g.tip:''),4000);
-  if(g.enter) g.enter();
+  if(g.enter) g.enter(role);
 }
 function updateMini(dt){ if(MINI.cur&&MINI.cur.update) MINI.cur.update(dt); }
 function miniOver(title,statsHtml){
@@ -5726,8 +5753,9 @@ function miniOver(title,statsHtml){
 function miniExit(){
   if(MINI.cur&&MINI.cur.exit){ try{ MINI.cur.exit(); }catch(e){} }
   MINI.cur=null;
+  if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; net.conn=null; net.remoteAvatar=null; net.mAv=null; MINI.role='solo';
   if(document.pointerLockElement) document.exitPointerLock();
-  mEl('mHud').classList.add('hidden'); mEl('mOver').classList.add('hidden');
+  mEl('mHud').classList.add('hidden'); mEl('mOver').classList.add('hidden'); const mc=mEl('miniCoop'); if(mc) mc.classList.add('hidden');
   const c=mCenter(); if(c) c.innerHTML='';
   mEl('topbar').style.display=''; mEl('danger').style.display='';
   mEl('minimap').style.display = minimapOn?'block':'none';
@@ -6766,6 +6794,97 @@ miniRegister('voo',{
   onClick(){}, onKey(){}, exit(){ this.s=null; }
 });
 
+// 👥 ====== CO-OP GENÉRICO PROS MINIGAMES (menu + Caça-Fantasmas) ======
+const mc={ key:null };
+function mcInfo(h){ const e=mEl('mcInfo'); if(e) e.innerHTML=h; }
+function mcOpen(key){ const g=MINI.games[key]; if(!g) return;
+  if(!g.coop){ miniStart(key,'solo'); return; }
+  mc.key=key; mEl('mcTitle').innerHTML=g.ic+' '+g.name; mEl('mcDesc').textContent=g.coopDesc||'Jogue sozinho ou chame um amigo pra jogar junto online.';
+  mEl('mcPanel').style.display='none'; mEl('mcJoinRow').style.display='none'; mcInfo('');
+  mEl('modes').classList.add('hidden'); mEl('miniCoop').classList.remove('hidden');
+}
+function mcHost(){ if(typeof Peer==='undefined'){ mcInfo('❌ Rede indisponível (precisa de internet).'); return; }
+  try{ leaveLobby(); }catch(e){} if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.nick=sanitizeNick(mEl('mcNick').value); net.role='host'; mcInfo('Criando sala...');
+  const code=genCode(); net.peer=new Peer('jds-'+code, PEER_OPTS); try{ wireVoice(); }catch(e){}
+  net.peer.on('open', ()=>{ net.id=code; mcInfo('Sala criada! Código: <code>'+code+'</code><br>Envie ao amigo e aguarde...'); });
+  net.peer.on('connection', conn=>{ wireConn(conn); conn.on('open', ()=>{ mcInfo('✅ Amigo entrou! Começando...'); netSend({t:'mini_begin', key:mc.key}); try{ startVoiceCall(conn.peer); }catch(e){} miniStart(mc.key,'host'); }); });
+  net.peer.on('error', e=>{ if(e.type==='unavailable-id'){ try{net.peer.destroy();}catch(_){} mcHost(); return; } mcInfo('❌ Erro: '+e.type); });
+}
+function mcConnect(){ const code=mEl('mcCode').value.trim().toUpperCase(); if(code.length!==5){ mcInfo('O código tem 5 caracteres.'); return; }
+  if(typeof Peer==='undefined'){ mcInfo('❌ Rede indisponível.'); return; }
+  try{ leaveLobby(); }catch(e){} if(net.peer){ try{net.peer.destroy();}catch(e){} }
+  net.nick=sanitizeNick(mEl('mcNick').value); net.role='client'; mcInfo('Conectando...');
+  net.peer=new Peer(undefined, PEER_OPTS); try{ wireVoice(); }catch(e){}
+  net.peer.on('open', ()=>{ const conn=net.peer.connect('jds-'+code,{reliable:true}); wireConn(conn); conn.on('open', ()=>mcInfo('✅ Conectado! Aguardando o host começar...')); });
+  net.peer.on('error', e=>mcInfo('❌ Erro: '+e.type+' (código certo?)'));
+}
+
+// 👻 CAÇA-FANTASMAS com CO-OP — dois caçadores na mesma mansão, placar e vidas compartilhados
+miniRegister('fantasma',{
+  name:'Caça-Fantasmas', ic:'👻', coop:true, coopDesc:'Cacem fantasmas juntos na mansão! Capturas e vidas compartilhadas.',
+  tip:'W/S/A/D anda · ←→ giram · clique no fantasma pra capturar. Não deixe encostar em você!',
+  enter(role){ scene.background=new THREE.Color(0x0a0812); scene.fog=new THREE.FogExp2(0x0a0812,0.05);
+    scene.add(new THREE.HemisphereLight(0x4a4a66,0x12101a,0.9)); const lamp=new THREE.PointLight(0xffe0b0,0.8,20); lamp.position.set(0,6,0); scene.add(lamp);
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(44,44), new THREE.MeshStandardMaterial({color:0x2a2230,roughness:1})); fl.rotation.x=-Math.PI/2; scene.add(fl);
+    const s=this.s={ x:0,y:1.6,z:0,yaw:0, lives:3, captured:0, goal:12, over:false, ghosts:[], rg:{}, spawnT:0.5, hurtCool:0, gid:1, netT:0 };
+    this.walls=[]; const R=20; const mkWall=(x,z,w,d)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,5,d), new THREE.MeshStandardMaterial({color:0x4a3f55,roughness:0.9})); m.position.set(x,2.5,z); scene.add(m); this.walls.push({x,z,w,d}); };
+    mkWall(0,-R,2*R,1); mkWall(0,R,2*R,1); mkWall(-R,0,1,2*R); mkWall(R,0,1,2*R);
+    for(const [x,z,w,d] of [[-8,-6,10,1],[8,6,10,1],[-6,8,1,8],[6,-8,1,8],[0,0,1,10],[-12,4,8,1]]) mkWall(x,z,w,d);
+    // móveis decorativos DETERMINÍSTICOS (iguais nos 2 jogadores)
+    const fp=[[-15,-15],[14,-12],[-12,14],[16,8],[-4,-16],[8,16],[-16,2],[12,0],[2,12],[-9,9]];
+    for(const [fx,fz] of fp){ const f=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,1.4), new THREE.MeshStandardMaterial({color:0x5a4a3a,roughness:0.9})); f.position.set(fx,0.7,fz); scene.add(f); }
+    // posições iniciais distintas no co-op
+    if(role==='client'){ s.x=4; s.z=2; } else if(role==='host'){ s.x=-4; s.z=-2; }
+    if(role!=='solo'){ createRemoteAvatar(); }
+    this.hud();
+  },
+  spawn(){ const s=this.s; const id=s.gid++; const ic=Math.random()<0.5?'👻':'👹'; const sp=emojiSprite(ic,1.6);
+    const gx=-17+Math.random()*34, gz=-17+Math.random()*34; sp.position.set(gx,1.4+Math.random()*1.5,gz); scene.add(sp);
+    const g={id, sp, ic, vx:(Math.random()-0.5), vz:(Math.random()-0.5), chase:Math.random()<0.5, done:false}; sp.userData.__cl={gid:id}; s.ghosts.push(g); },
+  capture(g){ const s=this.s; if(!g||g.done)return; g.done=true; s.captured++; tone(720,0.08,'sine',0.1); setTimeout(()=>tone(1040,0.08,'sine',0.1),70); mFlash('good');
+    scene.remove(g.sp); g.sp=null; s.ghosts=s.ghosts.filter(x=>x!==g);
+    if(s.captured>=s.goal){ s.over=true; this.endAll('🏆 Mansão limpa!','Vocês capturaram todos os '+s.goal+' fantasmas!'); } this.hud(); },
+  hurt(){ const s=this.s; if(s.hurtCool>0)return; s.hurtCool=1.5; s.lives--; tone(120,0.4,'sawtooth',0.16); mFlash('bad'); showMsg('👻 Um fantasma assustou alguém!',1100);
+    if(s.lives<=0){ s.over=true; this.endAll('💀 Os fantasmas venceram','Capturados: '+s.captured+' de '+s.goal); } this.hud(); },
+  endAll(t,st){ if(MINI.role==='host') netSend({t:'m_over', t1:t, st}); miniOver(t,st); },
+  collide(nx,nz){ for(const w of this.walls){ if(Math.abs(nx-w.x)<w.w/2+0.5 && Math.abs(nz-w.z)<w.d/2+0.5) return true; } return Math.abs(nx)>19.5||Math.abs(nz)>19.5; },
+  moveSelf(dt){ const s=this.s; if(keys['ArrowLeft'])s.yaw+=2.0*dt; if(keys['ArrowRight'])s.yaw-=2.0*dt;
+    const fwd={x:-Math.sin(s.yaw),z:-Math.cos(s.yaw)}, rgt={x:Math.cos(s.yaw),z:-Math.sin(s.yaw)};
+    let mx=0,mz=0; if(keys['KeyW']){mx+=fwd.x;mz+=fwd.z;} if(keys['KeyS']){mx-=fwd.x;mz-=fwd.z;} if(keys['KeyD']){mx+=rgt.x;mz+=rgt.z;} if(keys['KeyA']){mx-=rgt.x;mz-=rgt.z;}
+    const ml=Math.hypot(mx,mz); if(ml>0){ mx/=ml; mz/=ml; const sp=5.0; const nx=s.x+mx*sp*dt, nz=s.z+mz*sp*dt; if(!this.collide(nx,s.z))s.x=nx; if(!this.collide(s.x,nz))s.z=nz; }
+    camera.position.set(s.x,s.y,s.z); camera.rotation.order='YXZ'; camera.rotation.y=s.yaw; camera.rotation.x=0; camera.rotation.z=0; },
+  drawRemote(){ const a=net.remoteAvatar, r=net.mAv; if(!a||!r)return; a.visible=true; a.position.set(r.x,0,r.z); a.rotation.set(0,(r.yaw||0)+Math.PI,0); },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo';
+    if(s.hurtCool>0)s.hurtCool-=dt;
+    this.moveSelf(dt);
+    if(role!=='solo'){ this.drawRemote(); s.netT-=dt; if(s.netT<=0){ s.netT=0.05; netSend({t:'m_av', x:+s.x.toFixed(2), z:+s.z.toFixed(2), yaw:+s.yaw.toFixed(2)}); } }
+    if(role==='client'){ this.hud(); return; }   // cliente não roda lógica de fantasmas (host autoritativo)
+    // HOST/SOLO: roda os fantasmas
+    s.spawnT-=dt; if(s.spawnT<=0 && s.ghosts.length<6){ s.spawnT=1.2+Math.random(); this.spawn(); }
+    const tgts=[{x:s.x,z:s.z}]; if(role==='host'&&net.mAv) tgts.push({x:net.mAv.x,z:net.mAv.z});
+    for(const g of s.ghosts){ if(!g.sp)continue; let dx,dz;
+      if(g.chase){ let best=tgts[0],bd=1e9; for(const t of tgts){ const d=Math.hypot(t.x-g.sp.position.x,t.z-g.sp.position.z); if(d<bd){bd=d;best=t;} } dx=best.x-g.sp.position.x; dz=best.z-g.sp.position.z; const d=Math.hypot(dx,dz)||1; dx/=d; dz/=d; }
+      else { dx=g.vx; dz=g.vz; if(Math.random()<0.02){ g.vx=(Math.random()-0.5); g.vz=(Math.random()-0.5); } }
+      const gs=g.chase?2.2:1.4; g.sp.position.x+=dx*gs*dt; g.sp.position.z+=dz*gs*dt; g.sp.position.x=Math.max(-19,Math.min(19,g.sp.position.x)); g.sp.position.z=Math.max(-19,Math.min(19,g.sp.position.z));
+      for(const t of tgts){ if(Math.hypot(g.sp.position.x-t.x, g.sp.position.z-t.z)<1.3){ this.hurt(); break; } } }
+    if(role==='host'){ s.netT2=(s.netT2||0)-dt; if(s.netT2<=0){ s.netT2=0.08; netSend({t:'m_gh', g:s.ghosts.filter(x=>x.sp).map(x=>({i:x.id,e:x.ic,x:+x.sp.position.x.toFixed(2),y:+x.sp.position.y.toFixed(2),z:+x.sp.position.z.toFixed(2)})), c:s.captured, l:s.lives, o:s.goal}); } }
+    this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_av'){ net.mAv={x:d.x,z:d.z,yaw:d.yaw}; }
+    else if(d.t==='m_cap'){ if(MINI.role==='host'){ const g=s.ghosts.find(x=>x.id===d.i); if(g) this.capture(g); } }
+    else if(d.t==='m_gh'){ if(MINI.role==='client'){ s.captured=d.c; s.lives=d.l; s.goal=d.o; const seen={};
+        for(const gg of d.g){ seen[gg.i]=1; let sp=s.rg[gg.i]; if(!sp){ sp=emojiSprite(gg.e,1.6); sp.userData.__cl={gid:gg.i}; scene.add(sp); s.rg[gg.i]=sp; } sp.position.set(gg.x,gg.y,gg.z); }
+        for(const id in s.rg){ if(!seen[id]){ scene.remove(s.rg[id]); delete s.rg[id]; } } this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim', d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>👻 <b>'+s.captured+'</b>/'+s.goal+'</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥 co-op</span>':''));
+    mRule('🔦 Ande pela mansão (W/S/A/D · ←→) e clique nos fantasmas pra capturá-los. Fujam dos que perseguem!'); },
+  onClick(x,y){ const s=this.s; const role=MINI.role||'solo';
+    if(role==='client'){ const list=Object.keys(s.rg).map(id=>({obj:s.rg[id]})); const cl=ui3dPick(x,y,list); if(cl&&cl.gid!=null) netSend({t:'m_cap', i:cl.gid}); }
+    else { const cl=ui3dPick(x,y,s.ghosts.map(g=>({obj:g.sp}))); if(cl&&cl.gid!=null){ const g=s.ghosts.find(x=>x.id===cl.gid); if(g) this.capture(g); } } },
+  onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
@@ -6881,11 +7000,18 @@ document.getElementById('aAgain').onclick=()=>agStart(ag.key);
 document.getElementById('aOverMenu').onclick=agExit;
 // minigames (framework)
 [['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo']].forEach(([k,cap])=>{
-  const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>miniStart(k);
+  const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>mcOpen(k);
 });
 document.getElementById('mExit').onclick=miniExit;
-document.getElementById('mAgain').onclick=()=>miniStart(MINI.key);
+document.getElementById('mAgain').onclick=()=>miniStart(MINI.key, MINI.role||'solo');
 document.getElementById('mOverMenu').onclick=miniExit;
+// menu genérico de co-op
+document.getElementById('mcSolo').onclick=()=>miniStart(mc.key,'solo');
+document.getElementById('mcCoop').onclick=()=>{ document.getElementById('mcPanel').style.display='block'; };
+document.getElementById('mcHost').onclick=mcHost;
+document.getElementById('mcJoin').onclick=()=>{ document.getElementById('mcJoinRow').style.display='flex'; mcInfo('Digite o código do amigo e clique Conectar.'); };
+document.getElementById('mcConnect').onclick=mcConnect;
+document.getElementById('mcBack').onclick=()=>{ if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } net.role='solo'; document.getElementById('miniCoop').classList.add('hidden'); document.getElementById('modes').classList.remove('hidden'); };
 document.getElementById('pzAgain').onclick=pzStart;
 document.getElementById('pzOverMenu').onclick=pzExit;
 // menu Sobrevivência
