@@ -6988,7 +6988,7 @@ miniRegister('estrada',{
   enter(role){ scene.background=new THREE.Color(0x1a2030); scene.fog=new THREE.FogExp2(0x1a2030,0.012);
     scene.add(new THREE.HemisphereLight(0xbcd0ff,0x223018,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.7); sun.position.set(10,16,8); scene.add(sun);
     const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120), new THREE.MeshStandardMaterial({color:0x33333a,roughness:0.95})); ground.rotation.x=-Math.PI/2; scene.add(ground);
-    const s=this.s={ x:0,z:0,yaw:0,vel:0, lives:3, deliveries:0, over:false, dest:{x:14,z:14}, crashCool:0, netT:0, traf:[] };
+    const s=this.s={ x:0,z:0,yaw:0,vel:0, lives:3, deliveries:0, over:false, dest:{x:7,z:7}, crashCool:0, netT:0, traf:[] };
     this.buildings=[]; const RS=14, BS=8;
     // prédios determinísticos (alturas/cores fixas p/ os 2 verem igual)
     let bi=0; for(let bx=-2;bx<=2;bx++)for(let bz=-2;bz<=2;bz++){ if(bx===0&&bz===0)continue; const cx=bx*RS, cz=bz*RS;
@@ -7010,11 +7010,13 @@ miniRegister('estrada',{
     // posições iniciais distintas
     if(role==='client'){ s.x=3; } else if(role==='host'){ s.x=-3; }
     this.flag=emojiSprite('🏁',1.6); scene.add(this.flag); this.flag.position.set(s.dest.x,1.6,s.dest.z);
+    this.beam=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,40,14,1,true), new THREE.MeshBasicMaterial({color:0x4dff9a,transparent:true,opacity:0.22,side:THREE.DoubleSide,depthWrite:false}));
+    this.beam.position.set(s.dest.x,20,s.dest.z); scene.add(this.beam);
     if(role!=='client') this.newDest();
     this.hud();
   },
-  newDest(){ const s=this.s; const RS=14; const opts=[-2,-1,1,2]; let dx,dz; do{ dx=opts[(Math.random()*4)|0]*RS; dz=opts[(Math.random()*4)|0]*RS; }while(Math.hypot(dx-s.x,dz-s.z)<18);
-    s.dest={x:dx,z:dz}; this.flag.position.set(dx,1.6,dz); if(MINI.role==='host') netSend({t:'m_st',lv:s.lives,dl:s.deliveries,dx,dz}); },
+  newDest(){ const s=this.s; const opts=[-21,-7,7,21]; let dx,dz; do{ dx=opts[(Math.random()*4)|0]; dz=opts[(Math.random()*4)|0]; }while(Math.hypot(dx-s.x,dz-s.z)<16);
+    s.dest={x:dx,z:dz}; this.flag.position.set(dx,1.6,dz); if(this.beam)this.beam.position.set(dx,20,dz); if(MINI.role==='host') netSend({t:'m_st',lv:s.lives,dl:s.deliveries,dx,dz}); },
   crashLocal(){ const s=this.s; if(s.crashCool>0)return; s.crashCool=1.2; s.vel=-s.vel*0.3; tone(120,0.3,'sawtooth',0.16); mFlash('bad'); showMsg('💥 Batida!',900);
     if(MINI.role==='client'){ netSend({t:'m_crash'}); } else { this.applyCrash(); } },
   applyCrash(){ const s=this.s; s.lives--; if(s.lives<=0){ s.over=true; const t='🚗💥 Carros destruídos!', st='Entregas: <b>'+s.deliveries+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); } else if(MINI.role==='host'){ netSend({t:'m_st',lv:s.lives,dl:s.deliveries,dx:s.dest.x,dz:s.dest.z}); } this.hud(); },
@@ -7039,13 +7041,15 @@ miniRegister('estrada',{
     // destino (host autoritativo; checa os 2 jogadores)
     if(role!=='client'){ const reach=(px,pz)=>Math.hypot(px-s.dest.x,pz-s.dest.z)<3.5;
       if(reach(s.x,s.z) || (role==='host'&&net.mAv&&reach(net.mAv.x,net.mAv.z))){ s.deliveries++; tone(880,0.12,'sine',0.12); setTimeout(()=>tone(1180,0.12,'sine',0.1),100); mFlash('good'); showMsg('🏁 Chegou! Nova entrega',1100); this.newDest(); } }
+    if(this.beam) this.beam.material.opacity=0.16+0.1*Math.sin(performance.now()*0.005);
+    if(this.flag) this.flag.position.y=1.6+Math.sin(performance.now()*0.004)*0.25;
     const cd=7,ch=7.5, _tx=s.x+Math.sin(s.yaw)*cd, _tz=s.z+Math.cos(s.yaw)*cd, _k=Math.min(1,dt*3.2);
     camera.position.x+=(_tx-camera.position.x)*_k; camera.position.y+=(ch-camera.position.y)*_k; camera.position.z+=(_tz-camera.position.z)*_k; camera.lookAt(s.x,0.8,s.z); camera.rotation.z=0; this.hud(); },
   onNet(d){ const s=this.s; if(!s)return;
     if(d.t==='m_av'){ net.mAv={x:d.x,z:d.z,yaw:d.yaw}; }
     else if(d.t==='m_crash'){ if(MINI.role==='host') this.applyCrash(); }
     else if(d.t==='m_traf'){ if(MINI.role==='client'){ d.a.forEach((t,i)=>{ const car=this.trafMesh[i]||this.mkTraf(i); car.position.set(t.x,0,t.z); car.rotation.y=t.r; }); } }
-    else if(d.t==='m_st'){ if(MINI.role==='client'){ s.lives=d.lv; s.deliveries=d.dl; s.dest={x:d.dx,z:d.dz}; this.flag.position.set(d.dx,1.6,d.dz); this.hud(); } }
+    else if(d.t==='m_st'){ if(MINI.role==='client'){ s.lives=d.lv; s.deliveries=d.dl; s.dest={x:d.dx,z:d.dz}; this.flag.position.set(d.dx,1.6,d.dz); if(this.beam)this.beam.position.set(d.dx,20,d.dz); this.hud(); } }
     else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
   hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>📦 Entregas <b>'+s.deliveries+'</b></span><span>🏎️ '+Math.round(Math.abs(s.vel)*8)+' km/h</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥 co-op</span>':''));
     mRule('🛣️ Dirijam até a 🏁 sem bater! ↑ acelera · ↓ freia · ←→ esterça'); },
@@ -7576,10 +7580,12 @@ miniRegister('parkour',{
     scene.add(new THREE.HemisphereLight(0xaac0ff,0x202840,1.4)); const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.position.set(6,14,6); scene.add(sun);
     const s=this.s={ pos:{x:0,y:1.4,z:0}, vy:0, yaw:Math.PI, onGround:true, plats:[], over:false, time:0, cp:{x:0,y:1.4,z:0}, deaths:0, netT:0 };
     PK_PLATS.forEach((p,i)=>{ const goal=i===PK_PLATS.length-1; const m=new THREE.Mesh(new THREE.BoxGeometry(p[3],0.6,p[4]), new THREE.MeshStandardMaterial({color:goal?0x32ff9a:0x5a6acd,roughness:0.7,emissive:goal?0x0a4a2a:0x000000}));
-      m.position.set(p[0],p[1],p[2]); scene.add(m); s.plats.push({x:p[0],y:p[1]+0.3,z:p[2],w:p[3],d:p[4],goal}); if(goal){ const fl=makeNameSprite(); fl.scale.set(1.6,1.6,1); setSpriteText(fl,'🏁'); fl.position.set(p[0],p[1]+1.4,p[2]); scene.add(fl); } });
+      m.position.set(p[0],p[1],p[2]); scene.add(m); s.plats.push({x:p[0],y:p[1]+0.3,z:p[2],w:p[3],d:p[4],goal}); if(goal){ const fl=makeNameSprite(); fl.scale.set(1.6,1.6,1); setSpriteText(fl,'🏁'); fl.position.set(p[0],p[1]+1.4,p[2]); scene.add(fl);
+      this.beam=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,40,14,1,true), new THREE.MeshBasicMaterial({color:0x4dff9a,transparent:true,opacity:0.22,side:THREE.DoubleSide,depthWrite:false})); this.beam.position.set(p[0],p[1]+20,p[2]); scene.add(this.beam); } });
     if(role!=='solo'){ this.partner=mPartner('🧍'); }
     this.hud(); },
   update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; s.time+=dt;
+    if(this.beam) this.beam.material.opacity=0.16+0.1*Math.sin(performance.now()*0.005);
     if(keys['ArrowLeft'])s.yaw+=2.2*dt; if(keys['ArrowRight'])s.yaw-=2.2*dt;
     const fwd={x:-Math.sin(s.yaw),z:-Math.cos(s.yaw)}, rgt={x:Math.cos(s.yaw),z:-Math.sin(s.yaw)};
     let mx=0,mz=0; if(keys['KeyW']){mx+=fwd.x;mz+=fwd.z;} if(keys['KeyS']){mx-=fwd.x;mz-=fwd.z;} if(keys['KeyD']){mx+=rgt.x;mz+=rgt.z;} if(keys['KeyA']){mx-=rgt.x;mz-=rgt.z;}
@@ -7611,11 +7617,13 @@ miniRegister('voo',{
     for(let i=0;i<30;i++){ const c=emojiSprite('☁️',7); c.position.set((i*53%300)-150, 20+((i*31)%40), -((i*97)%900)); scene.add(c); }
     this.dest=emojiSprite('🌍',16); this.dest.position.set(0,40,-940); scene.add(this.dest);
     this.runway=new THREE.Mesh(new THREE.BoxGeometry(20,0.5,80),new THREE.MeshStandardMaterial({color:0x333,roughness:0.9})); this.runway.position.set(0,0.3,-940); scene.add(this.runway);
+    this.beam=new THREE.Mesh(new THREE.CylinderGeometry(3,3,120,16,1,true), new THREE.MeshBasicMaterial({color:0x4dff9a,transparent:true,opacity:0.18,side:THREE.DoubleSide,depthWrite:false})); this.beam.position.set(0,60,-940); scene.add(this.beam);
     this.plane=new THREE.Group(); const body=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,5,10),new THREE.MeshStandardMaterial({color:0xeeeeee,roughness:0.4})); body.rotation.x=Math.PI/2; this.plane.add(body);
     const wing=new THREE.Mesh(new THREE.BoxGeometry(7,0.3,1.4),new THREE.MeshStandardMaterial({color:0xccccdd})); this.plane.add(wing); scene.add(this.plane);
     if(role!=='solo'){ this.partner=mPartner('✈️'); } this.hud(); },
   crash(msg){ const s=this.s; if(s.over)return; s.over=true; tone(90,0.6,'sawtooth',0.2); mFlash('bad'); const st='Distância: <b>'+Math.round(900-s.dist)+'</b>/900 km'; if(MINI.role&&MINI.role!=='solo')netSend({t:'m_fin'}); miniOver('💥 '+msg,st); },
   update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo';
+    if(this.beam) this.beam.material.opacity=0.13+0.08*Math.sin(performance.now()*0.005);
     if(keys['ArrowLeft'])s.yaw+=0.7*dt; if(keys['ArrowRight'])s.yaw-=0.7*dt;
     if(keys['ArrowUp']||keys['KeyW'])s.pitch=Math.min(0.5,s.pitch+0.8*dt); else if(keys['ArrowDown']||keys['KeyS'])s.pitch=Math.max(-0.5,s.pitch-0.8*dt); else s.pitch*=(1-1.5*dt);
     const fx=-Math.sin(s.yaw)*Math.cos(s.pitch), fz=-Math.cos(s.yaw)*Math.cos(s.pitch), fy=Math.sin(s.pitch);
