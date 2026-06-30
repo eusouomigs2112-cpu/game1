@@ -5778,6 +5778,7 @@ function mFlash(k){ const f=mEl('mFlash'); if(!f)return; f.className=k; setTimeo
 function mLives(n){ return '❤️'.repeat(Math.max(0,n))+'🖤'.repeat(Math.max(0,3-n)); }
 function miniStart(key, role){
   role=role||'solo';
+  if(document.pointerLockElement){ try{ document.exitPointerLock(); }catch(e){} } lookMode=false;   // minijogos: mouse sempre livre
   if(role==='solo'){ net.role='solo'; if(net.peer){ try{net.peer.destroy();}catch(e){} net.peer=null; } } else { net.role=role; }
   spectator=false; const g=MINI.games[key]; if(!g) return; MINI.cur=g; MINI.key=key; MINI.role=role; MINI.netT=0;
   ['modes','start','device','mOver','death','win','miniCoop'].forEach(id=>{const el=mEl(id); if(el) el.classList.add('hidden');});
@@ -6737,7 +6738,7 @@ miniRegister('estrada',{
   update(dt){ const s=this.s; if(!s||s.over)return; if(s.crashCool>0)s.crashCool-=dt; s.time+=dt;
     const accel=16,maxV=22; if(keys['ArrowUp']||keys['KeyW'])s.vel+=accel*dt; if(keys['ArrowDown']||keys['KeyS'])s.vel-=accel*dt;
     s.vel*=(1-0.7*dt); s.vel=Math.max(-maxV/2,Math.min(maxV,s.vel));
-    const steer=2.2; if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA'])s.yaw+=steer*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD'])s.yaw-=steer*dt*(s.vel>0?1:-1); }
+    const steer=1.5; if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA'])s.yaw+=steer*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD'])s.yaw-=steer*dt*(s.vel>0?1:-1); }
     const nx=s.x-Math.sin(s.yaw)*s.vel*dt, nz=s.z-Math.cos(s.yaw)*s.vel*dt;
     // colisão com prédios
     let hit=false; for(const b of this.buildings){ if(Math.abs(nx-b.x)<b.half+0.9 && Math.abs(nz-b.z)<b.half+0.9){ hit=true; break; } }
@@ -6751,7 +6752,8 @@ miniRegister('estrada',{
     // destino
     if(Math.hypot(s.x-s.dest.x,s.z-s.dest.z)<3.5){ s.deliveries++; tone(880,0.12,'sine',0.12); setTimeout(()=>tone(1180,0.12,'sine',0.1),100); mFlash('good'); showMsg('🏁 Chegou! Nova entrega',1100); this.newDest(); }
     // câmera atrás
-    const cd=8,ch=4.5; camera.position.set(s.x+Math.sin(s.yaw)*cd, ch, s.z+Math.cos(s.yaw)*cd); camera.lookAt(s.x,0.8,s.z); camera.rotation.z=0; this.hud(); },
+    const cd=8,ch=4.5, _tx=s.x+Math.sin(s.yaw)*cd, _tz=s.z+Math.cos(s.yaw)*cd, _k=Math.min(1,dt*6);
+    camera.position.x+=(_tx-camera.position.x)*_k; camera.position.y+=(ch-camera.position.y)*_k; camera.position.z+=(_tz-camera.position.z)*_k; camera.lookAt(s.x,0.8,s.z); camera.rotation.z=0; this.hud(); },
   hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>📦 Entregas <b>'+s.deliveries+'</b></span><span>🏎️ '+Math.round(Math.abs(s.vel)*8)+' km/h</span>');
     mRule('🛣️ Dirija até a 🏁 sem bater! ↑ acelera · ↓ freia · ←→ esterça'); },
   onClick(){}, onKey(){}, exit(){ this.s=null; }
@@ -6974,7 +6976,7 @@ miniRegister('estrada',{
   update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; if(s.crashCool>0)s.crashCool-=dt;
     const accel=16,maxV=22; if(keys['ArrowUp']||keys['KeyW'])s.vel+=accel*dt; if(keys['ArrowDown']||keys['KeyS'])s.vel-=accel*dt;
     s.vel*=(1-0.7*dt); s.vel=Math.max(-maxV/2,Math.min(maxV,s.vel));
-    const steer=2.2; if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA'])s.yaw+=steer*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD'])s.yaw-=steer*dt*(s.vel>0?1:-1); }
+    const steer=1.5; if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA'])s.yaw+=steer*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD'])s.yaw-=steer*dt*(s.vel>0?1:-1); }
     const nx=s.x-Math.sin(s.yaw)*s.vel*dt, nz=s.z-Math.cos(s.yaw)*s.vel*dt;
     let hit=false; for(const b of this.buildings){ if(Math.abs(nx-b.x)<b.half+0.9 && Math.abs(nz-b.z)<b.half+0.9){ hit=true; break; } }
     if(Math.abs(nx)>56||Math.abs(nz)>56) hit=true;
@@ -6992,7 +6994,8 @@ miniRegister('estrada',{
     // destino (host autoritativo; checa os 2 jogadores)
     if(role!=='client'){ const reach=(px,pz)=>Math.hypot(px-s.dest.x,pz-s.dest.z)<3.5;
       if(reach(s.x,s.z) || (role==='host'&&net.mAv&&reach(net.mAv.x,net.mAv.z))){ s.deliveries++; tone(880,0.12,'sine',0.12); setTimeout(()=>tone(1180,0.12,'sine',0.1),100); mFlash('good'); showMsg('🏁 Chegou! Nova entrega',1100); this.newDest(); } }
-    const cd=8,ch=4.5; camera.position.set(s.x+Math.sin(s.yaw)*cd, ch, s.z+Math.cos(s.yaw)*cd); camera.lookAt(s.x,0.8,s.z); camera.rotation.z=0; this.hud(); },
+    const cd=8,ch=4.5, _tx=s.x+Math.sin(s.yaw)*cd, _tz=s.z+Math.cos(s.yaw)*cd, _k=Math.min(1,dt*6);
+    camera.position.x+=(_tx-camera.position.x)*_k; camera.position.y+=(ch-camera.position.y)*_k; camera.position.z+=(_tz-camera.position.z)*_k; camera.lookAt(s.x,0.8,s.z); camera.rotation.z=0; this.hud(); },
   onNet(d){ const s=this.s; if(!s)return;
     if(d.t==='m_av'){ net.mAv={x:d.x,z:d.z,yaw:d.yaw}; }
     else if(d.t==='m_crash'){ if(MINI.role==='host') this.applyCrash(); }
@@ -7505,11 +7508,12 @@ miniRegister('kart',{
     this.hud(); },
   update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; s.time+=dt;
     const accel=14,maxV=20; if(keys['ArrowUp']||keys['KeyW'])s.vel+=accel*dt; if(keys['ArrowDown']||keys['KeyS'])s.vel-=accel*dt; s.vel*=(1-0.8*dt); s.vel=Math.max(-maxV/2,Math.min(maxV,s.vel));
-    if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA'])s.yaw+=2.0*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD'])s.yaw-=2.0*dt*(s.vel>0?1:-1); }
+    if(Math.abs(s.vel)>0.4){ if(keys['ArrowLeft']||keys['KeyA'])s.yaw+=1.5*dt*(s.vel>0?1:-1); if(keys['ArrowRight']||keys['KeyD'])s.yaw-=1.5*dt*(s.vel>0?1:-1); }
     s.x+=-Math.sin(s.yaw)*s.vel*dt; s.z+=-Math.cos(s.yaw)*s.vel*dt; this.car.position.set(s.x,0,s.z); this.car.rotation.y=s.yaw;
     const g=s.gates[s.cp]; if(g&&Math.hypot(s.x-g.x,s.z-g.z)<3.2){ s.cp++; tone(s.cp===1?880:600,0.1,'sine',0.1); if(s.cp>=s.gates.length){ s.cp=0; s.lap++; tone(990,0.2,'sine',0.12); showMsg('🏁 Volta '+s.lap+'/'+s.laps,1200); if(s.lap>=s.laps){ mFinish(this,'🏆 Corrida completa!',true); return; } } }
     if(role!=='solo'){ this.rcar&&net.mAv&&(this.rcar.visible=true,this.rcar.position.set(net.mAv.x,0,net.mAv.z),this.rcar.rotation.y=net.mAv.yaw||0); s.netT-=dt; if(s.netT<=0){ s.netT=0.05; netSend({t:'m_av',x:+s.x.toFixed(2),z:+s.z.toFixed(2),yaw:+s.yaw.toFixed(2)}); } }
-    const cd=7,ch=4; camera.position.set(s.x+Math.sin(s.yaw)*cd,ch,s.z+Math.cos(s.yaw)*cd); camera.lookAt(s.x,1,s.z); camera.rotation.z=0; this.hud(); },
+    const cd=7,ch=4, _tx=s.x+Math.sin(s.yaw)*cd, _tz=s.z+Math.cos(s.yaw)*cd, _k=Math.min(1,dt*6);
+    camera.position.x+=(_tx-camera.position.x)*_k; camera.position.y+=(ch-camera.position.y)*_k; camera.position.z+=(_tz-camera.position.z)*_k; camera.lookAt(s.x,1,s.z); camera.rotation.z=0; this.hud(); },
   onNet(d){ const s=this.s; if(!s)return; if(d.t==='m_av')net.mAv={x:d.x,z:d.z,yaw:d.yaw}; else if(d.t==='m_fin'){ if(!s.over){ s.over=true; miniOver('🏁 Corrida encerrada','O parceiro completou as 3 voltas primeiro!'); } } else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
   hud(){ const s=this.s; mStats('<span>🏁 Volta <b>'+Math.min(s.lap+1,s.laps)+'</b>/'+s.laps+'</span><span>🚩 CP '+s.cp+'/'+s.gates.length+'</span><span>🏎️ '+Math.round(Math.abs(s.vel)*8)+' km/h</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
     mRule('↑ acelera · ↓ freia · ←→ esterça · passem pelos portões na ordem'); },
