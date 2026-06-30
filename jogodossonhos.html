@@ -864,6 +864,17 @@
   <button class="ghost" id="mcBack" style="font-size:14px; margin-top:14px;">↩ Voltar</button>
 </div>
 
+<!-- Tela "Como jogar" (instruções de cada modo) -->
+<div id="howto" class="overlay hidden">
+  <div id="howtoIc" style="font-size:64px; line-height:1;">🎮</div>
+  <h1 id="howtoName" style="margin:6px 0;">Modo</h1>
+  <div id="howtoBody" style="max-width:560px; font-size:17px; line-height:1.7; margin:10px auto;"></div>
+  <div class="btnrow" style="margin-top:14px;">
+    <button id="howtoStart">▶ Começar</button>
+    <button id="howtoBack" class="ghost">↩ Voltar</button>
+  </div>
+</div>
+
 <!-- MENU da Pizzaria (Solo / Co-op) -->
 <div id="pizzaMenu" class="overlay hidden">
   <h1>🍕 Pizzaria</h1>
@@ -6847,10 +6858,44 @@ miniRegister('voo',{
 const mc={ key:null };
 function mcInfo(h){ const e=mEl('mcInfo'); if(e) e.innerHTML=h; }
 function mcStart(key, role){ if(mc.kind==='quiz') qStart(key, role); else miniStart(key, role); }
+// 📖 instruções claras por modo: [objetivo, como jogar]
+const INSTR={
+  bomba:['Desarme a bomba antes de explodir (20s)!','Leia a pista no rodapé e clique no fio certo.'],
+  hospital:['Mande cada paciente para a sala certa.','Clique na opção certa (ou use as teclas 1-4).'],
+  bagagem:['Libere os itens comuns e barre os perigosos.','Clique na mala para ABRIR, depois ✅ Liberar ou 🚫 Barrar.'],
+  voo:['Pilote o avião até o outro país e pouse.','↑/↓ sobe e desce · ←/→ vira · desça na pista 🏁.'],
+  imig:['Carimbe os passaportes válidos, negue os irregulares.','Clique no passaporte para abrir, depois 🟢 Carimbar ou 🔴 Negar.'],
+  tele:['Encaminhe cada cliente para o setor certo.','Clique na opção certa (ou use as teclas 1-4).'],
+  juiz:['Decida culpado ou inocente pelas provas.','Clique na opção certa (ou use as teclas 1-4).'],
+  defesa:['Derrube os inimigos do céu — poupe os aliados 🪂!','Clique (ou toque) nos aviões/helicópteros inimigos.'],
+  fantasma:['Capture os fantasmas da mansão sem deixar encostar.','W A S D anda · ←/→ giram · clique no fantasma para capturar.'],
+  ninja:['Corte as frutas no ar — cuidado com as bombas 💣!','Clique (ou toque) nas frutas que sobem.'],
+  pintor:['Pinte a SUA tela igual ao MODELO ao lado.','Clique numa cor da paleta, depois nas células.'],
+  lenhador:['Corte 200 árvores sem ser atingido pelos galhos!','Espaço/clique corta · A/D (ou ←/→) troca de lado.'],
+  silencio:['Silencie os barulhos — mas pare quando aparecer 👂 ESCUTANDO!','Clique nos barulhos. NÃO clique na fase de escuta.'],
+  ritual:['Memorize e repita a ordem em que as velas acendem.','Observe a sequência, depois clique nas velas na mesma ordem.'],
+  cameras:['Sobreviva à noite fechando a porta certa.','Clique na porta do lado do barulho ⚠️. A energia acaba!'],
+  pesadelo:['Sobreviva à paralisia do sono até amanhecer.','Clique nos vultos 👤 que se aproximam para afastá-los.'],
+  estrada:['Dirija pela cidade até a 🏁 sem bater nos prédios ou carros.','↑ acelera · ↓ freia · ←/→ esterça.'],
+  engenheiro:['Complete a ponte preenchendo os vãos de água.','Clique nos vãos de água 💧 (não desperdice na rocha 🪨).'],
+  prefeito:['Construa o que a cidade pede e alcance a felicidade.','Clique num terreno para pagar a obra ($). Os impostos geram renda.'],
+  parkour:['Pule pelas plataformas flutuantes até a 🏁.','W A S D anda · ←/→ giram · Espaço pula.'],
+  kart:['Complete 3 voltas passando pelos portões na ordem.','↑ acelera · ↓ freia · ←/→ esterça.'],
+  montanha:['Curta o passeio controlando a velocidade do carrinho.','↑/W acelera · ↓/S freia.'],
+};
+function showHowto(g, startFn){
+  mc._start=startFn;
+  mEl('howtoIc').textContent=g.ic; mEl('howtoName').textContent=g.name;
+  const ins=INSTR[mc.key];
+  let body = ins ? ('<div style="margin:6px 0"><b>🎯 Objetivo:</b><br>'+ins[0]+'</div><div style="margin:10px 0"><b>🎮 Como jogar:</b><br>'+ins[1]+'</div>') : ('<div>'+(g.tip||g.coopDesc||'')+'</div>');
+  mEl('howtoBody').innerHTML=body;
+  ['modes','miniCoop','start','device'].forEach(id=>{const e=mEl(id); if(e)e.classList.add('hidden');});
+  mEl('howto').classList.remove('hidden');
+}
 function mcOpen(key){ const mg=MINI.games[key], qg=(typeof QGAMES!=='undefined')?QGAMES[key]:null; const g=mg||qg; if(!g) return;
-  mc.kind = mg?'mini':'quiz'; const coop = mg?mg.coop:qg.coop;
-  if(!coop){ mcStart(key,'solo'); return; }
-  mc.key=key; mEl('mcTitle').innerHTML=g.ic+' '+g.name; mEl('mcDesc').textContent=(mg&&mg.coopDesc)||'Joguem juntos online — pontos e vidas compartilhados — ou sozinho.';
+  mc.kind = mg?'mini':'quiz'; mc.key=key; const coop = mg?mg.coop:qg.coop;
+  if(!coop){ showHowto(g, ()=>mcStart(key,'solo')); return; }
+  mEl('mcTitle').innerHTML=g.ic+' '+g.name; mEl('mcDesc').textContent=(mg&&mg.coopDesc)||'Joguem juntos online — pontos e vidas compartilhados — ou sozinho.';
   mEl('mcPanel').style.display='none'; mEl('mcJoinRow').style.display='none'; mcInfo('');
   mEl('modes').classList.add('hidden'); mEl('miniCoop').classList.remove('hidden');
 }
@@ -7732,7 +7777,9 @@ document.getElementById('mExit').onclick=miniExit;
 document.getElementById('mAgain').onclick=()=>miniStart(MINI.key, MINI.role||'solo');
 document.getElementById('mOverMenu').onclick=miniExit;
 // menu genérico de co-op
-document.getElementById('mcSolo').onclick=()=>mcStart(mc.key,'solo');
+document.getElementById('mcSolo').onclick=()=>{ const g=MINI.games[mc.key]||QGAMES[mc.key]; showHowto(g, ()=>mcStart(mc.key,'solo')); };
+document.getElementById('howtoStart').onclick=()=>{ document.getElementById('howto').classList.add('hidden'); if(mc._start) mc._start(); };
+document.getElementById('howtoBack').onclick=()=>{ document.getElementById('howto').classList.add('hidden'); document.getElementById('modes').classList.remove('hidden'); };
 document.getElementById('mcCoop').onclick=()=>{ document.getElementById('mcPanel').style.display='block'; };
 document.getElementById('mcHost').onclick=mcHost;
 document.getElementById('mcJoin').onclick=()=>{ document.getElementById('mcJoinRow').style.display='flex'; mcInfo('Digite o código do amigo e clique Conectar.'); };
