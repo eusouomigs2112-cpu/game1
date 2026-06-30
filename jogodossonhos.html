@@ -7084,6 +7084,135 @@ miniRegister('ninja', makeTargetMini({ name:'Ninja', ic:'🥷', bg:0x140a14, dur
   spawnOne(){ const bomb=Math.random()<0.22; const fr=['🍉','🍎','🍊','🍋','🥝','🍇'];
     return { emoji:bomb?'💣':fr[(Math.random()*fr.length)|0], good:!bomb, x:-5+Math.random()*10, y:-0.5, vx:(Math.random()-0.5)*2.2, vy:7.5+Math.random()*1.8 }; } }));
 
+// 💣📦🛂👥 ====== CO-OP: Bomba, Bagagem, Imigração (host gera, os dois resolvem) ======
+
+// 💣 BOMBA co-op
+miniRegister('bomba',{
+  name:'Bomba Relógio', ic:'🧨', coop:true, coopDesc:'Desarmem a bomba juntos! Qualquer um corta o fio — vidas compartilhadas.',
+  tip:'Leia a pista e corte o fio certo antes de explodir!',
+  enter(role){ mBooth(0x161015);
+    const box=new THREE.Mesh(new THREE.BoxGeometry(5,2.6,2.4), new THREE.MeshStandardMaterial({color:0x2a2a32,roughness:0.6,metalness:0.4})); box.position.set(0,1.5,-2); scene.add(box);
+    this.timerSpr=make3DText('20', 2.0, {fs:120, color:'#ff5544', cw:256, ch:128}); this.timerSpr.position.set(0,1.9,-0.7); scene.add(this.timerSpr);
+    this.wireGrp=new THREE.Group(); scene.add(this.wireGrp);
+    const s=this.s={ defused:0, lives:3, over:false, t:20, wires:[], correct:0, locked:false, clue:'', netT:0 };
+    if(role!=='client') this.newBomb(); this.hud();
+  },
+  renderWires(cols){ const s=this.s; for(const w of s.wires) this.wireGrp.remove(w.obj); s.wires=[]; const n=cols.length;
+    cols.forEach((ci,i)=>{ const col=BWIRES[ci]; const x=(i-(n-1)/2)*0.7; const g=new THREE.Group();
+      const wire=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,1.6,8), new THREE.MeshStandardMaterial({color:col[1],emissive:col[1],emissiveIntensity:0.4})); wire.position.y=0.8; g.add(wire);
+      const cap=new THREE.Mesh(new THREE.SphereGeometry(0.16,10,10), new THREE.MeshStandardMaterial({color:col[1],emissive:col[1],emissiveIntensity:0.6})); cap.position.y=1.7; g.add(cap);
+      g.position.set(x,2.8,-1.0); g.userData.__cl={wi:i}; this.wireGrp.add(g); s.wires.push({obj:g, ci, cut:false}); }); },
+  newBomb(){ const s=this.s; if(s.over)return; s.t=20; s.locked=false;
+    const n=3+((Math.random()*3)|0); const cols=[]; for(let i=0;i<n;i++) cols.push((Math.random()*BWIRES.length)|0);
+    const rules=[ ()=>({clue:'✂️ Corte o fio do <b>MEIO</b>', correct:(n/2)|0}), ()=>({clue:'✂️ Corte o <b>ÚLTIMO</b> fio (direita)', correct:n-1}), ()=>({clue:'✂️ Corte o <b>PRIMEIRO</b> fio (esquerda)', correct:0}),
+      ()=>{ const idx=(Math.random()*n)|0; for(let i=0;i<n;i++) if(cols[i]===0&&i!==idx) cols[i]=1; cols[idx]=0; return {clue:'✂️ Corte o fio 🔴 <b>VERMELHO</b>', correct:idx}; },
+      ()=>{ const idx=(Math.random()*n)|0; for(let i=0;i<n;i++) if(cols[i]===3&&i!==idx) cols[i]=2; cols[idx]=3; return {clue:'✂️ Corte o fio 🟡 <b>AMARELO</b>', correct:idx}; },
+      ()=>{ const idx=(Math.random()*n)|0; for(let i=0;i<n;i++) if(cols[i]===2&&i!==idx) cols[i]=5; cols[idx]=2; return {clue:'✂️ Corte o fio 🟢 <b>VERDE</b>', correct:idx}; } ];
+    const r=rules[(Math.random()*rules.length)|0](); s.correct=r.correct; s.clue=r.clue; this.renderWires(cols);
+    if(MINI.role==='host') netSend({t:'m_b', w:cols, c:r.clue, df:s.defused, lv:s.lives}); this.hud(); },
+  cut(i){ const s=this.s; if(s.over||s.locked)return; const w=s.wires[i]; if(!w||w.cut)return; w.cut=true; s.locked=true;
+    w.obj.children[0].scale.y=0.3; w.obj.children[0].position.y=0.3; w.obj.children[1].visible=false;
+    if(i===s.correct){ s.defused++; tone(660,0.1,'sine',0.12); setTimeout(()=>tone(990,0.12,'sine',0.1),90); mFlash('good'); showMsg('💣 Desarmada! +1',900); setTimeout(()=>{ if(this.s&&!this.s.over) this.newBomb(); },650); }
+    else { this.explode(); } this.hud(); },
+  explode(){ const s=this.s; s.lives--; tone(70,0.6,'sawtooth',0.2); mFlash('bad'); showMsg('💥 BOOM! Fio errado!',1500);
+    if(s.lives<=0){ s.over=true; const t='💥 A bomba explodiu!', st='Bombas desarmadas: <b>'+s.defused+'</b>'; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); }
+    else { s.locked=true; setTimeout(()=>{ if(this.s&&!this.s.over) this.newBomb(); },900); } },
+  update(dt){ const s=this.s; if(!s||s.over)return; const role=MINI.role||'solo'; camera.position.set(0,3.0,4.0); camera.lookAt(0,2.4,-2); camera.rotation.z=0;
+    if(role==='client'){ this.hud(); return; }
+    if(!s.locked){ s.t-=dt; if(s.t<=0) this.explode(); }
+    set3DText(this.timerSpr, Math.max(0,Math.ceil(s.t))+'');
+    if(role==='host'){ s.netT-=dt; if(s.netT<=0){ s.netT=0.25; netSend({t:'m_bt', tt:Math.max(0,Math.ceil(s.t)), df:s.defused, lv:s.lives}); } } this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_cut'){ if(MINI.role==='host') this.cut(d.i); }
+    else if(d.t==='m_b'){ if(MINI.role==='client'){ s.defused=d.df; s.lives=d.lv; s.clue=d.c; s.locked=false; this.renderWires(d.w); this.hud(); } }
+    else if(d.t==='m_bt'){ if(MINI.role==='client'){ s.t=d.tt; s.defused=d.df; s.lives=d.lv; set3DText(this.timerSpr, d.tt+''); this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>💣 <b>'+s.defused+'</b></span><span>⏱️ '+Math.max(0,Math.ceil(s.t))+'s</span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule((s.clue||'')+' &nbsp; — cliquem no fio certo!'); },
+  onClick(x,y){ const s=this.s; const role=MINI.role||'solo'; const cl=ui3dPick(x,y,s.wires.map(w=>({obj:w.obj}))); if(!cl||cl.wi==null)return;
+    if(role==='client') netSend({t:'m_cut',i:cl.wi}); else this.cut(cl.wi); },
+  onKey(){}, exit(){ this.s=null; }
+});
+
+// 📦 BAGAGEM co-op
+miniRegister('bagagem',{
+  name:'Inspetor de Bagagem', ic:'📦', coop:true, coopDesc:'Inspecionem as malas juntos! Qualquer um abre e decide — vidas compartilhadas.',
+  tip:'Clique pra ABRIR a mala, veja o item e decidam',
+  enter(role){ mBooth(0x101820);
+    const belt=new THREE.Mesh(new THREE.BoxGeometry(12,0.4,2.4), new THREE.MeshStandardMaterial({color:0x2a2a35,roughness:0.9})); belt.position.set(0,0.9,-2); scene.add(belt);
+    const s=this.s={ score:0, lives:3, over:false, phase:'closed', allow:false, item:'', count:0, netT:0 };
+    this.bag=new THREE.Group(); const base=new THREE.Mesh(new THREE.BoxGeometry(2.4,1.4,1.8), new THREE.MeshStandardMaterial({color:0x8a5a3a,roughness:0.7})); base.position.y=0.7; this.bag.add(base);
+    this.lid=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.3,1.8), new THREE.MeshStandardMaterial({color:0x6a4326,roughness:0.7})); this.lid.position.set(0,1.45,0); this.bag.add(this.lid);
+    this.bag.position.set(0,1.3,-2); this.bag.userData.__cl={bag:true}; scene.add(this.bag);
+    this.itemSpr=emojiSprite('',1.6); this.itemSpr.position.set(0,2.4,-2); this.itemSpr.visible=false; scene.add(this.itemSpr);
+    this.btnOk=make3DButton('✅ Liberar',2.2,0.9,0x2a8a4a); this.btnOk.position.set(-1.6,1.0,0.6); this.btnOk.userData.__cl={act:'ok'}; this.btnOk.visible=false; scene.add(this.btnOk);
+    this.btnNo=make3DButton('🚫 Barrar',2.2,0.9,0xb03a3a); this.btnNo.position.set(1.6,1.0,0.6); this.btnNo.userData.__cl={act:'no'}; this.btnNo.visible=false; scene.add(this.btnNo);
+    if(role!=='client') this.nextBag(); this.hud();
+  },
+  applyVis(){ const s=this.s; const open=s.phase==='open'; this.lid.position.y=open?1.7:1.45; this.lid.rotation.x=open?-1.0:0;
+    this.itemSpr.visible=open; if(open){ set3DText(this.itemSpr,s.item); } this.btnOk.visible=open; this.btnNo.visible=open; },
+  bcast(){ if(MINI.role==='host') netSend({t:'m_bg', ph:this.s.phase, it:this.s.item, sc:this.s.score, lv:this.s.lives}); },
+  nextBag(){ const s=this.s; if(s.over)return; s.phase='closed'; s.allow=Math.random()<0.5; s.item = s.allow ? BAG_OK[(Math.random()*BAG_OK.length)|0] : BAG_BAD[(Math.random()*BAG_BAD.length)|0]; this.applyVis(); this.bcast(); this.hud(); },
+  open(){ const s=this.s; if(s.phase!=='closed')return; s.phase='open'; tone(300,0.1,'square',0.1); this.applyVis(); this.bcast(); this.hud(); },
+  decide(act){ const s=this.s; if(s.phase!=='open')return; s.phase='done'; s.count++; const ok=(act==='ok')===s.allow;
+    if(ok){ s.score++; tone(720,0.08,'sine',0.1); mFlash('good'); } else { s.lives--; tone(150,0.3,'sawtooth',0.16); mFlash('bad'); showMsg(s.allow?'❌ Era item comum!':'❌ Era PERIGOSO!',1400); }
+    if(s.lives<=0){ s.over=true; const t='🛑 Vocês foram demitidos', st='Bagagens corretas: <b>'+s.score+'</b> de '+s.count; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    this.applyVis(); this.bcast(); setTimeout(()=>{ if(this.s&&!this.s.over) this.nextBag(); },700); this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; camera.position.set(0,2.6,3.4); camera.lookAt(0,1.6,-2); camera.rotation.z=0; this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_open'){ if(MINI.role==='host') this.open(); }
+    else if(d.t==='m_dec'){ if(MINI.role==='host') this.decide(d.a); }
+    else if(d.t==='m_bg'){ if(MINI.role==='client'){ s.phase=d.ph; s.item=d.it; s.score=d.sc; s.lives=d.lv; this.applyVis(); this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>✅ <b>'+s.score+'</b></span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule(s.phase==='closed'?'📦 Cliquem na mala pra ABRIR':'🤔 Item perigoso? ✅ Liberar ou 🚫 Barrar'); },
+  onClick(x,y){ const s=this.s; const role=MINI.role||'solo'; const cl=ui3dPick(x,y,[{obj:this.bag},{obj:this.btnOk},{obj:this.btnNo}]); if(!cl)return;
+    if(cl.bag){ if(role==='client')netSend({t:'m_open'}); else this.open(); }
+    else if(cl.act){ if(role==='client')netSend({t:'m_dec',a:cl.act}); else this.decide(cl.act); } },
+  onKey(){}, exit(){ this.s=null; }
+});
+
+// 🛂 IMIGRAÇÃO co-op
+miniRegister('imig',{
+  name:'Imigração', ic:'🛂', coop:true, coopDesc:'Confiram os passaportes juntos! Qualquer um abre e decide — vidas compartilhadas.',
+  tip:'Clique pra abrir o passaporte, confira os dados e decidam',
+  enter(role){ mBooth(0x141022);
+    const desk=new THREE.Mesh(new THREE.BoxGeometry(9,1.4,2),new THREE.MeshStandardMaterial({color:0x4a3a6a,roughness:0.7})); desk.position.set(0,0.7,-1.4); scene.add(desk);
+    const s=this.s={ score:0, lives:3, over:false, phase:'closed', valid:false, data:'', count:0 };
+    this.pass=new THREE.Group(); const cover=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.12,2.4), new THREE.MeshStandardMaterial({color:0x1a3a6a,roughness:0.6})); this.pass.add(cover);
+    const em=make3DText('🛂',0.9,{fs:120,cw:128,ch:128}); em.position.set(0,0.1,0); this.pass.add(em);
+    this.pass.position.set(0,1.5,-1.2); this.pass.userData.__cl={pass:true}; scene.add(this.pass);
+    this.dataSpr=make3DText('',4.5,{fs:38,cw:512,ch:340,bg:'rgba(245,245,235,.96)',color:'#1a1a2a'}); this.dataSpr.position.set(0,3.2,-2.2); this.dataSpr.visible=false; scene.add(this.dataSpr);
+    this.btnOk=make3DButton('🟢 Carimbar',2.4,0.9,0x2a8a4a); this.btnOk.position.set(-1.7,1.0,0.4); this.btnOk.userData.__cl={act:'ok'}; this.btnOk.visible=false; scene.add(this.btnOk);
+    this.btnNo=make3DButton('🔴 Negar',2.4,0.9,0xb03a3a); this.btnNo.position.set(1.7,1.0,0.4); this.btnNo.userData.__cl={act:'no'}; this.btnNo.visible=false; scene.add(this.btnNo);
+    this.NAMES=['Ana Silva','João Souza','Maria Lima','Carlos Dias','Yuki Tanaka','Tom Clark','Luca Rossi','Ravi Patel'];
+    if(role!=='client') this.nextPass(); this.hud();
+  },
+  applyVis(){ const s=this.s; const open=s.phase==='open'; if(open) set3DText(this.dataSpr,s.data); this.dataSpr.visible=open; this.btnOk.visible=open; this.btnNo.visible=open; },
+  bcast(){ if(MINI.role==='host') netSend({t:'m_ig', ph:this.s.phase, da:this.s.data, sc:this.s.score, lv:this.s.lives}); },
+  nextPass(){ const s=this.s; if(s.over)return; s.phase='closed'; const nm=this.NAMES[(Math.random()*this.NAMES.length)|0];
+    const validade=Math.random()<0.5?'2031 ✅':'2019 ❌'; const foto=Math.random()<0.5?'confere ✅':'NÃO confere ❌'; const visto=Math.random()<0.5?'válido ✅':'ausente ❌';
+    s.valid=validade.includes('✅')&&foto.includes('✅')&&visto.includes('✅');
+    s.data='🛂 PASSAPORTE\n\nNome: '+nm+'\nValidade: '+validade+'\nFoto: '+foto+'\nVisto: '+visto; this.applyVis(); this.bcast(); this.hud(); },
+  open(){ const s=this.s; if(s.phase!=='closed')return; s.phase='open'; tone(320,0.1,'square',0.1); this.applyVis(); this.bcast(); this.hud(); },
+  decide(act){ const s=this.s; if(s.phase!=='open')return; s.phase='done'; s.count++; const ok=(act==='ok')===s.valid;
+    if(ok){ s.score++; tone(720,0.08,'sine',0.1); mFlash('good'); } else { s.lives--; tone(150,0.3,'sawtooth',0.16); mFlash('bad'); showMsg(s.valid?'❌ Estava tudo certo!':'❌ Tinha irregularidade!',1500); }
+    if(s.lives<=0){ s.over=true; const t='🛑 Fim do plantão', st='Passaportes certos: <b>'+s.score+'</b> de '+s.count; if(MINI.role==='host')netSend({t:'m_over',t1:t,st}); miniOver(t,st); return; }
+    this.applyVis(); this.bcast(); setTimeout(()=>{ if(this.s&&!this.s.over) this.nextPass(); },700); this.hud(); },
+  update(dt){ const s=this.s; if(!s||s.over)return; camera.position.set(0,2.8,3.2); camera.lookAt(0,2.0,-2); camera.rotation.z=0; this.hud(); },
+  onNet(d){ const s=this.s; if(!s)return;
+    if(d.t==='m_open'){ if(MINI.role==='host') this.open(); }
+    else if(d.t==='m_dec'){ if(MINI.role==='host') this.decide(d.a); }
+    else if(d.t==='m_ig'){ if(MINI.role==='client'){ s.phase=d.ph; s.data=d.da; s.score=d.sc; s.lives=d.lv; this.applyVis(); this.hud(); } }
+    else if(d.t==='m_over'){ s.over=true; miniOver(d.t1||'Fim',d.st||''); } },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>✅ <b>'+s.score+'</b></span>'+(MINI.role&&MINI.role!=='solo'?'<span>👥</span>':''));
+    mRule(s.phase==='closed'?'🛂 Cliquem no passaporte pra abrir':'🤔 Tudo válido? 🟢 Carimbar — ou 🔴 Negar'); },
+  onClick(x,y){ const s=this.s; const role=MINI.role||'solo'; const cl=ui3dPick(x,y,[{obj:this.pass},{obj:this.btnOk},{obj:this.btnNo}]); if(!cl)return;
+    if(cl.pass){ if(role==='client')netSend({t:'m_open'}); else this.open(); }
+    else if(cl.act){ if(role==='client')netSend({t:'m_dec',a:cl.act}); else this.decide(cl.act); } },
+  onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
 document.getElementById('devPC').onclick=()=>chooseDevice('pc');
