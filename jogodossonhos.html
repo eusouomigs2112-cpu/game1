@@ -5564,12 +5564,12 @@ function qExit(){
 
 // 🎯 ====== MOTOR ARCADE (mira/clique): alvos 3D que você clica/toca a tempo ======
 const AGAMES={
-  defesa:{ name:'Defesa Antiaérea', ic:'🚁', bg:0x0a1424, dur:75, spawn:1.1,
-    rule:'Clique nos inimigos ✈️🚁 antes deles cruzarem o céu! NÃO atire nos 🪂 aliados.',
+  defesa:{ name:'Defesa Antiaérea', ic:'🚁', bg:0x0a1424, dur:75, spawn:0.45, burst:2,
+    rule:'Clique nos inimigos ✈️🚁🛩️ antes deles cruzarem o céu! NÃO atire nos 🪂 aliados.',
     motion:'cross',
-    spawnOne(a){ const enemy=Math.random()<0.78; const fromL=Math.random()<0.5;
-      return { emoji: enemy?(Math.random()<0.5?'✈️':'🚁'):'🪂', good:enemy, color:0,
-        x:fromL?-8.5:8.5, y:1+Math.random()*5.5, vx:(fromL?1:-1)*(2.4+Math.random()*1.8), vy:0, life:99 }; } },
+    spawnOne(a){ const enemy=Math.random()<0.82; const fromL=Math.random()<0.5; const ev=['✈️','🚁','🛩️'];
+      return { emoji: enemy?ev[(Math.random()*ev.length)|0]:'🪂', good:enemy, color:0,
+        x:fromL?-8.5:8.5, y:1+Math.random()*5.5, vx:(fromL?1:-1)*(2.6+Math.random()*2.2), vy:0, life:99 }; } },
   fantasma:{ name:'Caça-Fantasmas', ic:'👻', bg:0x080610, dur:70, spawn:1.0,
     rule:'Clique nos 👻 fantasmas antes deles sumirem! NÃO mire nos 🐱 gatinhos.',
     motion:'hover',
@@ -5642,7 +5642,7 @@ function updateArcade(dt){
   // meta dinâmica (pintor)
   if(ag.cfg.dynamic){ ag.goalT-=dt; if(ag.goalT<=0){ ag.goalT=6; ag.cfg.newGoal(ag); } }
   // spawn
-  ag.spawnT-=dt; if(ag.spawnT<=0){ ag.spawnT=ag.cfg.spawn*(0.7+Math.random()*0.6); agSpawn(); }
+  ag.spawnT-=dt; if(ag.spawnT<=0){ ag.spawnT=ag.cfg.spawn*(0.7+Math.random()*0.6); const nb=ag.cfg.burst||1; for(let i=0;i<nb;i++) agSpawn(); }
   // movimento
   const grav = ag.cfg.motion==='toss' ? 9.0 : 0;
   for(const it of ag.items){ if(!it.sp) continue; it.age+=dt;
@@ -5761,8 +5761,10 @@ miniRegister('lenhador',{
   chop(){ const s=this.s; if(s.over) return;
     const danger=s.logs[1]; if(danger && danger.branch===s.side){ this.die(); return; }
     const bot=s.logs.shift(); this.group.remove(bot.mesh);
-    this.addLog(); s.score++; s.time=Math.min(1, s.time+0.06);
-    tone(380,0.06,'square',0.12); for(const l of s.logs){} this.layout(); this.hud();
+    this.addLog(); s.score++; s.time=Math.min(1, s.time+0.05);
+    tone(380,0.06,'square',0.12); this.layout(); this.hud();
+    if(s.score>=200){ s.over=true; tone(880,0.2,'sine',0.14); setTimeout(()=>tone(1180,0.2,'sine',0.12),120);
+      miniOver('🏆 200 árvores cortadas!','Você é um lenhador lendário! 🪓<br>Tempo restante: <b>'+Math.round(s.time*100)+'%</b>'); }
   },
   setSide(side){ const s=this.s; if(s.over)return; s.side=side; this.layout();
     const danger=s.logs[1]; },
@@ -5771,8 +5773,8 @@ miniRegister('lenhador',{
   update(dt){ const s=this.s; if(!s||s.over) return; s.t+=dt;
     s.time-=dt*0.13; if(s.time<=0){ s.over=true; miniOver('⏱️ Tempo esgotado','Toras cortadas: <b>'+s.score+'</b>'); return; }
     this.hud(); },
-  hud(){ const s=this.s; mStats('<span>🪵 <b>'+s.score+'</b></span><span style="flex:1;min-width:120px">⏱️ <span style="display:inline-block;width:120px;height:8px;background:rgba(255,255,255,.15);border-radius:5px;vertical-align:middle"><span style="display:block;height:100%;width:'+Math.max(0,s.time*100)+'%;background:linear-gradient(90deg,#ffce5b,#ff7b5b);border-radius:5px"></span></span></span>');
-    mRule('🪓 <b>Espaço/Clique</b> corta · <b>A/D</b> ou clique nas laterais troca de lado'); },
+  hud(){ const s=this.s; mStats('<span>🌲 <b>'+s.score+'</b>/200</span><span style="flex:1;min-width:120px">⏱️ <span style="display:inline-block;width:120px;height:8px;background:rgba(255,255,255,.15);border-radius:5px;vertical-align:middle"><span style="display:block;height:100%;width:'+Math.max(0,s.time*100)+'%;background:linear-gradient(90deg,#ffce5b,#ff7b5b);border-radius:5px"></span></span></span>');
+    mRule('🪓 Corte <b>200 árvores</b>! <b>Espaço/Clique</b> corta · <b>A/D</b> troca de lado'); },
   onClick(x,y){ const s=this.s; if(s.over)return; const half=window.innerWidth/2; this.setSide(x<half?'L':'R'); this.chop(); },
   onKey(code){ const s=this.s; if(s.over)return;
     if(code==='KeyA'||code==='ArrowLeft'){ this.setSide('L'); }
@@ -6096,24 +6098,26 @@ miniRegister('montanha',{
     const tube2=new THREE.Mesh(new THREE.TubeGeometry(curve,200,0.2,6,true), new THREE.MeshStandardMaterial({color:0xffffff})); scene.add(tube2);
     // pilares
     for(let i=0;i<40;i++){ const p=curve.getPointAt(i/40); if(p.y<=0)continue; const pil=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,p.y+2,6), new THREE.MeshStandardMaterial({color:0x888,roughness:0.9})); pil.position.set(p.x,(p.y-2)/2,p.z); scene.add(pil); }
-    const s=this.s={ t:0, speed:0.0, thrill:0, over:false, prevY:pts[0].y, boosts:0 };
+    const s=this.s={ t:0, speed:0.04, thrill:0, over:false, prevY:pts[0].y };
     this.hud();
   },
   update(dt){ const s=this.s; if(!s||s.over)return;
     const p=this.curve.getPointAt(s.t%1); const ahead=this.curve.getPointAt((s.t+0.012)%1);
-    const slope=ahead.y-p.y; // descida (slope<0) acelera
-    s.speed = Math.min(0.12, 0.045 + Math.max(0,-slope)*0.16);
+    const slope=ahead.y-p.y; // descida puxa; o jogador controla a velocidade
+    // ↑/W acelera · ↓/S freia
+    if(keys['ArrowUp']||keys['KeyW']) s.speed+=0.05*dt;
+    if(keys['ArrowDown']||keys['KeyS']) s.speed-=0.08*dt;
+    s.speed += Math.max(0,-slope)*0.04*dt;   // gravidade nas descidas
+    s.speed = Math.max(0.012, Math.min(0.14, s.speed));
     s.t += s.speed*dt;
-    s.thrill += Math.max(0,-slope)*dt*14;
-    camera.position.copy(p); camera.position.y+=0.6; camera.lookAt(ahead.x,ahead.y+0.4,ahead.z); camera.rotation.z=Math.sin(s.t*20)*0.04;
-    if(slope<-0.1) { /* descida */ }
-    if(s.t>=1){ s.over=true; const score=Math.round(s.thrill)+s.boosts*25; miniOver('🎢 Que passeio!','Emoção: <b>'+Math.round(s.thrill)+'</b> · Bônus: <b>'+(s.boosts*25)+'</b><br>Pontuação: <b>'+score+'</b>'); return; }
+    s.thrill += s.speed*dt*70 + Math.max(0,-slope)*dt*8;
+    camera.position.copy(p); camera.position.y+=0.6; camera.lookAt(ahead.x,ahead.y+0.4,ahead.z); camera.rotation.z=Math.sin(s.t*20)*0.04*(s.speed/0.08);
+    if(s.t>=1){ s.over=true; const score=Math.round(s.thrill); miniOver('🎢 Que passeio!','Emoção total: <b>'+score+'</b><br>Quanto mais rápido nas curvas, mais emoção!'); return; }
     this.hud(); },
-  boost(){ const s=this.s; if(!s||s.over)return; const p=this.curve.getPointAt(s.t%1); const ahead=this.curve.getPointAt((s.t+0.012)%1);
-    if(ahead.y-p.y<-0.05){ s.boosts++; s.thrill+=12; tone(740,0.1,'sine',0.12); mFlash('good'); showMsg('🙌 EBA!',500); } },
-  hud(){ const s=this.s; mStats('<span>🎢 Emoção <b>'+Math.round(s.thrill)+'</b></span><span>🙌 '+s.boosts+'</span><span>📍 '+Math.round(s.t*100)+'%</span>');
-    mRule('🎢 Curta o passeio! Aperte <b>Espaço</b> nas descidas pra gritar de emoção 🙌'); },
-  onClick(){ this.boost(); }, onKey(code){ if(code==='Space'||code==='ArrowUp') this.boost(); }, exit(){ this.s=null; }
+  hud(){ const s=this.s; const kmh=Math.round(s.speed*900);
+    mStats('<span>🎢 Emoção <b>'+Math.round(s.thrill)+'</b></span><span>⚡ '+kmh+' km/h</span><span>📍 '+Math.round(s.t*100)+'%</span>');
+    mRule('🎢 <b>↑/W</b> acelera · <b>↓/S</b> freia — controle a velocidade do carrinho!'); },
+  onClick(){}, onKey(){}, exit(){ this.s=null; }
 });
 
 // 🧩 ====== TOOLKIT 3D: painéis clicáveis + raycast (usado pelos modos em 3D) ======
@@ -6249,8 +6253,12 @@ miniRegister('ritual',{
 // 📹 CÂMERAS 3D
 miniRegister('cameras',{
   name:'Câmeras', ic:'📹', tip:'Clique na porta do lado do barulho pra fechá-la — a energia acaba!',
-  enter(){ scene.background=new THREE.Color(0x0a0a0f); scene.fog=new THREE.FogExp2(0x0a0a0f,0.04);
-    scene.add(new THREE.HemisphereLight(0x303048,0x050507,0.6)); const fl=new THREE.Mesh(new THREE.PlaneGeometry(30,30), new THREE.MeshStandardMaterial({color:0x14121c,roughness:1})); fl.rotation.x=-Math.PI/2; scene.add(fl);
+  enter(){ scene.background=new THREE.Color(0x1a1a26); scene.fog=new THREE.FogExp2(0x1a1a26,0.022);
+    scene.add(new THREE.HemisphereLight(0x8a90b0,0x252535,1.5));
+    const lamp=new THREE.PointLight(0xfff0d8,1.6,40); lamp.position.set(0,7,2); scene.add(lamp);
+    const lamp2=new THREE.PointLight(0xbcd0ff,0.9,30); lamp2.position.set(0,4,5); scene.add(lamp2);
+    const fl=new THREE.Mesh(new THREE.PlaneGeometry(30,30), new THREE.MeshStandardMaterial({color:0x2a2838,roughness:1})); fl.rotation.x=-Math.PI/2; scene.add(fl);
+    const back=new THREE.Mesh(new THREE.BoxGeometry(16,9,0.4), new THREE.MeshStandardMaterial({color:0x33334a,roughness:0.9})); back.position.set(0,4.5,-7); scene.add(back);
     const s=this.s={ power:100, time:90, over:false, L:false, R:false, side:null, warnT:0, grace:0 };
     const mkDoor=(x)=>{ const g=new THREE.Group(); const fr=new THREE.Mesh(new THREE.BoxGeometry(2.4,4,0.3), new THREE.MeshStandardMaterial({color:0x3a3550,roughness:0.8})); fr.position.y=2; g.add(fr);
       const dr=new THREE.Mesh(new THREE.BoxGeometry(2,3.6,0.5), new THREE.MeshStandardMaterial({color:0x6a6a7a,roughness:0.6,metalness:0.3})); dr.position.set(0,5,0); g.add(dr); g.userData.dr=dr; g.userData.fr=fr;
