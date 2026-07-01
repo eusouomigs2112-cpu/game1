@@ -700,6 +700,10 @@
       <div class="ic">🏔️</div><div class="lb">AVALANCHE</div>
       <div class="ds">Desça a montanha desviando dos obstáculos e fuja da neve que te persegue</div>
     </div>
+    <div class="devbtn" id="modeMinerador">
+      <div class="ic">⛏️</div><div class="lb">MINERADOR</div>
+      <div class="ds">Minere blocos de madeira, pedra, ouro e diamante e fuja do zumbi</div>
+    </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
 </div>
@@ -6907,6 +6911,7 @@ const INSTR={
   escape:['Ache a chave escondida nos objetos e fuja da sala.','Clique nos objetos pra vasculhar; com a 🔑, clique na porta 🚪.'],
   avalanche:['Desça a montanha fugindo da neve, sem bater.','←/→ (ou A/D) desvia dos 🌲🪨. Bater deixa a neve te alcançar.'],
   perseguicao:['Persiga e capture o carro fugitivo pela cidade.','↑ acelera · ↓ freia · ←/→ esterça. Encoste no fugitivo 🚗.'],
+  minerador:['Minere os blocos e junte recursos pra construir a casa.','W A S D anda · ←/→ giram · clique nos blocos (🌳🪨🥇💎) pra minerar. Fuja do zumbi 🧟!'],
 };
 function showHowto(g, startFn){
   mc._start=startFn;
@@ -7863,6 +7868,57 @@ miniRegister('perseguicao',{
   onClick(){}, onKey(){}, exit(){ this.s=null; }
 });
 
+// ⛏️ ====== MINERADOR — inspirado em Minecraft: minere blocos, junte recursos, fuja do zumbi ======
+miniRegister('minerador',{
+  name:'Minerador', ic:'⛏️', tip:'W/S/A/D anda · ←→ giram · clique nos blocos pra minerar. Fuja do zumbi!',
+  enter(){ scene.background=new THREE.Color(0x8fd9ff); scene.fog=new THREE.FogExp2(0x8fd9ff,0.016);
+    scene.add(new THREE.HemisphereLight(0xffffff,0x4a7a3a,1.3)); const sun=new THREE.DirectionalLight(0xffffff,0.9); sun.position.set(15,25,10); scene.add(sun);
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(64,64), new THREE.MeshStandardMaterial({color:0x4a9a3a,roughness:1})); ground.rotation.x=-Math.PI/2; scene.add(ground);
+    const s=this.s={ x:0,y:1.6,z:0, yaw:0, lives:3, hurtCool:0, res:{wood:0,stone:0,gold:0,diamond:0}, goal:{wood:8,stone:6,gold:3,diamond:2}, over:false, spawnQ:[] };
+    this.nodes=[]; this.mobs=[]; this.hills=[];
+    const R=26; const mkWall=(x,z,w,d)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,3,d), new THREE.MeshStandardMaterial({color:0x2a2a2e,roughness:1})); m.position.set(x,1.5,z); scene.add(m); this.hills.push({x,z,w,d}); };
+    mkWall(0,-R,2*R,1); mkWall(0,R,2*R,1); mkWall(-R,0,1,2*R); mkWall(R,0,1,2*R);
+    for(let i=0;i<6;i++){ const hx=(Math.random()-0.5)*2*R*0.7, hz=(Math.random()-0.5)*2*R*0.7; if(Math.hypot(hx,hz)<6)continue;
+      const h=3+Math.random()*3; const m=new THREE.Mesh(new THREE.BoxGeometry(4,h,4), new THREE.MeshStandardMaterial({color:0x8a8a8a,roughness:0.95})); m.position.set(hx,h/2,hz); scene.add(m); this.hills.push({x:hx,z:hz,w:4,d:4}); }
+    for(let i=0;i<24;i++) this.spawnNode();
+    for(let i=0;i<2;i++) this.spawnMob();
+    this.hud();
+  },
+  spawnNode(type){ const TYPES=['wood','wood','wood','stone','stone','stone','gold','diamond']; type=type||TYPES[(Math.random()*TYPES.length)|0];
+    const ic={wood:'🌳',stone:'🪨',gold:'🥇',diamond:'💎'}[type];
+    let x,z,tries=0; do{ x=(Math.random()-0.5)*44; z=(Math.random()-0.5)*44; tries++; }while(this.tooClose(x,z)&&tries<20);
+    const sp=emojiSprite(ic,1.6); sp.position.set(x,1.1,z); scene.add(sp);
+    const node={sp,type,x,z}; sp.userData.__cl={node}; this.nodes.push(node); },
+  tooClose(x,z){ for(const n of this.nodes){ if(Math.hypot(n.x-x,n.z-z)<3)return true; } return Math.hypot(x,z)<4; },
+  spawnMob(){ const x=(Math.random()-0.5)*40, z=(Math.random()-0.5)*40; const sp=emojiSprite('🧟',1.8); sp.position.set(x,1.2,z); scene.add(sp);
+    this.mobs.push({sp,x,z,vx:(Math.random()-0.5),vz:(Math.random()-0.5)}); },
+  mine(node){ if(node.done)return; node.done=true; const s=this.s; tone(520,0.08,'square',0.1); mFlash('good');
+    s.res[node.type]++; scene.remove(node.sp); this.nodes=this.nodes.filter(n=>n!==node); s.spawnQ.push(2+Math.random()*3);
+    const done=Object.keys(s.goal).every(k=>s.res[k]>=s.goal[k]);
+    if(done){ s.over=true; tone(880,0.16,'sine',0.14); setTimeout(()=>tone(1180,0.16,'sine',0.12),120); miniOver('🏆 Casa construída!','Você minerou tudo: 🌳'+s.res.wood+' 🪨'+s.res.stone+' 🥇'+s.res.gold+' 💎'+s.res.diamond); return; }
+    this.hud(); },
+  hurt(){ const s=this.s; if(s.hurtCool>0)return; s.hurtCool=1.4; s.lives--; tone(110,0.35,'sawtooth',0.16); mFlash('bad'); showMsg('🧟 O zumbi te atacou!',1000);
+    if(s.lives<=0){ s.over=true; miniOver('💀 Você foi derrotado','Recursos coletados: 🌳'+s.res.wood+' 🪨'+s.res.stone+' 🥇'+s.res.gold+' 💎'+s.res.diamond); } this.hud(); },
+  collide(nx,nz){ for(const h of this.hills){ if(Math.abs(nx-h.x)<h.w/2+0.6 && Math.abs(nz-h.z)<h.d/2+0.6) return true; } return false; },
+  update(dt){ const s=this.s; if(!s||s.over)return; if(s.hurtCool>0)s.hurtCool-=dt;
+    if(keys['ArrowLeft'])s.yaw+=2.0*dt; if(keys['ArrowRight'])s.yaw-=2.0*dt;
+    const fwd={x:-Math.sin(s.yaw),z:-Math.cos(s.yaw)}, rgt={x:Math.cos(s.yaw),z:-Math.sin(s.yaw)};
+    let mx=0,mz=0; if(keys['KeyW']){mx+=fwd.x;mz+=fwd.z;} if(keys['KeyS']){mx-=fwd.x;mz-=fwd.z;} if(keys['KeyD']){mx+=rgt.x;mz+=rgt.z;} if(keys['KeyA']){mx-=rgt.x;mz-=rgt.z;}
+    const ml=Math.hypot(mx,mz); if(ml>0){ mx/=ml; mz/=ml; const sp=5.0; const nx=s.x+mx*sp*dt, nz=s.z+mz*sp*dt; if(!this.collide(nx,s.z))s.x=nx; if(!this.collide(s.x,nz))s.z=nz; }
+    camera.position.set(s.x,s.y,s.z); camera.rotation.order='YXZ'; camera.rotation.y=s.yaw; camera.rotation.x=0; camera.rotation.z=0;
+    for(let i=s.spawnQ.length-1;i>=0;i--){ s.spawnQ[i]-=dt; if(s.spawnQ[i]<=0){ s.spawnQ.splice(i,1); this.spawnNode(); } }
+    for(const m of this.mobs){ const dx=s.x-m.x, dz=s.z-m.z, dist=Math.hypot(dx,dz)||1; let vx,vz;
+      if(dist<10){ vx=dx/dist; vz=dz/dist; } else { vx=m.vx; vz=m.vz; if(Math.random()<0.02){ m.vx=(Math.random()-0.5); m.vz=(Math.random()-0.5); } }
+      const spd=dist<10?1.8:1.0; const nx=m.x+vx*spd*dt, nz=m.z+vz*spd*dt;
+      if(!this.collide(nx,nz) && Math.hypot(nx,nz)<24){ m.x=nx; m.z=nz; } m.sp.position.set(m.x,1.2,m.z);
+      if(Math.hypot(m.x-s.x,m.z-s.z)<1.4) this.hurt(); }
+    this.hud(); },
+  hud(){ const s=this.s; mStats('<span>'+mLives(s.lives)+'</span><span>🌳<b>'+s.res.wood+'</b>/'+s.goal.wood+'</span><span>🪨<b>'+s.res.stone+'</b>/'+s.goal.stone+'</span><span>🥇<b>'+s.res.gold+'</b>/'+s.goal.gold+'</span><span>💎<b>'+s.res.diamond+'</b>/'+s.goal.diamond+'</span>');
+    mRule('⛏️ Clique nos blocos pra minerar e junte os recursos pra construir a casa! Fuja do 🧟 zumbi'); },
+  onClick(x,y){ const cl=ui3dPick(x,y,this.nodes.map(n=>({obj:n.sp}))); if(cl&&cl.node) this.mine(cl.node); },
+  onKey(){}, exit(){ this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('lookBtn').onclick=(e)=>{ e.stopPropagation(); toggleLook(); };
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
@@ -7975,7 +8031,7 @@ document.getElementById('aExit').onclick=agExit;
 document.getElementById('aAgain').onclick=()=>agStart(ag.key);
 document.getElementById('aOverMenu').onclick=agExit;
 // minigames (framework)
-[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo'],['defesa','Defesa'],['ninja','Ninja'],['escape','Escape'],['perseguicao','Perseguicao'],['invasores','Invasores'],['restaurante','Restaurante'],['avalanche','Avalanche']].forEach(([k,cap])=>{
+[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo'],['defesa','Defesa'],['ninja','Ninja'],['escape','Escape'],['perseguicao','Perseguicao'],['invasores','Invasores'],['restaurante','Restaurante'],['avalanche','Avalanche'],['minerador','Minerador']].forEach(([k,cap])=>{
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>mcOpen(k);
 });
 document.getElementById('mExit').onclick=miniExit;
