@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Guia de RPG — Para que serve cada dado</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body{
+    font-family: "Georgia", "Times New Roman", serif;
+    color:#1e1a14; line-height:1.5; font-size:11pt; margin:0;
+  }
+  h1,h2,h3{ font-family:"Trebuchet MS","Segoe UI",sans-serif; color:#5a2d0c; }
+  .capa{
+    text-align:center; padding:70px 20px 40px;
+    border:3px double #8a4b1e; border-radius:14px;
+    background:linear-gradient(180deg,#fbf3e6,#f3e3c8);
+    page-break-after:always;
+  }
+  .capa .emoji{ font-size:60pt; }
+  .capa h1{ font-size:34pt; margin:8px 0 4px; letter-spacing:1px; }
+  .capa .sub{ font-size:14pt; color:#6b4a2a; font-style:italic; }
+  .capa .rule{ width:120px; height:3px; background:#8a4b1e; margin:24px auto; border-radius:2px;}
+  .capa .nota{ font-size:10pt; color:#7a6a55; margin-top:40px; }
+
+  h2{
+    font-size:17pt; margin:26px 0 8px; padding-bottom:6px;
+    border-bottom:2px solid #d9b98a; color:#6b3410;
+  }
+  h2 .ico{ margin-right:8px; }
+  p.intro{ color:#4a4036; margin:4px 0 14px; }
+
+  table{ width:100%; border-collapse:collapse; margin:8px 0 6px; page-break-inside:auto; }
+  th,td{ text-align:left; vertical-align:top; padding:7px 9px; border-bottom:1px solid #e6d4b6; }
+  th{ background:#efe0c4; color:#5a2d0c; font-family:"Trebuchet MS",sans-serif; font-size:10pt; }
+  tr{ page-break-inside:avoid; }
+  td.nome{ font-weight:bold; color:#7a3d12; white-space:nowrap; }
+  td.abrev{ color:#9a7a4a; font-size:9.5pt; white-space:nowrap; }
+
+  .card{
+    border:1px solid #e0c99e; border-left:5px solid #b5701f;
+    background:#fdf8ee; border-radius:8px; padding:10px 14px; margin:8px 0;
+    page-break-inside:avoid;
+  }
+  .card b{ color:#7a3d12; }
+
+  .dado-grid{ display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+  .dado{
+    flex:1 1 30%; min-width:150px; border:1px solid #e0c99e; border-radius:8px;
+    padding:8px 10px; background:#fdf8ee; page-break-inside:avoid;
+  }
+  .dado .d{ font-family:"Trebuchet MS",sans-serif; font-weight:bold; color:#b5701f; font-size:13pt; }
+  .dado .u{ font-size:9.5pt; color:#6b5a40; }
+
+  .dica{ background:#eef6ee; border-left:5px solid #4a8a4a; padding:10px 14px; border-radius:8px; margin:10px 0; }
+  .dica b{ color:#2f6b2f; }
+
+  footer{ text-align:center; color:#9a8a70; font-size:9pt; margin-top:30px; border-top:1px solid #e6d4b6; padding-top:8px; }
+  .sec{ page-break-inside:avoid; }
+</style>
+</head>
+<body>
+
+<div class="capa">
+  <div class="emoji">🎲</div>
+  <h1>Guia de RPG</h1>
+  <div class="sub">Para que serve cada dado, atributo e ficha</div>
+  <div class="rule"></div>
+  <div class="sub">Referência rápida para iniciantes</div>
+  <div class="nota">Um material de mesa para entender os números do seu personagem</div>
+</div>
+
+<h2><span class="ico">💪</span>1. Os 6 Atributos</h2>
+<p class="intro">Atributos são os números básicos que definem <b>como</b> seu personagem é. Cada teste no jogo usa um deles. Quanto maior o valor, melhor o personagem é naquilo (o normal humano fica entre 8 e 12).</p>
+<table>
+  <tr><th>Atributo</th><th>Sigla</th><th>Para que serve</th></tr>
+  <tr><td class="nome">Força</td><td class="abrev">FOR / STR</td><td>Poder físico. Carregar peso, quebrar portas, dano com armas corpo a corpo, agarrar.</td></tr>
+  <tr><td class="nome">Destreza</td><td class="abrev">DES / DEX</td><td>Agilidade e reflexos. Mira, esquiva, furtividade, iniciativa e ataques à distância.</td></tr>
+  <tr><td class="nome">Constituição</td><td class="abrev">CON</td><td>Vigor e saúde. Define os Pontos de Vida e a resistência a veneno, cansaço e doenças.</td></tr>
+  <tr><td class="nome">Inteligência</td><td class="abrev">INT</td><td>Raciocínio e memória. Conhecimento, investigação, idiomas e magia arcana (magos).</td></tr>
+  <tr><td class="nome">Sabedoria</td><td class="abrev">SAB / WIS</td><td>Percepção e bom senso. Notar perigo, intuição, sobrevivência e magia divina (clérigos).</td></tr>
+  <tr><td class="nome">Carisma</td><td class="abrev">CAR / CHA</td><td>Presença e força de vontade. Persuadir, enganar, liderar e magia de feiticeiros/bardos.</td></tr>
+</table>
+<div class="card"><b>Modificador de atributo:</b> o que realmente entra na conta dos dados. Fórmula comum: <b>(atributo − 10) ÷ 2</b>, arredondando para baixo. Ex.: Força 16 → modificador <b>+3</b>. É esse +3 que você soma ao dado.</div>
+
+<h2><span class="ico">❤️</span>2. Dados de Vida e Recursos</h2>
+<div class="sec">
+<table>
+  <tr><th>Dado</th><th>Sigla</th><th>Para que serve</th></tr>
+  <tr><td class="nome">Pontos de Vida</td><td class="abrev">PV / HP</td><td>Quanto dano você aguenta antes de cair. Chega a 0 = inconsciente ou morto. Base vem da Constituição.</td></tr>
+  <tr><td class="nome">Pontos de Mana</td><td class="abrev">PM / MP</td><td>Energia para lançar magias e usar poderes. Cada habilidade gasta um tanto.</td></tr>
+  <tr><td class="nome">Stamina / Fôlego</td><td class="abrev">SP</td><td>Energia física para correr, esquivar e golpes especiais. Regenera com o tempo.</td></tr>
+  <tr><td class="nome">Dados de Vida</td><td class="abrev">Hit Dice</td><td>Dados que você rola para recuperar PV ao descansar (ex.: 1d8 por nível de guerreiro).</td></tr>
+</table>
+</div>
+
+<h2><span class="ico">📈</span>3. Progressão</h2>
+<div class="sec">
+<table>
+  <tr><th>Dado</th><th>Sigla</th><th>Para que serve</th></tr>
+  <tr><td class="nome">Nível</td><td class="abrev">Lvl</td><td>O quão poderoso e experiente o personagem é. Sobe desbloqueando vida, magias e habilidades.</td></tr>
+  <tr><td class="nome">Experiência</td><td class="abrev">XP / EXP</td><td>Pontos que você acumula vencendo desafios. Ao encher a barra, sobe de nível.</td></tr>
+  <tr><td class="nome">Bônus de Proficiência</td><td class="abrev">Prof</td><td>Um bônus fixo (cresce com o nível) somado ao que seu personagem sabe fazer bem.</td></tr>
+  <tr><td class="nome">Perícias</td><td class="abrev">Skills</td><td>Talentos específicos (Furtividade, Atletismo, Persuasão...). Somam atributo + proficiência.</td></tr>
+</table>
+</div>
+
+<h2><span class="ico">🛡️</span>4. Combate</h2>
+<div class="sec">
+<table>
+  <tr><th>Dado</th><th>Sigla</th><th>Para que serve</th></tr>
+  <tr><td class="nome">Classe de Armadura</td><td class="abrev">CA / AC</td><td>O número que o inimigo precisa igualar ou superar no d20 para te acertar. Quanto maior, mais difícil ser atingido.</td></tr>
+  <tr><td class="nome">Iniciativa</td><td class="abrev">Ini</td><td>Define a ordem dos turnos no combate. Rola 1d20 + modificador de Destreza.</td></tr>
+  <tr><td class="nome">Deslocamento</td><td class="abrev">Move</td><td>Quanto o personagem anda por turno (ex.: 9 metros / 30 pés).</td></tr>
+  <tr><td class="nome">Bônus de Ataque</td><td class="abrev">Atk</td><td>Somado ao d20 para saber se o golpe acerta. Junta atributo + proficiência.</td></tr>
+  <tr><td class="nome">Dano</td><td class="abrev">Dmg</td><td>Quanto PV o alvo perde quando você acerta (ex.: 1d8 + Força).</td></tr>
+  <tr><td class="nome">Testes de Resistência</td><td class="abrev">Save</td><td>Rolagens para evitar ou reduzir efeitos ruins (veneno, magia, queda, medo).</td></tr>
+</table>
+</div>
+
+<h2><span class="ico">📜</span>5. Identidade do Personagem</h2>
+<div class="sec">
+<table>
+  <tr><th>Dado</th><th>Para que serve</th></tr>
+  <tr><td class="nome">Raça / Ancestralidade</td><td>De onde vem o personagem (humano, elfo, anão...). Dá bônus e traços próprios.</td></tr>
+  <tr><td class="nome">Classe</td><td>A profissão de aventureiro (guerreiro, mago, ladino...). Define habilidades e estilo.</td></tr>
+  <tr><td class="nome">Antecedente</td><td>A história antes de aventurar (soldado, nobre, criminoso...). Dá perícias extras.</td></tr>
+  <tr><td class="nome">Alinhamento</td><td>A bússola moral (bom/mau, leal/caótico). Guia como o personagem age.</td></tr>
+</table>
+</div>
+
+<h2><span class="ico">🎲</span>6. Os Dados de Verdade (as peças que se rolam)</h2>
+<p class="intro">"Dado" também é a peça que você joga na mesa. Cada tipo tem um número de lados e é escrito com um <b>d</b> (de <i>dice</i>). "2d6" significa "role dois dados de seis lados e some".</p>
+<div class="dado-grid">
+  <div class="dado"><span class="d">d4</span> <span class="u">— 4 lados</span><br><span class="u">Dano pequeno (adaga), efeitos leves.</span></div>
+  <div class="dado"><span class="d">d6</span> <span class="u">— 6 lados</span><br><span class="u">O dadinho clássico. Dano comum, magias.</span></div>
+  <div class="dado"><span class="d">d8</span> <span class="u">— 8 lados</span><br><span class="u">Armas médias, vida de várias classes.</span></div>
+  <div class="dado"><span class="d">d10</span> <span class="u">— 10 lados</span><br><span class="u">Armas maiores; par forma o d100.</span></div>
+  <div class="dado"><span class="d">d12</span> <span class="u">— 12 lados</span><br><span class="u">Armas pesadas (machado grande).</span></div>
+  <div class="dado"><span class="d">d20</span> <span class="u">— 20 lados</span><br><span class="u">O mais importante: decide acertos e testes.</span></div>
+  <div class="dado"><span class="d">d100</span> <span class="u">— 100 (%)</span><br><span class="u">Sorteios e tabelas aleatórias.</span></div>
+</div>
+<div class="dica"><b>Como funciona um teste:</b> role o <b>d20</b>, some o modificador do atributo (e a proficiência, se tiver) e compare com uma dificuldade. <b>20 natural</b> = acerto crítico (o melhor possível). <b>1 natural</b> = falha crítica (deu tudo errado).</div>
+
+<footer>Guia de RPG — referência de atributos, recursos e dados · feito para consulta rápida de mesa</footer>
+
+</body>
+</html>
