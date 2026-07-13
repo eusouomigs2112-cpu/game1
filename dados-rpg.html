@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<style>
+  @page { size: A4; margin: 16mm 15mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html,body { margin:0; padding:0; }
+  body {
+    font-family: "Georgia","Times New Roman",serif;
+    color:#2a2340; background:#fdfcf8; line-height:1.5;
+  }
+  h1,h2,h3,.badge,.num,th { font-family:"Trebuchet MS","Segoe UI",Arial,sans-serif; }
+
+  /* ---------- capa ---------- */
+  .cover {
+    text-align:center; padding:38mm 0 20mm;
+    page-break-after:always;
+  }
+  .cover .kicker { letter-spacing:.32em; font-size:12px; color:#8a5bd0; text-transform:uppercase; font-family:"Trebuchet MS",sans-serif; font-weight:bold; }
+  .cover h1 { font-size:44px; margin:8px 0 4px; color:#241c3a; letter-spacing:.5px; }
+  .cover .sub { font-size:17px; color:#6b6480; font-style:italic; margin-bottom:26px; }
+  .cover .dicerow { display:flex; justify-content:center; gap:6px; flex-wrap:wrap; margin:0 auto; max-width:520px; }
+  .cover .dicerow svg { width:74px; height:74px; }
+  .rule { width:60px; height:3px; background:#8a5bd0; margin:22px auto; border-radius:2px; }
+  .cover p.lead { max-width:130mm; margin:0 auto; font-size:14px; color:#4a4460; }
+
+  /* ---------- cartão de dado ---------- */
+  .die {
+    display:flex; gap:16px; align-items:stretch;
+    border:1px solid #e7e2d6; border-left:6px solid var(--c);
+    border-radius:12px; padding:16px 18px; margin:0 0 14px;
+    background:#ffffff; page-break-inside:avoid;
+  }
+  .die .art {
+    flex:0 0 116px; display:flex; align-items:center; justify-content:center;
+    background:
+      radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--c) 16%, #fff) 0%, #fff 72%);
+    border-radius:10px;
+  }
+  .die .art svg { width:104px; height:104px; display:block; }
+  .die .body { flex:1; }
+  .die .head { display:flex; align-items:baseline; gap:10px; margin-bottom:2px; }
+  .die .name { font-size:22px; font-weight:800; color:var(--c); font-family:"Trebuchet MS",sans-serif; }
+  .die .faces { font-size:12px; color:#8a8398; font-style:italic; }
+  .die .shape { font-size:12.5px; color:#6b6480; margin:2px 0 8px; }
+  .die .use { font-size:13.5px; color:#332c4a; margin:0; }
+  .die .use b { color:var(--c); }
+  .die .tag {
+    display:inline-block; margin-top:9px; font-family:"Trebuchet MS",sans-serif;
+    font-size:11px; font-weight:bold; letter-spacing:.05em;
+    background:color-mix(in srgb, var(--c) 14%, #fff); color:var(--c);
+    border:1px solid color-mix(in srgb, var(--c) 35%, #fff);
+    padding:3px 9px; border-radius:20px;
+  }
+
+  h2.secttl { font-size:15px; color:#8a5bd0; letter-spacing:.06em; text-transform:uppercase;
+    border-bottom:2px solid #ece7db; padding-bottom:6px; margin:6px 0 16px; }
+
+  /* ---------- tabela resumo ---------- */
+  .summary { page-break-before:always; }
+  table { width:100%; border-collapse:collapse; font-family:"Trebuchet MS",sans-serif; font-size:12.5px; }
+  th,td { text-align:left; padding:9px 10px; border-bottom:1px solid #e7e2d6; }
+  th { background:#241c3a; color:#fff; font-size:11.5px; letter-spacing:.04em; }
+  tbody tr:nth-child(even) { background:#faf8f2; }
+  td.d { font-weight:800; color:#8a5bd0; }
+  .foot { margin-top:26px; text-align:center; font-size:11px; color:#9a94a8; font-style:italic; }
+
+  .note { background:#f6f2ff; border:1px solid #e2d8ff; border-radius:10px; padding:12px 16px; font-size:12.5px; color:#4a4460; margin:16px 0 0; }
+  .note b { color:#8a5bd0; }
+</style>
+</head>
+<body>
+
+<!-- ======================= CAPA ======================= -->
+<section class="cover">
+  <div class="kicker">Guia de RPG de Mesa</div>
+  <h1>Os Dados do RPG</h1>
+  <div class="sub">Para que serve cada dado — d4, d6, d8, d10, d12, d20 e d%</div>
+  <div class="dicerow">
+    <!-- miniatura de cada dado (reaproveitadas dos cartões) -->
+    <svg viewBox="0 0 200 200"><use href="#svg-d4"/></svg>
+    <svg viewBox="0 0 200 200"><use href="#svg-d6"/></svg>
+    <svg viewBox="0 0 200 200"><use href="#svg-d8"/></svg>
+    <svg viewBox="0 0 200 200"><use href="#svg-d10"/></svg>
+    <svg viewBox="0 0 200 200"><use href="#svg-d12"/></svg>
+    <svg viewBox="0 0 200 200"><use href="#svg-d20"/></svg>
+    <svg viewBox="0 0 200 200"><use href="#svg-dp"/></svg>
+  </div>
+  <div class="rule"></div>
+  <p class="lead">Todo dado de RPG existe para uma coisa: gerar um número aleatório dentro de uma faixa.
+  O que muda entre eles é <b>quantos lados têm</b> — e, portanto, quão grande é o número que podem sortear
+  e o quanto o resultado tende a variar. Este guia mostra o formato de cada dado e onde ele costuma ser usado.</p>
+</section>
+
+<!-- ===== defs: todas as artes SVG, reaproveitadas por <use> ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+
+  <!-- estilo comum das artes -->
+  <style>
+    .stk { stroke:#241c3a; stroke-width:2.6; stroke-linejoin:round; }
+    .lin { stroke:#241c3a; stroke-width:2; fill:none; stroke-linejoin:round; }
+    .num { fill:#fff; stroke:#241c3a; stroke-width:1.1; paint-order:stroke;
+           font-family:"Trebuchet MS",sans-serif; font-weight:800; text-anchor:middle; }
+    .pip { fill:#fff; }
+  </style>
+
+  <!-- d4: tetraedro -->
+  <g id="svg-d4">
+    <polygon class="stk" points="100,25 28,168 100,120" fill="#e8574b" fill-opacity="0.62"/>
+    <polygon class="stk" points="100,25 172,168 100,120" fill="#e8574b" fill-opacity="0.80"/>
+    <polygon class="stk" points="28,168 172,168 100,120" fill="#e8574b" fill-opacity="0.95"/>
+    <text class="num" x="100" y="158" font-size="34">4</text>
+  </g>
+
+  <!-- d6: cubo isométrico com pontos (canto 1-2-3) -->
+  <g id="svg-d6">
+    <polygon class="stk" points="100,28 162,64 100,100 38,64" fill="#f0a63a" fill-opacity="0.95"/>
+    <polygon class="stk" points="38,64 100,100 100,172 38,136" fill="#f0a63a" fill-opacity="0.60"/>
+    <polygon class="stk" points="162,64 100,100 100,172 162,136" fill="#f0a63a" fill-opacity="0.80"/>
+    <!-- face de cima: 1 -->
+    <circle class="pip" cx="100" cy="64" r="7.5"/>
+    <!-- face esquerda: 2 -->
+    <circle class="pip" cx="58" cy="102" r="6.5"/>
+    <circle class="pip" cx="80" cy="130" r="6.5"/>
+    <!-- face direita: 3 -->
+    <circle class="pip" cx="118" cy="100" r="6.5"/>
+    <circle class="pip" cx="131" cy="118" r="6.5"/>
+    <circle class="pip" cx="144" cy="136" r="6.5"/>
+  </g>
+
+  <!-- d8: octaedro -->
+  <g id="svg-d8">
+    <polygon class="stk" points="100,20 28,100 100,108" fill="#4fb06a" fill-opacity="0.70"/>
+    <polygon class="stk" points="100,20 172,100 100,108" fill="#4fb06a" fill-opacity="0.92"/>
+    <polygon class="stk" points="28,100 100,180 100,108" fill="#4fb06a" fill-opacity="0.55"/>
+    <polygon class="stk" points="172,100 100,180 100,108" fill="#4fb06a" fill-opacity="0.78"/>
+    <text class="num" x="108" y="80" font-size="30">8</text>
+  </g>
+
+  <!-- d10: trapezoedro pentagonal -->
+  <g id="svg-d10">
+    <!-- faces inferiores -->
+    <polygon class="stk" points="28,92 45,140 100,188 100,118" fill="#3aa6c0" fill-opacity="0.60"/>
+    <polygon class="stk" points="172,92 155,140 100,188 100,118" fill="#3aa6c0" fill-opacity="0.80"/>
+    <!-- face frontal (pipa) -->
+    <polygon class="stk" points="100,20 28,92 100,118 172,92" fill="#3aa6c0" fill-opacity="0.94"/>
+    <!-- arestas superiores da pipa -->
+    <line class="lin" x1="100" y1="20" x2="100" y2="118"/>
+    <text class="num" x="100" y="82" font-size="26">10</text>
+  </g>
+
+  <!-- d12: dodecaedro -->
+  <g id="svg-d12">
+    <!-- faces ao redor -->
+    <polygon class="stk" points="100,55 100,10 153,27 186,72 143,86" fill="#5b6ee0" fill-opacity="0.70"/>
+    <polygon class="stk" points="143,86 186,72 186,128 153,173 126,136" fill="#5b6ee0" fill-opacity="0.82"/>
+    <polygon class="stk" points="126,136 153,173 100,190 47,173 74,136" fill="#5b6ee0" fill-opacity="0.66"/>
+    <polygon class="stk" points="74,136 47,173 14,128 14,72 57,86" fill="#5b6ee0" fill-opacity="0.58"/>
+    <polygon class="stk" points="57,86 14,72 47,27 100,10 100,55" fill="#5b6ee0" fill-opacity="0.74"/>
+    <!-- face central -->
+    <polygon class="stk" points="100,55 143,86 126,136 74,136 57,86" fill="#5b6ee0" fill-opacity="0.96"/>
+    <text class="num" x="100" y="108" font-size="27">12</text>
+  </g>
+
+  <!-- d20: icosaedro -->
+  <g id="svg-d20">
+    <!-- triângulos ao redor -->
+    <polygon class="stk" points="100,66 100,12 176,56" fill="#8a5bd0" fill-opacity="0.66"/>
+    <polygon class="stk" points="100,66 100,12 24,56" fill="#8a5bd0" fill-opacity="0.58"/>
+    <polygon class="stk" points="100,66 176,56 140,132" fill="#8a5bd0" fill-opacity="0.80"/>
+    <polygon class="stk" points="100,66 24,56 60,132" fill="#8a5bd0" fill-opacity="0.62"/>
+    <polygon class="stk" points="140,132 176,56 176,144" fill="#8a5bd0" fill-opacity="0.86"/>
+    <polygon class="stk" points="140,132 176,144 100,188" fill="#8a5bd0" fill-opacity="0.74"/>
+    <polygon class="stk" points="60,132 24,56 24,144" fill="#8a5bd0" fill-opacity="0.54"/>
+    <polygon class="stk" points="60,132 24,144 100,188" fill="#8a5bd0" fill-opacity="0.60"/>
+    <polygon class="stk" points="60,132 140,132 100,188" fill="#8a5bd0" fill-opacity="0.70"/>
+    <!-- face central -->
+    <polygon class="stk" points="100,66 140,132 60,132" fill="#8a5bd0" fill-opacity="0.97"/>
+    <text class="num" x="100" y="118" font-size="26">20</text>
+  </g>
+
+  <!-- d% : dois d10 (dezenas + unidades) -->
+  <g id="svg-dp">
+    <!-- d10 esquerdo (dezenas) -->
+    <g transform="translate(-33,18) scale(0.62)">
+      <polygon class="stk" points="28,92 45,140 100,188 100,118" fill="#c0568f" fill-opacity="0.60"/>
+      <polygon class="stk" points="172,92 155,140 100,188 100,118" fill="#c0568f" fill-opacity="0.80"/>
+      <polygon class="stk" points="100,20 28,92 100,118 172,92" fill="#c0568f" fill-opacity="0.94"/>
+      <line class="lin" x1="100" y1="20" x2="100" y2="118"/>
+      <text class="num" x="100" y="82" font-size="30">70</text>
+    </g>
+    <!-- d10 direito (unidades) -->
+    <g transform="translate(78,54) scale(0.62)">
+      <polygon class="stk" points="28,92 45,140 100,188 100,118" fill="#c0568f" fill-opacity="0.60"/>
+      <polygon class="stk" points="172,92 155,140 100,188 100,118" fill="#c0568f" fill-opacity="0.80"/>
+      <polygon class="stk" points="100,20 28,92 100,118 172,92" fill="#c0568f" fill-opacity="0.94"/>
+      <line class="lin" x1="100" y1="20" x2="100" y2="118"/>
+      <text class="num" x="100" y="84" font-size="34">4</text>
+    </g>
+  </g>
+
+</defs></svg>
+
+<!-- ======================= CARTÕES ======================= -->
+<h2 class="secttl">Os sete dados, um por um</h2>
+
+<div class="die" style="--c:#e8574b">
+  <div class="art"><svg viewBox="0 0 200 200"><use href="#svg-d4"/></svg></div>
+  <div class="body">
+    <div class="head"><span class="name">d4</span><span class="faces">tetraedro · 4 faces · sorteia 1 a 4</span></div>
+    <div class="shape">Uma pirâmide de base triangular — o dado com "bico" que fica em pé sobre uma face. Não rola bem, você joga e lê o número na base (ou no topo, dependendo do modelo).</div>
+    <p class="use">É o <b>menor</b> gerador de números. Serve para efeitos fracos e de baixa variação: dano de armas pequenas (adaga), pontos de vida de personagens frágeis, curas leves e qualquer "role um número bem pequeno".</p>
+    <span class="tag">Números pequenos · pouca variação</span>
+  </div>
+</div>
+
+<div class="die" style="--c:#f0a63a">
+  <div class="art"><svg viewBox="0 0 200 200"><use href="#svg-d6"/></svg></div>
+  <div class="body">
+    <div class="head"><span class="name">d6</span><span class="faces">cubo · 6 faces · sorteia 1 a 6</span></div>
+    <div class="shape">O cubo clássico — o mesmo dado de jogos de tabuleiro comuns. É o mais fácil de achar e o único que costuma vir com pontinhos em vez de números.</div>
+    <p class="use">O "cavalo de batalha" do RPG. Usado sozinho para dano médio, e principalmente <b>em punhados</b> (3d6, 8d6…) para somar valores grandes: bolas de fogo, dano de queda, riqueza inicial. Também é o dado de sistemas que rolam vários juntos.</p>
+    <span class="tag">O mais comum · ótimo em conjunto</span>
+  </div>
+</div>
+
+<div class="die" style="--c:#4fb06a">
+  <div class="art"><svg viewBox="0 0 200 200"><use href="#svg-d8"/></svg></div>
+  <div class="body">
+    <div class="head"><span class="name">d8</span><span class="faces">octaedro · 8 faces · sorteia 1 a 8</span></div>
+    <div class="shape">Duas pirâmides coladas base com base, formando um losango pontudo. Rola razoavelmente bem.</div>
+    <p class="use">O <b>meio-termo</b> entre o pequeno e o grande. Dano de armas médias (espada longa, machado de mão), pontos de vida de várias classes e magias de cura de tamanho intermediário.</p>
+    <span class="tag">Faixa intermediária</span>
+  </div>
+</div>
+
+<div class="die" style="--c:#3aa6c0">
+  <div class="art"><svg viewBox="0 0 200 200"><use href="#svg-d10"/></svg></div>
+  <div class="body">
+    <div class="head"><span class="name">d10</span><span class="faces">trapezoedro · 10 faces · sorteia 0 a 9 (ou 1 a 10)</span></div>
+    <div class="shape">Formato de "pião" com faces em forma de pipa. Suas faces são numeradas de 0 a 9 — por isso ele é a base do sistema decimal do RPG.</div>
+    <p class="use">Serve para armas fortes e sistemas que trabalham na <b>base 10</b>. Mas o papel especial dele é formar o <b>dado percentil</b> quando usado em par (veja abaixo): um d10 vira as dezenas e o outro as unidades.</p>
+    <span class="tag">Base do sistema decimal</span>
+  </div>
+</div>
+
+<div class="die" style="--c:#5b6ee0">
+  <div class="art"><svg viewBox="0 0 200 200"><use href="#svg-d12"/></svg></div>
+  <div class="body">
+    <div class="head"><span class="name">d12</span><span class="faces">dodecaedro · 12 faces · sorteia 1 a 12</span></div>
+    <div class="shape">Bola feita de doze pentágonos — pesado e satisfatório de rolar, mas o menos usado da coleção.</div>
+    <p class="use">É o dado das <b>armas de maior dano físico</b>: machados grandes, alabardas, o clássico grande-espada de duas mãos. Também aparece em pontos de vida de classes resistentes (como o bárbaro) e em tabelas de 12 itens.</p>
+    <span class="tag">Grande dano físico</span>
+  </div>
+</div>
+
+<div class="die" style="--c:#8a5bd0">
+  <div class="art"><svg viewBox="0 0 200 200"><use href="#svg-d20"/></svg></div>
+  <div class="body">
+    <div class="head"><span class="name">d20</span><span class="faces">icosaedro · 20 faces · sorteia 1 a 20</span></div>
+    <div class="shape">Vinte triângulos formando uma quase-esfera. É a estrela do RPG moderno e o dado que dá nome ao sistema "d20".</div>
+    <p class="use">O dado das <b>rolagens de ação</b>: ataques, testes de perícia, resistências, iniciativa. Você soma seus bônus ao resultado e compara com uma dificuldade. Tirar <b>20 natural</b> costuma ser sucesso crítico e <b>1 natural</b>, falha crítica.</p>
+    <span class="tag">Decide se a ação dá certo</span>
+  </div>
+</div>
+
+<div class="die" style="--c:#c0568f">
+  <div class="art"><svg viewBox="0 0 200 200"><use href="#svg-dp"/></svg></div>
+  <div class="body">
+    <div class="head"><span class="name">d% <span style="font-weight:500;font-size:15px;color:#8a8398">(d100 / percentil)</span></span><span class="faces">dois d10 · sorteia 1 a 100</span></div>
+    <div class="shape">Não é um dado sólido: são <b>dois d10 rolados juntos</b>. Um representa as dezenas (00, 10, 20…) e o outro as unidades (0 a 9). O exemplo ao lado mostra 70 + 4 = <b>74</b>. "00" + "0" lê-se como <b>100</b>.</div>
+    <p class="use">Serve para probabilidades <b>em porcentagem</b> e para <b>tabelas grandes</b> de resultados aleatórios: chance de um evento acontecer, tesouro sorteado, tabelas de encontros e efeitos com dezenas de possibilidades.</p>
+    <span class="tag">Porcentagens · tabelas aleatórias</span>
+  </div>
+</div>
+
+<div class="note">
+  <b>Como ler a notação:</b> a fórmula <b>2d6 + 3</b> quer dizer "role dois dados de 6 lados, some os resultados e acrescente 3".
+  O número antes do <b>d</b> é a quantidade de dados; o número depois é quantos lados cada um tem.
+</div>
+
+<!-- ======================= RESUMO ======================= -->
+<section class="summary">
+  <h2 class="secttl">Tabela-resumo</h2>
+  <table>
+    <thead>
+      <tr><th>Dado</th><th>Sólido</th><th>Faces</th><th>Faixa</th><th>Uso mais típico</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="d">d4</td><td>Tetraedro</td><td>4</td><td>1–4</td><td>Dano fraco, curas pequenas</td></tr>
+      <tr><td class="d">d6</td><td>Cubo</td><td>6</td><td>1–6</td><td>Dano comum, punhados de dados (3d6…)</td></tr>
+      <tr><td class="d">d8</td><td>Octaedro</td><td>8</td><td>1–8</td><td>Armas médias, pontos de vida</td></tr>
+      <tr><td class="d">d10</td><td>Trapezoedro</td><td>10</td><td>0–9 / 1–10</td><td>Base decimal; forma o percentil</td></tr>
+      <tr><td class="d">d12</td><td>Dodecaedro</td><td>12</td><td>1–12</td><td>Armas pesadas de grande dano</td></tr>
+      <tr><td class="d">d20</td><td>Icosaedro</td><td>20</td><td>1–20</td><td>Ataques e testes (o dado principal)</td></tr>
+      <tr><td class="d">d%</td><td>Dois d10</td><td>100</td><td>1–100</td><td>Porcentagens e tabelas aleatórias</td></tr>
+    </tbody>
+  </table>
+  <p class="foot">Guia dos dados de RPG · um jogo de mesa completo cabe neste conjunto de sete dados.</p>
+</section>
+
+</body>
+</html>
