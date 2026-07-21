@@ -700,6 +700,10 @@
       <div class="ic">🏔️</div><div class="lb">AVALANCHE</div>
       <div class="ds">Desça a montanha desviando dos obstáculos e fuja da neve que te persegue</div>
     </div>
+    <div class="devbtn" id="modeLeviatao">
+      <div class="ic">🐙</div><div class="lb">A FUGA DO LEVIATÃO</div>
+      <div class="ds">História: pegue um empréstimo com o agiota, compre um submarino e mergulhe na cratera — até o Leviatã acordar</div>
+    </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
 </div>
@@ -6907,6 +6911,7 @@ const INSTR={
   escape:['Ache a chave escondida nos objetos e fuja da sala.','Clique nos objetos pra vasculhar; com a 🔑, clique na porta 🚪.'],
   avalanche:['Desça a montanha fugindo da neve, sem bater.','←/→ (ou A/D) desvia dos 🌲🪨. Bater deixa a neve te alcançar.'],
   perseguicao:['Persiga e capture o carro fugitivo pela cidade.','↑ acelera · ↓ freia · ←/→ esterça. Encoste no fugitivo 🚗.'],
+  leviatao:['Uma aventura com história: empréstimo, submarino e a fuga do Leviatã.','Assista às cenas (clique/▶ pra avançar). No mergulho: W/↑ sobe · S/↓ desce · A D / ←→ desvia. Ache a descoberta 💎 no fundo… e fuja do 🐙 até a superfície!'],
 };
 function showHowto(g, startFn){
   mc._start=startFn;
@@ -7863,6 +7868,230 @@ miniRegister('perseguicao',{
   onClick(){}, onKey(){}, exit(){ this.s=null; }
 });
 
+// 🐙 A FUGA DO LEVIATÃO — história (agiota → submarino) + mergulho na cratera e fuga
+miniRegister('leviatao',{
+  name:'A Fuga do Leviatão', ic:'🐙', coop:false,
+  tip:'Uma aventura com história — clique/▶ pra avançar as cenas.',
+  // ---- helpers de construção ----
+  _box(w,h,d,color,rough){ return new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshStandardMaterial({color:color,roughness:rough==null?0.7:rough})); },
+  // avatar do jogador: camiseta verde, calça escura, cabeça
+  _hero(){ const g=new THREE.Group();
+    const legs=this._box(0.9,1.0,0.6,0x1e2740); legs.position.y=0.5; g.add(legs);
+    const torso=this._box(1.0,1.1,0.65,0x2fbf5b); torso.position.y=1.55; g.add(torso); // verde
+    const head=new THREE.Mesh(new THREE.SphereGeometry(0.42,16,16), new THREE.MeshStandardMaterial({color:0xe8b98a,roughness:0.6})); head.position.y=2.45; g.add(head);
+    const hair=this._box(0.86,0.28,0.86,0x3a2416); hair.position.y=2.72; g.add(hair);
+    return g; },
+  // agiota: careca, barba, terno
+  _agiota(){ const g=new THREE.Group();
+    const legs=this._box(0.95,1.0,0.65,0x1b1b22); legs.position.y=0.5; g.add(legs);
+    const suit=this._box(1.15,1.2,0.7,0x2b2b3a); suit.position.y=1.6; g.add(suit);
+    const tie=this._box(0.18,0.7,0.06,0x8a2030); tie.position.set(0,1.7,0.37); g.add(tie);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(0.45,16,16), new THREE.MeshStandardMaterial({color:0xd9a878,roughness:0.6})); head.position.y=2.55; g.add(head); // careca (sem cabelo)
+    const beard=this._box(0.7,0.42,0.4,0x2a1a10); beard.position.set(0,2.28,0.28); g.add(beard);
+    return g; },
+  // membro da tripulação
+  _crew(color){ const g=new THREE.Group();
+    const b=this._box(0.8,1.7,0.55,color||0x3a5a7a); b.position.y=0.95; g.add(b);
+    const h=new THREE.Mesh(new THREE.SphereGeometry(0.36,12,12), new THREE.MeshStandardMaterial({color:0xe8b98a,roughness:0.6})); h.position.y=2.1; g.add(h); return g; },
+  enter(){
+    const s=this.s={ phase:'name', pname:(net&&net.nick)||'', line:0, script:null, cb:null, t:0,
+      depth:0, x:0, sub:null, banner:null, obs:[], spawnT:0, discovered:false, fleeing:false, lev:null, levDepth:360, chase:0, caught:0, over:false, targetDepth:300 };
+    // cena inicial: sala do agiota
+    scene.background=new THREE.Color(0x120f18); scene.fog=new THREE.FogExp2(0x120f18,0.03);
+    scene.add(new THREE.HemisphereLight(0xb0a0d8,0x201830,1.2));
+    const lamp=new THREE.PointLight(0xffe6b0,1.3,30); lamp.position.set(0,6,3); scene.add(lamp);
+    const fl=this._box(40,0.2,40,0x241d30,1); fl.position.y=-0.1; scene.add(fl);
+    const bwall=this._box(30,16,0.6,0x2c2340,0.95); bwall.position.set(0,8,-8); scene.add(bwall);
+    // desk + personagens
+    this.desk=this._box(4.2,1.1,1.6,0x5a3d22,0.7); this.desk.position.set(0,0.9,-2.2); scene.add(this.desk);
+    this.hero=this._hero(); this.hero.position.set(-2.6,0,0.6); this.hero.rotation.y=0.5; scene.add(this.hero);
+    this.ag=this._agiota(); this.ag.position.set(2.4,0,-3.4); this.ag.rotation.y=-0.5; scene.add(this.ag);
+    this.phone=emojiSprite('📱',0.9); this.phone.visible=false; this.phone.position.set(2.0,3.0,-3.0); scene.add(this.phone);
+    // guarda refs de água/submarino pra fases seguintes (criadas sob demanda)
+    this.startName();
+    mStats(''); mRule('');
+  },
+  // ---------- caixa de diálogo (DOM em mCenter) ----------
+  clearBox(){ const c=mCenter(); if(c) c.innerHTML=''; },
+  startName(){ const s=this.s; s.phase='name'; const c=mCenter(); if(!c)return;
+    c.innerHTML='<div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(10,8,18,.92);border:2px solid #6a5aa0;border-radius:16px;padding:22px 26px;max-width:380px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6)">'
+      +'<div style="font-size:44px">🎬</div><div style="font-size:20px;font-weight:800;margin:6px 0">A Fuga do Leviatão</div>'
+      +'<div style="opacity:.85;font-size:14px;margin-bottom:12px">Qual é o nome do explorador?</div>'
+      +'<input id="levName" maxlength="14" placeholder="Seu nome" style="width:80%;padding:10px;border-radius:10px;border:1px solid #6a5aa0;background:#1a1526;color:#fff;text-align:center;font-size:16px" autocomplete="off"/>'
+      +'<div style="margin-top:14px"><button id="levGo" style="font-size:16px">▶ Começar</button></div></div>';
+    const inp=mEl('levName'); if(inp){ inp.value=s.pname||''; setTimeout(()=>{try{inp.focus();}catch(e){}},50); inp.addEventListener('keydown',e=>{ if(e.code==='Enter'){ e.preventDefault(); mEl('levGo').click(); } }); }
+    mEl('levGo').onclick=()=>{ const v=(mEl('levName')&&mEl('levName').value.trim())||''; s.pname=v||'Explorador'; this.beginAgiota(); };
+  },
+  // roda uma sequência de falas; ao terminar chama cb
+  runScript(arr, cb){ const s=this.s; s.script=arr; s.line=0; s.cb=cb; this.renderLine(); },
+  renderLine(){ const s=this.s; const c=mCenter(); if(!c)return; if(!s.script||s.line>=s.script.length){ this.clearBox(); if(s.cb){ const f=s.cb; s.cb=null; s.script=null; f(); } return; }
+    const ln=s.script[s.line]; if(ln.on) try{ ln.on(); }catch(e){}
+    const nameCol = ln.who==='__hero'?'#5be08a':(ln.who==='__ag'?'#ffd27a':(ln.who==='__narr'?'#8ac6ff':'#cfc3ff'));
+    const who = ln.who==='__hero'?s.pname:(ln.who==='__ag'?'Agiota':(ln.who==='__narr'?'':ln.who));
+    const last = s.line>=s.script.length-1;
+    c.innerHTML='<div style="position:absolute;left:50%;bottom:7%;transform:translateX(-50%);width:min(680px,90vw);background:rgba(8,6,16,.9);border:2px solid #5a4a90;border-radius:14px;padding:16px 20px;box-shadow:0 8px 32px rgba(0,0,0,.6)">'
+      +(who?('<div style="color:'+nameCol+';font-weight:800;font-size:14px;letter-spacing:1px;margin-bottom:4px">'+who+'</div>'):'')
+      +'<div style="font-size:18px;line-height:1.5;color:#f2eeff">'+ln.text+'</div>'
+      +'<div style="text-align:right;margin-top:10px"><button id="levNext" style="font-size:14px;padding:7px 16px">'+(last?'▶ Continuar':'▶')+'</button></div></div>';
+    const b=mEl('levNext'); if(b) b.onclick=()=>this.advance();
+  },
+  advance(){ const s=this.s; if(!s.script)return; s.line++; this.renderLine(); },
+  // ---------- FASE 1: o agiota ----------
+  beginAgiota(){ const s=this.s; s.phase='agiota'; const P=s.pname;
+    this.runScript([
+      {who:'__hero', text:'Preciso de três milhões.'},
+      {who:'__ag',  text:'Três milhões? Pra quê tanto dinheiro, meu amigo?'},
+      {who:'__hero', text:'Vou comprar um submarino. Vou explorar o fundo do mar.'},
+      {who:'__ag',  text:'Hmm… um submarino. Deixa eu dar um telefonema.', on:()=>{ this.phone.visible=true; tone(880,0.06,'sine',0.08); }},
+      {who:'__ag',  text:'(ao telefone) Alô… preciso de um submarino.'},
+      {who:'__narr', text:'…*mrmrm… mmhm…*… — você está longe demais pra ouvir a voz do outro lado.'},
+      {who:'__ag',  text:'Ok. Fechado. Já te transfiro os três milhões.', on:()=>{ this.phone.visible=false; }},
+      {who:'__narr', text:'💸 R$ 3.000.000 transferidos. O submarino é seu, '+P+'.', on:()=>{ tone(660,0.1,'sine',0.12); setTimeout(()=>tone(990,0.12,'sine',0.1),110); }},
+    ], ()=>this.buildDock());
+  },
+  // ---------- FASE 2: embarque ----------
+  buildDock(){ const s=this.s; s.phase='embark';
+    // limpa a sala
+    for(const o of [this.hero,this.ag,this.phone,this.desk]) if(o){ scene.remove(o); }
+    scene.background=new THREE.Color(0x9fc6e6); scene.fog=new THREE.FogExp2(0x9fc6e6,0.015);
+    const sun=new THREE.DirectionalLight(0xffffff,0.9); sun.position.set(8,16,6); scene.add(sun);
+    // água
+    this.water=new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({color:0x1f6f9e,roughness:0.4,metalness:0.2})); this.water.rotation.x=-Math.PI/2; this.water.position.y=0; scene.add(this.water);
+    // doca
+    this.dock=this._box(10,0.6,6,0x6b5238,0.9); this.dock.position.set(-6,0.3,0); scene.add(this.dock);
+    // submarino (flutuando na água)
+    this.subGrp=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.CapsuleGeometry(1.5,5,8,16), new THREE.MeshStandardMaterial({color:0xf2c517,roughness:0.5,metalness:0.3})); body.rotation.z=Math.PI/2; this.subGrp.add(body);
+    const tower=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.8,1.4,12), new THREE.MeshStandardMaterial({color:0xd9a800,roughness:0.5})); tower.position.set(0,1.4,0); this.subGrp.add(tower);
+    const glass=new THREE.Mesh(new THREE.SphereGeometry(0.9,16,16), new THREE.MeshStandardMaterial({color:0x8fd8ff,roughness:0.1,metalness:0.1,transparent:true,opacity:0.6})); glass.position.set(3.2,0.2,0); this.subGrp.add(glass);
+    this.subGrp.position.set(3,0.4,0); scene.add(this.subGrp);
+    // herói + tripulação na doca
+    this.hero=this._hero(); this.hero.scale.set(0.8,0.8,0.8); this.hero.position.set(-6,0.6,1.5); scene.add(this.hero);
+    this.crewA=this._crew(0x3a6a4a); this.crewA.scale.set(0.8,0.8,0.8); this.crewA.position.set(-8,0.6,0.5); scene.add(this.crewA);
+    this.crewB=this._crew(0x6a3a5a); this.crewB.scale.set(0.8,0.8,0.8); this.crewB.position.set(-7,0.6,-1); scene.add(this.crewB);
+    this.runScript([
+      {who:'__narr', text:'Na doca. O submarino balança na água, esperando.'},
+      {who:'__hero', text:'Se eu fizer uma boa descoberta aqui embaixo… entro pra Universidade de Yombus.'},
+      {who:'Tripulante', text:'Yombus?! Caraca, aquilo exige 276 de QI pra entrar!'},
+      {who:'__hero', text:'Por isso a gente vai descer. Todo mundo a bordo!', on:()=>{ tone(520,0.08,'square',0.1); }},
+      {who:'__narr', text:'🔴 AO VIVO — Explorando o submarino. Como a gente entrou aí? Isso fica pra depois. Agora: mergulhar.'},
+    ], ()=>this.beginDive());
+  },
+  // ---------- FASE 3: mergulho + fuga ----------
+  beginDive(){ const s=this.s; s.phase='dive';
+    // limpa doca
+    for(const o of [this.hero,this.crewA,this.crewB,this.dock,this.water,this.subGrp]) if(o){ scene.remove(o); }
+    scene.background=new THREE.Color(0x0a3550); scene.fog=new THREE.FogExp2(0x06283d,0.03);
+    scene.add(new THREE.HemisphereLight(0x2a6a9a,0x02121e,1.1));
+    const beam=new THREE.SpotLight(0xcfeaff,1.4,60,0.7,0.5); beam.position.set(0,4,6); scene.add(beam);
+    // submarino do jogador (3ª pessoa)
+    this.sub=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.CapsuleGeometry(1.1,3.4,8,16), new THREE.MeshStandardMaterial({color:0xf2c517,roughness:0.5,metalness:0.35})); body.rotation.z=Math.PI/2; this.sub.add(body);
+    const tw=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.6,1,12), new THREE.MeshStandardMaterial({color:0xd9a800})); tw.position.y=1; this.sub.add(tw);
+    const gl=new THREE.Mesh(new THREE.SphereGeometry(0.7,16,16), new THREE.MeshStandardMaterial({color:0x9fe0ff,roughness:0.1,transparent:true,opacity:0.7})); gl.position.set(2.4,0,0); this.sub.add(gl);
+    this.sub.position.set(0,0,0); scene.add(this.sub);
+    // paredes da cratera (dois trilhos de rocha nas laterais)
+    this.walls=[]; for(let i=0;i<14;i++){ const rk=this._box(3,6,3,0x2a2320,1); rk.position.set((i%2?1:-1)*13,-i*10,-4); scene.add(rk); this.walls.push(rk); }
+    // artefato da descoberta (no fundo)
+    this.gem=emojiSprite('💎',2.2); this.gem.position.set(0,-8,-6); scene.add(this.gem); this.gem.visible=false;
+    // leviatã (aparece na fuga)
+    this.lev=emojiSprite('🐙',6); this.lev.visible=false; scene.add(this.lev);
+    // banner AO VIVO no topo
+    const c=mCenter(); if(c){ this.clearBox(); const bn=document.createElement('div');
+      bn.innerHTML='🔴 AO VIVO — Explorando o submarino';
+      bn.style.cssText='position:absolute;left:50%;top:14px;transform:translateX(-50%);background:rgba(120,10,20,.85);color:#fff;font-weight:800;font-size:13px;letter-spacing:1px;padding:6px 14px;border-radius:20px;box-shadow:0 4px 16px rgba(0,0,0,.5)';
+      c.appendChild(bn); s.banner=bn; }
+    showMsg('🌊 A frente do vidro mostra o mar — é uma cratera. Desça! (S/↓ desce · W/↑ sobe · A D desvia)',4200);
+    this.hud();
+  },
+  hud(){ const s=this.s; const objtxt = s.fleeing ? '⬆️ SUBA pra superfície e fuja do 🐙!' : (s.discovered? '💎 Descoberta feita! Prepare-se…' : '⬇️ Desça até o fundo (💎) — profundidade '+s.targetDepth+'m');
+    mStats('<span>🌊 Profundidade <b>'+Math.round(s.depth)+'m</b></span>'+(s.fleeing?('<span>🐙 Leviatã a <b>'+Math.max(0,Math.round(s.levDepth-s.depth))+'m</b></span>'):'')+(s.discovered&&!s.fleeing?'<span>💎</span>':''));
+    mRule(objtxt+' — W/↑ sobe · S/↓ desce · A D / ←→ desvia'); },
+  update(dt){ const s=this.s; if(!s)return; s.t+=dt;
+    // câmeras/animações das cutscenes
+    if(s.phase==='name'||s.phase==='agiota'){ camera.position.set(0,3.2,6.5); camera.lookAt(0,2,-2); camera.rotation.z=0;
+      if(this.hero) this.hero.position.y=0+Math.sin(s.t*2)*0.02; return; }
+    if(s.phase==='embark'){ const a=Math.min(1,s.t*0.2); camera.position.set(-2+a*2,4.5,12-a*2); camera.lookAt(0,1.5,0); camera.rotation.z=0;
+      if(this.subGrp) this.subGrp.position.y=0.4+Math.sin(s.t*1.5)*0.15; return; }
+    if(s.phase!=='dive'||s.over) return;
+
+    // ---- gameplay do mergulho ----
+    const spd = 26; // velocidade vertical
+    // controle horizontal
+    if(keys['ArrowLeft']||keys['KeyA']) s.x-=10*dt;
+    if(keys['ArrowRight']||keys['KeyD']) s.x+=10*dt;
+    s.x=Math.max(-9,Math.min(9,s.x));
+    // vertical: desce (S/↓) ou sobe (W/↑)
+    let vy=0;
+    if(keys['ArrowDown']||keys['KeyS']) vy+=1;
+    if(keys['ArrowUp']||keys['KeyW']) vy-=1;
+    if(!s.fleeing){ // descida: por padrão afunda devagar; S acelera, W segura
+      s.depth += (spd*0.35 + vy*spd*0.7)*dt;
+      if(s.depth<0) s.depth=0;
+    } else { // fuga: precisa SUBIR; a água puxa pra baixo, W sobe
+      s.depth += (spd*0.30 + vy*spd*0.9)*dt;
+      if(s.depth<0) s.depth=0;
+    }
+    // posição do submarino (fixo em y de cena; o mundo "se move" pela profundidade)
+    this.sub.position.x = s.x; this.sub.position.y=0; this.sub.rotation.z = -s.x*0.03;
+    // fog escurece com a profundidade
+    const dk=Math.min(1,s.depth/s.targetDepth); scene.fog.density=0.03+dk*0.02;
+    scene.background.setRGB(0.04*(1-dk*0.7), 0.21*(1-dk*0.6), 0.32*(1-dk*0.6));
+    // paredes da cratera rolam conforme a profundidade
+    this.walls.forEach((rk,i)=>{ const span=140; let yy=((i*10 - s.depth)%span+span)%span - 40; rk.position.y=yy; });
+    // gira o leviatã/gema pra ficarem "no fundo/atrás"
+    this.gem.position.y = 6 - (s.targetDepth - s.depth)*0.06;
+    this.gem.material.rotation = s.t;
+
+    // spawn de obstáculos (rochas soltas)
+    s.spawnT-=dt; if(s.spawnT<=0){ s.spawnT=0.7+Math.random()*0.6;
+      const rk=this._box(1.4+Math.random()*1.2,1.4+Math.random()*1.2,1.4,0x40372e,1);
+      const lane=-8+Math.random()*16; const startY = s.fleeing? -14 : 16; rk.position.set(lane,startY,-4.5); scene.add(rk); s.obs.push({rk,x:lane,y:startY}); }
+    // move obstáculos em direção ao sub (descida: vêm de baixo subindo; fuga: vêm de cima descendo)
+    let hit=false;
+    for(const o of s.obs){ o.y += (s.fleeing? +1 : -1) * spd*0.9*dt; o.rk.position.set(o.x,o.y,-4.5);
+      if(!o.done && Math.abs(o.y)<1.4 && Math.abs(o.x-s.x)<1.6){ o.done=true; hit=true; } }
+    s.obs=s.obs.filter(o=>{ const gone = s.fleeing? o.y>18 : o.y<-18; if(gone){ scene.remove(o.rk); return false; } return true; });
+    if(hit){ tone(150,0.22,'sawtooth',0.16); mFlash('bad');
+      if(s.fleeing){ s.levDepth -= 30; showMsg('💥 Bateu numa rocha! O Leviatã se aproxima!',1200); }
+      else { s.depth = Math.max(0, s.depth-25); showMsg('💥 Bateu na parede da cratera!',1000); } }
+
+    // ---- descoberta no fundo ----
+    if(!s.discovered && !s.fleeing){ this.gem.visible = s.depth>s.targetDepth-120;
+      if(s.depth>=s.targetDepth){ s.discovered=true; tone(880,0.14,'sine',0.14); setTimeout(()=>tone(1320,0.16,'sine',0.12),120); mFlash('good');
+        showMsg('💎 BOA DESCOBERTA! …algo enorme se mexe no escuro.',2600);
+        setTimeout(()=>{ if(this.s&&!this.s.over) this.startFlee(); },1800); } }
+
+    // ---- fuga do leviatã ----
+    if(s.fleeing){
+      s.chase+=dt;
+      // o leviatã sobe atrás; ganha terreno com o tempo, mais devagar que você quando sobe bem
+      s.levDepth -= (spd*0.42)*dt;
+      this.lev.visible=true; const rel = (s.levDepth - s.depth); // metros atrás (abaixo)
+      this.lev.position.set(Math.sin(s.t*1.3)*3, -6 - Math.min(20,rel*0.12), -8);
+      this.lev.material.rotation=Math.sin(s.t*2)*0.15;
+      if(rel<=0){ // alcançou
+        s.over=true; tone(80,0.8,'sawtooth',0.22); miniOver('🐙 O Leviatã te alcançou!', 'Você mergulhou fundo demais, '+s.pname+'.<br>Profundidade final: <b>'+Math.round(s.depth)+'m</b>'); return; }
+      if(s.depth<=0){ // escapou pra superfície
+        s.over=true; tone(660,0.12,'sine',0.14); setTimeout(()=>tone(990,0.14,'sine',0.12),120); setTimeout(()=>tone(1320,0.16,'sine',0.12),260);
+        miniOver('🏆 Você escapou do Leviatão!', 'Descoberta feita e fuga completa, '+s.pname+'!<br>Talvez a Universidade de Yombus (276 de QI) mande um convite… 🎓'); return; }
+    }
+
+    // câmera 3ª pessoa atrás/acima do submarino
+    camera.position.set(s.x*0.3, 5, 11); camera.lookAt(s.x*0.4, 0, -2); camera.rotation.z=0;
+    this.hud();
+  },
+  startFlee(){ const s=this.s; s.fleeing=true; s.obs.forEach(o=>scene.remove(o.rk)); s.obs=[]; s.levDepth=s.depth+70; s.chase=0;
+    if(this.gem) this.gem.visible=false;
+    if(s.banner){ s.banner.innerHTML='🔴 AO VIVO — 🐙 FUJA DO LEVIATÃ!'; s.banner.style.background='rgba(160,10,20,.92)'; }
+    showMsg('🐙 O LEVIATÃ ACORDOU! SUBA pra superfície — W/↑ sobe!',3200); this.hud();
+  },
+  onClick(x,y){ const s=this.s; if(!s)return; if((s.phase==='agiota'||s.phase==='embark') && s.script){ // avança diálogo clicando fora do botão
+      this.advance(); } },
+  onKey(code){ const s=this.s; if(!s)return; if((s.phase==='agiota'||s.phase==='embark') && s.script && (code==='Space'||code==='Enter')){ this.advance(); } },
+  exit(){ const c=mCenter(); if(c) c.innerHTML=''; this.s=null; }
+});
+
 // ---------- BOTÕES ----------
 document.getElementById('lookBtn').onclick=(e)=>{ e.stopPropagation(); toggleLook(); };
 document.getElementById('devMobile').onclick=()=>chooseDevice('mobile');
@@ -7975,7 +8204,7 @@ document.getElementById('aExit').onclick=agExit;
 document.getElementById('aAgain').onclick=()=>agStart(ag.key);
 document.getElementById('aOverMenu').onclick=agExit;
 // minigames (framework)
-[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo'],['defesa','Defesa'],['ninja','Ninja'],['escape','Escape'],['perseguicao','Perseguicao'],['invasores','Invasores'],['restaurante','Restaurante'],['avalanche','Avalanche']].forEach(([k,cap])=>{
+[['lenhador','Lenhador'],['silencio','Silencio'],['ritual','Ritual'],['cameras','Cameras'],['pesadelo','Pesadelo'],['estrada','Estrada'],['engenheiro','Engenheiro'],['prefeito','Prefeito'],['parkour','Parkour'],['kart','Kart'],['montanha','Montanha'],['bomba','Bomba'],['bagagem','Bagagem'],['imig','Imig'],['pintor','Pintor'],['fantasma','Fantasma'],['voo','Voo'],['defesa','Defesa'],['ninja','Ninja'],['escape','Escape'],['perseguicao','Perseguicao'],['invasores','Invasores'],['restaurante','Restaurante'],['avalanche','Avalanche'],['leviatao','Leviatao']].forEach(([k,cap])=>{
   const el=document.getElementById('mode'+cap); if(el) el.onclick=()=>mcOpen(k);
 });
 document.getElementById('mExit').onclick=miniExit;
