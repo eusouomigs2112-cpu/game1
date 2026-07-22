@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hospital de Animais — Plantão da Noite</title>
+<style>
+  :root{
+    --bg:#080a10; --panel:#0f131d; --panel2:#151b28; --line:#232c3d;
+    --txt:#dfe6f2; --dim:#8b97ad; --acc:#5cc8ff; --good:#39d98a; --bad:#ff4d5e;
+    --warn:#ffcc4d; --blood:#a01722;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%; background:var(--bg); color:var(--txt);
+    font-family:'Trebuchet MS',system-ui,Segoe UI,Roboto,sans-serif; overflow:hidden; user-select:none}
+  #app{position:fixed; inset:0; display:flex; flex-direction:column}
+
+  /* ---------- generic screens ---------- */
+  .screen{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; text-align:center; padding:20px; z-index:20}
+  .hidden{display:none !important}
+  h1{font-size:min(9vw,54px); margin:.1em 0; letter-spacing:1px;
+     text-shadow:0 0 18px rgba(160,23,34,.6)}
+  .sub{color:var(--dim); max-width:560px; line-height:1.5; margin:8px auto}
+  .btn{cursor:pointer; border:none; border-radius:12px; padding:15px 26px; font-size:19px;
+    font-weight:bold; color:#0a0d13; background:linear-gradient(180deg,#8fe0ff,#4bb6f0);
+    box-shadow:0 6px 0 #2b7fb0, 0 10px 22px rgba(0,0,0,.5); margin:8px; transition:transform .08s}
+  .btn:active{transform:translateY(3px); box-shadow:0 3px 0 #2b7fb0}
+  .btn.ghost{background:linear-gradient(180deg,#2a3345,#1a2130); color:var(--txt); box-shadow:0 6px 0 #0c111b}
+  .btn.danger{background:linear-gradient(180deg,#ff8088,#e0303f); color:#fff; box-shadow:0 6px 0 #8f0f19}
+  .btn.small{font-size:15px; padding:10px 16px}
+  .row{display:flex; flex-wrap:wrap; justify-content:center; gap:6px}
+
+  /* ---------- title ---------- */
+  #title{background:
+     radial-gradient(1200px 500px at 50% -10%, rgba(160,23,34,.25), transparent 60%),
+     radial-gradient(900px 600px at 50% 120%, rgba(20,60,90,.25), transparent 60%), var(--bg)}
+  .logo{font-size:min(22vw,120px); filter:drop-shadow(0 0 24px rgba(160,23,34,.5))}
+  .flick{animation:flick 4s infinite}
+  @keyframes flick{0%,97%,100%{opacity:1}97.5%{opacity:.3}98%{opacity:1}98.5%{opacity:.4}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:18px 20px; max-width:600px; margin:10px auto; text-align:left; line-height:1.55}
+  .card h3{margin:.2em 0 .4em; color:var(--acc)}
+  .card ul{margin:.3em 0; padding-left:20px}
+  .card li{margin:.35em 0}
+  .kbd{background:#222b3c; border:1px solid #38445c; border-radius:6px; padding:1px 8px; font-size:14px}
+
+  /* ---------- HUD ---------- */
+  #hud{display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--panel);
+    border-bottom:1px solid var(--line); flex-wrap:wrap; z-index:5}
+  .stat{display:flex; align-items:center; gap:6px; font-size:15px; white-space:nowrap}
+  .stat b{font-size:17px}
+  .sanwrap{flex:1; min-width:150px; max-width:340px}
+  .sanbar{height:16px; border-radius:9px; background:#26120f; border:1px solid #4a2018; overflow:hidden}
+  .sanfill{height:100%; width:100%; background:linear-gradient(90deg,#ff4d5e,#ff9a3c,#39d98a);
+    transition:width .3s}
+  .clock{margin-left:auto; font-variant-numeric:tabular-nums; color:var(--warn)}
+
+  /* ---------- stage ---------- */
+  #stage{flex:1; position:relative; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; overflow:hidden;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 2px, transparent 2px 4px),
+      radial-gradient(700px 380px at 50% 30%, #1a2434, #0a0e16 70%)}
+  #vignette{position:absolute; inset:0; pointer-events:none;
+    box-shadow:inset 0 0 200px 60px rgba(0,0,0,.85); z-index:3}
+  .deskline{position:absolute; bottom:0; left:0; right:0; height:34%;
+    background:linear-gradient(180deg,#3a2a1f,#241812); border-top:4px solid #1a110c; z-index:2}
+  .deskline::before{content:''; position:absolute; top:14px; left:0; right:0; height:3px;
+    background:rgba(255,255,255,.06)}
+
+  /* patient viewport */
+  #view{position:relative; width:min(88vw,420px); height:min(46vh,300px);
+    border-radius:14px; border:2px solid var(--line); background:#0c1119; overflow:hidden; z-index:2;
+    box-shadow:0 20px 50px rgba(0,0,0,.6)}
+  #view .label{position:absolute; top:8px; left:10px; font-size:13px; color:var(--dim);
+    letter-spacing:2px; z-index:6}
+  .animal{position:absolute; left:50%; top:54%; transform:translate(-50%,-50%);
+    font-size:120px; line-height:1; filter:drop-shadow(0 8px 10px rgba(0,0,0,.6))}
+  .name3{position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:15px; color:var(--dim)}
+  .paw{position:absolute; top:8px; right:10px; font-size:20px; opacity:.5}
+
+  /* anomaly signs (appearance) */
+  .sign{position:absolute; z-index:5; pointer-events:none}
+  .eye3{left:50%; top:30%; transform:translateX(-50%); font-size:26px;
+    animation:blink 3s infinite}
+  @keyframes blink{0%,92%,100%{transform:translateX(-50%) scaleY(1)}96%{transform:translateX(-50%) scaleY(.1)}}
+  .twitchy{animation:twitch 2.4s infinite}
+  @keyframes twitch{0%,84%,100%{transform:translate(-50%,-50%)}
+    85%{transform:translate(-53%,-52%) rotate(-4deg)}86%{transform:translate(-47%,-49%) rotate(5deg)}
+    87%{transform:translate(-51%,-51%) rotate(-3deg)}88%{transform:translate(-50%,-50%)}}
+  .diffeye{color:transparent; text-shadow:0 0 0 #ff3b3b}
+
+  /* photo mode */
+  #view.mode-photo{background:#1a1206}
+  .developing{position:absolute; inset:0; z-index:7; background:#0a0a0a;
+    display:flex; align-items:center; justify-content:center; color:#8b7a5a; font-size:14px; letter-spacing:2px}
+  .photo-note{position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:12px;
+    color:#b09a6a; letter-spacing:1px}
+  .cursed{filter:invert(1) hue-rotate(120deg) contrast(1.4) saturate(1.6);
+    animation:cursedShake .18s infinite}
+  @keyframes cursedShake{0%{transform:translate(-50%,-50%)}50%{transform:translate(-48%,-52%)}100%{transform:translate(-52%,-49%)}}
+  .redglow{text-shadow:0 0 24px #ff2233,0 0 8px #ff2233}
+
+  /* cctv mode */
+  #view.mode-cctv{background:#05100a; filter:sepia(.3) hue-rotate(60deg) contrast(1.15)}
+  .scan{position:absolute; left:0; right:0; height:40px; z-index:8; pointer-events:none;
+    background:linear-gradient(180deg,transparent,rgba(120,255,180,.08),transparent);
+    animation:scanmove 3.5s linear infinite}
+  @keyframes scanmove{0%{top:-40px}100%{top:100%}}
+  .cctv-hud{position:absolute; top:8px; right:10px; z-index:9; color:#6fe0a0; font-size:12px}
+  .rec{color:#ff4d5e; animation:flick 1.6s infinite}
+  .monster{filter:brightness(.4) drop-shadow(0 0 12px #103a24)}
+
+  /* controls */
+  #controls{padding:10px; background:var(--panel); border-top:1px solid var(--line); z-index:5}
+  .tabs{display:flex; gap:6px; justify-content:center; margin-bottom:8px; flex-wrap:wrap}
+  .tab{cursor:pointer; border:1px solid var(--line); background:var(--panel2); color:var(--txt);
+    border-radius:10px; padding:9px 14px; font-size:14px; font-weight:bold; display:flex; gap:6px; align-items:center}
+  .tab.active{border-color:var(--acc); box-shadow:0 0 0 2px rgba(92,200,255,.25) inset}
+  .tab .chk{color:var(--good); font-size:12px}
+  .decide{display:flex; gap:10px; justify-content:center; flex-wrap:wrap}
+
+  /* messages / flash */
+  #flash{position:absolute; inset:0; z-index:30; pointer-events:none; opacity:0}
+  #flash.good{background:radial-gradient(circle,rgba(57,217,138,.35),transparent 70%); opacity:1; transition:opacity .4s}
+  #flash.bad{background:rgba(160,23,34,.55); opacity:1; transition:opacity .05s}
+  #toast{position:absolute; top:12px; left:50%; transform:translateX(-50%); z-index:35;
+    background:rgba(0,0,0,.82); border:1px solid var(--line); border-radius:10px; padding:10px 16px;
+    font-size:15px; max-width:90vw; opacity:0; transition:opacity .25s}
+  #toast.show{opacity:1}
+
+  /* jumpscare */
+  #scare{position:absolute; inset:0; z-index:60; background:#000; display:none;
+    align-items:center; justify-content:center; font-size:min(60vw,320px)}
+  #scare.on{display:flex; animation:scareShake .06s infinite}
+  @keyframes scareShake{0%{transform:translate(6px,-6px) scale(1.05)}50%{transform:translate(-6px,6px) scale(1.1)}100%{transform:translate(4px,4px) scale(1.06)}}
+
+  /* treatment overlay */
+  .overlay{position:absolute; inset:0; z-index:40; background:rgba(6,9,14,.94);
+    display:flex; align-items:center; justify-content:center; flex-direction:column; padding:20px; text-align:center}
+  .tx-animal{font-size:90px; margin:6px}
+  .tx-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; max-width:420px}
+  .tx-item{cursor:pointer; border:1px solid var(--line); background:var(--panel2); border-radius:12px;
+    padding:14px 6px; font-size:34px; transition:transform .08s}
+  .tx-item:active{transform:scale(.94)}
+  .tx-item .cap{display:block; font-size:12px; color:var(--dim); margin-top:4px}
+
+  /* shop */
+  #shopBtn{position:absolute; bottom:12px; right:12px; z-index:6}
+  .badge{position:absolute; top:-6px; right:-6px; background:var(--bad); color:#fff; border-radius:10px;
+    font-size:11px; padding:1px 6px}
+
+  @media (max-height:620px){ .animal{font-size:90px} #view{height:min(40vh,240px)} }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ TITLE ============ -->
+  <div class="screen" id="title">
+    <div class="logo flick">🏥🐾</div>
+    <h1>HOSPITAL DE ANIMAIS</h1>
+    <p class="sub">Você pegou o <b>plantão da noite</b> na recepção da clínica veterinária.
+    Faça o check-in dos pacientes... mas cuidado: <b style="color:var(--bad)">nem todos são o que parecem.</b></p>
+    <div class="row">
+      <button class="btn" id="playBtn">▶ Começar o plantão</button>
+      <button class="btn ghost" id="howBtn">📖 Como jogar</button>
+    </div>
+    <p class="sub" style="font-size:13px;opacity:.6">🔊 Use fones para a melhor (pior) experiência.</p>
+  </div>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div class="screen hidden" id="how">
+    <h1 style="font-size:min(8vw,40px)">📖 Como jogar</h1>
+    <div class="card">
+      <h3>🎯 Objetivo</h3>
+      Atenda os animais que chegam à recepção. <b>Aceite os pacientes normais</b> e trate deles.
+      <b>Rejeite (feche as portas 🚪) as anomalias</b> — criaturas disfarçadas de bichinhos.
+      Se a sua <b>Sanidade</b> chegar a zero, o plantão acaba.
+      <h3>🔎 Os 3 exames — use todos antes de decidir!</h3>
+      <ul>
+        <li><b>👁️ Pessoalmente:</b> observe o bicho por alguns segundos. Sinais óbvios: <i>3 olhos, cara oca, olhos de cores diferentes, tremores/tiques.</i></li>
+        <li><b>📷 Foto:</b> tire uma foto e espere revelar. Algumas anomalias <b>só aparecem na foto</b> (foto amaldiçoada, distorcida, olhos vermelhos).</li>
+        <li><b>📹 Câmeras:</b> veja o circuito interno. Algumas parecem normais, mas na câmera revelam a <b>sombra do monstro</b>.</li>
+      </ul>
+      <h3>✅ Decisão</h3>
+      <ul>
+        <li><b>Aceitar</b> um paciente normal → você o trata (escolha o tratamento certo) e ganha 🪙 moedas.</li>
+        <li><b>Rejeitar</b> uma anomalia → portas fechadas, plantão a salvo. 🪙</li>
+        <li>Errar (aceitar anomalia ou barrar um bicho inocente) → perde <b>Sanidade</b> 😱.</li>
+      </ul>
+      <h3>☕ Sanidade</h3>
+      Compre <b>café e chocolate</b> na lojinha 🛒 para recuperar sanidade. Cada noite tem mais pacientes e mais anomalias.
+    </div>
+    <button class="btn" id="howBack">Entendi, voltar</button>
+  </div>
+
+  <!-- ============ GAME ============ -->
+  <div class="hidden" id="game" style="position:absolute;inset:0;display:flex;flex-direction:column">
+    <!-- HUD -->
+    <div id="hud">
+      <div class="stat">🌙 Noite <b id="hNight">1</b></div>
+      <div class="stat">🐾 <b id="hSeen">0</b>/<b id="hTotal">6</b></div>
+      <div class="stat sanwrap">🧠
+        <div class="sanbar" style="flex:1"><div class="sanfill" id="hSanFill"></div></div>
+        <b id="hSan">100</b>
+      </div>
+      <div class="stat">🪙 <b id="hCoins">0</b></div>
+      <div class="stat clock" id="hClock">03:00</div>
+    </div>
+
+    <!-- STAGE -->
+    <div id="stage">
+      <div class="deskline"></div>
+      <div id="view">
+        <div class="label" id="viewLabel">PESSOALMENTE</div>
+        <div class="paw">🐾</div>
+        <div id="animalHost"></div>
+        <div class="name3" id="animalName"></div>
+        <div class="scan hidden" id="cctvScan"></div>
+        <div class="cctv-hud hidden" id="cctvHud"><span class="rec">● REC</span> CAM-03</div>
+        <div class="developing hidden" id="devNote">revelando foto…</div>
+        <div class="photo-note hidden" id="photoNote">FOTO — POLAROID</div>
+      </div>
+      <button class="btn ghost small" id="shopBtn" style="position:absolute">🛒 Lojinha</button>
+      <div id="vignette"></div>
+      <div id="flash"></div>
+      <div id="toast"></div>
+      <div id="scare">😱</div>
+
+      <!-- treatment overlay -->
+      <div class="overlay hidden" id="treat">
+        <h1 style="font-size:min(7vw,34px)">🩺 Sala de tratamento</h1>
+        <div class="tx-animal" id="txAnimal">🐶</div>
+        <p class="sub" id="txSymptom">Sintoma: ...</p>
+        <div class="tx-grid" id="txGrid"></div>
+      </div>
+
+      <!-- shop overlay -->
+      <div class="overlay hidden" id="shop">
+        <h1 style="font-size:min(7vw,34px)">🛒 Lojinha</h1>
+        <p class="sub">Recupere a sanidade. Você tem <b>🪙 <span id="shopCoins">0</span></b>.</p>
+        <div class="row" id="shopItems"></div>
+        <button class="btn ghost" id="shopClose" style="margin-top:14px">Voltar ao balcão</button>
+      </div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div id="controls">
+      <div class="tabs">
+        <div class="tab active" data-tab="live" id="tabLive">👁️ Pessoalmente <span class="chk hidden">✓</span></div>
+        <div class="tab" data-tab="photo" id="tabPhoto">📷 Foto <span class="chk hidden">✓</span></div>
+        <div class="tab" data-tab="cctv" id="tabCctv">📹 Câmeras <span class="chk hidden">✓</span></div>
+      </div>
+      <div class="decide">
+        <button class="btn" id="acceptBtn">✅ Aceitar paciente</button>
+        <button class="btn danger" id="rejectBtn">🚪 Fechar portas (rejeitar)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ RESULT (night end / game over) ============ -->
+  <div class="screen hidden" id="result">
+    <div class="logo" id="resIcon">🌅</div>
+    <h1 id="resTitle">Amanheceu!</h1>
+    <p class="sub" id="resText"></p>
+    <div class="row">
+      <button class="btn" id="resNext">Continuar</button>
+      <button class="btn ghost" id="resMenu">Menu</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   HOSPITAL DE ANIMAIS — recepção de plantão noturno (estilo do jogo do Roblox)
+   Loop: examinar (pessoalmente / foto / câmera) -> aceitar ou rejeitar.
+   Normais = aceitar + tratar.  Anomalias = rejeitar (fechar portas).
+   Gestão de Sanidade + lojinha de café/chocolate.  Noites progressivas.
+   ========================================================================= */
+
+const $ = id => document.getElementById(id);
+const show = id => $(id).classList.remove('hidden');
+const hide = id => $(id).classList.add('hidden');
+
+/* ---------------- Áudio (WebAudio, sem arquivos) ---------------- */
+let AC=null;
+function audio(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC&&AC.state==='suspended') AC.resume(); return AC; }
+function tone(f,d,type,vol,slideTo){ const ac=audio(); if(!ac)return;
+  const o=ac.createOscillator(), g=ac.createGain(); o.type=type||'sine'; o.frequency.value=f;
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, ac.currentTime+d);
+  g.gain.value=vol||0.15; g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+d);
+  o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime+d); }
+function sBell(){ tone(880,0.12,'sine',0.16); setTimeout(()=>tone(1320,0.18,'sine',0.12),90); }
+function sStamp(){ tone(160,0.08,'square',0.16); }
+function sGood(){ tone(660,0.09,'sine',0.14); setTimeout(()=>tone(990,0.12,'sine',0.12),80); }
+function sBad(){ tone(200,0.35,'sawtooth',0.2,60); }
+function sShutter(){ tone(120,0.4,'square',0.14,50); }
+function sScare(){ const ac=audio(); if(!ac)return;
+  for(let i=0;i<3;i++) setTimeout(()=>tone(90+Math.random()*60,0.5,'sawtooth',0.28,400+Math.random()*300),i*40);
+  tone(1400,0.6,'square',0.12,120); }
+let hum=null;
+function startHum(){ const ac=audio(); if(!ac||hum)return; const o=ac.createOscillator(),g=ac.createGain();
+  o.type='sawtooth'; o.frequency.value=55; g.gain.value=0.025; o.connect(g).connect(ac.destination); o.start(); hum={o,g}; }
+
+/* ---------------- Dados do jogo ---------------- */
+const ANIMALS=[
+  {e:'🐶',n:'Cachorro'},{e:'🐱',n:'Gato'},{e:'🐰',n:'Coelho'},{e:'🐹',n:'Hamster'},
+  {e:'🦜',n:'Papagaio'},{e:'🐢',n:'Tartaruga'},{e:'🐷',n:'Porquinho'},{e:'🦎',n:'Lagarto'},
+  {e:'🐴',n:'Pônei'},{e:'🦊',n:'Raposa'},{e:'🐦',n:'Passarinho'},{e:'🐕',n:'Filhote'}
+];
+// Categorias de anomalia: onde ela é detectável
+//  live   -> visível pessoalmente (sinal na tela principal)
+//  photo  -> só na FOTO revelada
+//  cctv   -> só nas CÂMERAS
+const APPEARANCE_SIGNS=[
+  {k:'eyes3',  desc:'tem um TERCEIRO olho na testa 👁️'},
+  {k:'hollow', desc:'tem o rosto OCO / vazio'},
+  {k:'diff',   desc:'os olhos são de cores diferentes'},
+  {k:'twitch', desc:'fica TREMENDO com tiques estranhos'},
+  {k:'smile',  desc:'tem um sorriso largo e assustador'}
+];
+const TREATMENTS=[
+  {e:'💉',cap:'Injeção'}, {e:'💊',cap:'Remédio'}, {e:'🩹',cap:'Curativo'},
+  {e:'🌡️',cap:'Febre'},  {e:'🦴',cap:'Osso'},    {e:'🚿',cap:'Banho'},
+  {e:'🍖',cap:'Comida'},  {e:'❤️',cap:'Coração'}
+];
+const SYMPTOMS=[
+  {t:'Está com uma pata machucada.', fix:'🩹'},
+  {t:'Está com febre alta.',         fix:'🌡️'},
+  {t:'Precisa de vacina.',           fix:'💉'},
+  {t:'Está com dor e precisa de remédio.', fix:'💊'},
+  {t:'Quebrou um ossinho.',          fix:'🦴'},
+  {t:'Chegou todo sujo e fedido.',   fix:'🚿'},
+  {t:'Está fraco e com fome.',       fix:'🍖'},
+  {t:'Está com o coração acelerado.',fix:'❤️'}
+];
+const SHOP=[
+  {e:'☕',n:'Café',       cost:5,  san:20},
+  {e:'🍫',n:'Chocolate',  cost:8,  san:35},
+  {e:'🥪',n:'Sanduíche',  cost:12, san:55}
+];
+
+/* ---------------- Estado ---------------- */
+const G={ night:1, total:6, seen:0, sanity:100, coins:0, patient:null,
+  examined:{live:false,photo:false,cctv:false}, tab:'live', busy:false, photoTimer:null };
+
+function nightPlan(n){ return { total: 5+n, anomChance: Math.min(0.62, 0.34+0.05*n) }; }
+
+function newPatient(){
+  const plan=nightPlan(G.night);
+  const a=ANIMALS[(Math.random()*ANIMALS.length)|0];
+  const isAnom=Math.random()<plan.anomChance;
+  const p={ animal:a, isAnom, category:null, sign:null, symptom:null };
+  if(isAnom){
+    const r=Math.random();
+    p.category = r<0.5 ? 'live' : (r<0.78 ? 'photo' : 'cctv');
+    if(p.category==='live') p.sign=APPEARANCE_SIGNS[(Math.random()*APPEARANCE_SIGNS.length)|0];
+  } else {
+    p.symptom=SYMPTOMS[(Math.random()*SYMPTOMS.length)|0];
+  }
+  return p;
+}
+
+/* ---------------- Render do paciente ---------------- */
+function renderView(){
+  const p=G.patient; const host=$('animalHost'); const view=$('view');
+  view.classList.remove('mode-photo','mode-cctv');
+  $('cctvScan').classList.add('hidden'); $('cctvHud').classList.add('hidden');
+  $('photoNote').classList.add('hidden'); $('devNote').classList.add('hidden');
+  $('animalName').textContent=p ? p.animal.n : '';
+  if(!p){ host.innerHTML=''; $('viewLabel').textContent='—'; return; }
+
+  let cls='animal', extra='', style='';
+  const anomHere = p.isAnom && p.category===G.tab;
+
+  if(G.tab==='live'){
+    $('viewLabel').textContent='PESSOALMENTE';
+    if(anomHere && p.sign){
+      if(p.sign.k==='twitch') cls+=' twitchy';
+      if(p.sign.k==='eyes3')  extra='<div class="sign eye3">👁️</div>';
+      if(p.sign.k==='hollow') style='filter:brightness(.2) contrast(2)';
+      if(p.sign.k==='diff')   extra='<div class="sign" style="left:42%;top:34%;font-size:14px;color:#ff3b3b">🔴</div><div class="sign" style="left:56%;top:34%;font-size:14px;color:#3bff6a">🟢</div>';
+      if(p.sign.k==='smile')  extra='<div class="sign" style="left:50%;top:62%;transform:translateX(-50%);font-size:30px">🫦</div>';
+    }
+  } else if(G.tab==='photo'){
+    $('viewLabel').textContent='FOTO'; view.classList.add('mode-photo'); $('photoNote').classList.remove('hidden');
+    if(anomHere){ cls+=' cursed redglow'; }
+  } else if(G.tab==='cctv'){
+    $('viewLabel').textContent='CÂMERA'; view.classList.add('mode-cctv');
+    $('cctvScan').classList.remove('hidden'); $('cctvHud').classList.remove('hidden');
+    if(anomHere){ cls+=' monster'; extra='<div class="sign" style="left:50%;top:50%;transform:translate(-50%,-50%);font-size:150px;color:#0a1;opacity:.55">👹</div>'; }
+  }
+  host.innerHTML='<div class="'+cls+'" style="'+style+'">'+p.animal.e+'</div>'+extra;
+}
+
+/* ---------------- Trocar aba / examinar ---------------- */
+function setTab(tab){
+  if(G.busy||!G.patient) return;
+  G.tab=tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  // foto precisa "revelar"
+  if(tab==='photo' && !G.examined.photo){
+    renderView();
+    $('devNote').classList.remove('hidden');
+    clearTimeout(G.photoTimer);
+    G.photoTimer=setTimeout(()=>{ $('devNote').classList.add('hidden'); markExamined('photo'); },1600);
+    tone(300,0.2,'square',0.08);
+    return;
+  }
+  if(tab==='live'){ setTimeout(()=>markExamined('live'),300); }
+  if(tab==='cctv'){ markExamined('cctv'); tone(240,0.3,'sawtooth',0.06); }
+  renderView();
+}
+function markExamined(which){
+  G.examined[which]=true;
+  const map={live:'tabLive',photo:'tabPhoto',cctv:'tabCctv'};
+  const chk=$(map[which]).querySelector('.chk'); if(chk) chk.classList.remove('hidden');
+  renderView();
+}
+
+/* ---------------- Toast ---------------- */
+let toastT=null;
+function toast(html,ms){ const t=$('toast'); t.innerHTML=html; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'), ms||1800); }
+
+/* ---------------- Flash / scare ---------------- */
+function flash(kind){ const f=$('flash'); f.className=kind; setTimeout(()=>f.className='',420); }
+function jumpscare(emoji,then){
+  const s=$('scare'); s.textContent=emoji||'😱'; s.classList.add('on'); sScare();
+  setTimeout(()=>{ s.classList.remove('on'); if(then)then(); }, 850);
+}
+
+/* ---------------- Sanidade / moedas ---------------- */
+function setSanity(v){ G.sanity=Math.max(0,Math.min(100,v));
+  $('hSan').textContent=Math.round(G.sanity); $('hSanFill').style.width=G.sanity+'%';
+  if(G.sanity<=0) gameOver();
+}
+function addCoins(v){ G.coins+=v; $('hCoins').textContent=G.coins; }
+function refreshHud(){ $('hNight').textContent=G.night; $('hSeen').textContent=G.seen;
+  $('hTotal').textContent=G.total; setSanity(G.sanity); $('hCoins').textContent=G.coins; }
+
+/* ---------------- Relógio decorativo ---------------- */
+function updateClock(){ // 03:00 -> avança conforme pacientes atendidos
+  const frac=G.total? G.seen/G.total : 0; const totalMin=3*60 + Math.round(frac*3*60); // 03:00 -> 06:00
+  const h=Math.floor(totalMin/60)%24, m=totalMin%60;
+  $('hClock').textContent=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+
+/* ---------------- Decisão ---------------- */
+function decide(accept){
+  if(G.busy||!G.patient) return;
+  const p=G.patient;
+  const correct = accept ? !p.isAnom : p.isAnom;
+
+  if(accept){ G.busy=true; sBell();
+    if(!p.isAnom){ // trata o paciente
+      openTreatment(p);
+      return;
+    } else { // ACEITOU uma anomalia -> ruim!
+      wrong('😱 Você deixou uma ANOMALIA entrar!', anomEmoji(p));
+      return;
+    }
+  } else { // rejeitar (fechar portas)
+    G.busy=true; sShutter();
+    if(p.isAnom){ // correto
+      right('🚪 Portas fechadas. Anomalia barrada!', 4);
+    } else { // barrou um inocente
+      wrong('💔 Você barrou um paciente inocente...', null, false);
+    }
+  }
+}
+function anomEmoji(p){ return p.category==='cctv'?'👹':(p.sign&&p.sign.k==='smile'?'😃':'👁️'); }
+
+function right(msg,coins){ flash('good'); sGood(); toast(msg); addCoins(coins);
+  setSanity(G.sanity+2); nextAfter(700); }
+function wrong(msg,scareEmoji,doScare){ flash('bad'); setSanity(G.sanity-24);
+  toast('<span style="color:var(--bad)">'+msg+'</span>', 2200);
+  if(doScare!==false && scareEmoji){ jumpscare(scareEmoji, ()=>nextAfter(200)); }
+  else { sBad(); nextAfter(900); }
+}
+
+/* ---------------- Tratamento ---------------- */
+function openTreatment(p){
+  $('txAnimal').textContent=p.animal.e;
+  $('txSymptom').innerHTML='Sintoma: <b>'+p.symptom.t+'</b>';
+  const grid=$('txGrid'); grid.innerHTML='';
+  // 6 opções incluindo a certa
+  const pool=[p.symptom.fix];
+  const others=TREATMENTS.filter(t=>t.e!==p.symptom.fix);
+  for(let i=others.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [others[i],others[j]]=[others[j],others[i]]; }
+  pool.push(...others.slice(0,5).map(t=>t.e));
+  for(let i=pool.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [pool[i],pool[j]]=[pool[j],pool[i]]; }
+  pool.forEach(e=>{ const t=TREATMENTS.find(x=>x.e===e);
+    const d=document.createElement('div'); d.className='tx-item';
+    d.innerHTML=e+'<span class="cap">'+t.cap+'</span>';
+    d.onclick=()=>chooseTreatment(e,p.symptom.fix);
+    grid.appendChild(d);
+  });
+  show('treat');
+}
+function chooseTreatment(chosen,correct){
+  hide('treat');
+  if(chosen===correct){ flash('good'); sGood(); toast('🩺 Tratamento certo! Paciente feliz 🐾'); addCoins(6); setSanity(G.sanity+4); }
+  else { flash('bad'); sBad(); toast('<span style="color:var(--warn)">💊 Tratamento errado — o bichinho reclamou.</span>'); addCoins(2); setSanity(G.sanity-6); }
+  nextAfter(600);
+}
+
+/* ---------------- Fluxo de pacientes ---------------- */
+function nextAfter(ms){ setTimeout(()=>{ G.seen++; updateClock(); refreshHud();
+  if(G.seen>=G.total){ nightComplete(); return; } spawnPatient(); }, ms||600); }
+
+function spawnPatient(){
+  G.patient=newPatient(); G.busy=false; G.tab='live';
+  G.examined={live:false,photo:false,cctv:false};
+  document.querySelectorAll('.tab .chk').forEach(c=>c.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='live'));
+  renderView();
+  setTimeout(()=>markExamined('live'),400);
+  sBell();
+  refreshHud();
+}
+
+/* ---------------- Início / fim de noite ---------------- */
+function startGame(){
+  audio(); startHum();
+  G.night=1; G.sanity=100; G.coins=0; startNight();
+  hide('title'); hide('how'); hide('result'); show('game');
+}
+function startNight(){
+  const plan=nightPlan(G.night); G.total=plan.total; G.seen=0;
+  refreshHud(); updateClock(); spawnPatient();
+  toast('🌙 Noite '+G.night+' — '+G.total+' pacientes. Boa sorte.', 2600);
+}
+function nightComplete(){
+  G.busy=true;
+  $('resIcon').textContent='🌅'; $('resTitle').textContent='Amanheceu! Noite '+G.night+' concluída';
+  addCoins(10);
+  $('resText').innerHTML='Você sobreviveu à noite <b>'+G.night+'</b>! 🐾<br>'+
+    'Sanidade: <b>'+Math.round(G.sanity)+'</b> · Moedas: <b>🪙 '+G.coins+'</b><br>'+
+    '<span style="color:var(--dim)">A próxima noite tem mais pacientes... e mais anomalias.</span>';
+  $('resNext').textContent='🌙 Próxima noite';
+  $('resNext').onclick=()=>{ G.night++; hide('result'); show('game'); startNight(); };
+  hide('game'); show('result');
+}
+function gameOver(){
+  if($('game').classList.contains('hidden')) return;
+  G.busy=true; clearTimeout(G.photoTimer);
+  jumpscare('💀', ()=>{
+    $('resIcon').textContent='💀'; $('resTitle').textContent='Sua sanidade acabou...';
+    $('resText').innerHTML='O plantão foi longe demais.<br>Você chegou até a <b>Noite '+G.night+'</b> '+
+      'e atendeu <b>'+G.seen+'</b> pacientes.<br>🪙 Moedas: <b>'+G.coins+'</b>';
+    $('resNext').textContent='↻ Tentar de novo';
+    $('resNext').onclick=()=>{ hide('result'); startGame(); };
+    hide('game'); show('result');
+  });
+}
+
+/* ---------------- Lojinha ---------------- */
+function openShop(){ if(G.busy&&!$('treat').classList.contains('hidden'))return;
+  $('shopCoins').textContent=G.coins; const box=$('shopItems'); box.innerHTML='';
+  SHOP.forEach(it=>{ const b=document.createElement('button'); b.className='btn ghost';
+    b.innerHTML=it.e+' '+it.n+'<br><span style="font-size:13px;opacity:.8">🪙'+it.cost+' · +'+it.san+' 🧠</span>';
+    b.onclick=()=>{ if(G.coins>=it.cost){ addCoins(-it.cost); setSanity(G.sanity+it.san); sGood();
+        $('shopCoins').textContent=G.coins; toast(it.e+' +'+it.san+' de sanidade!'); }
+      else { toast('🪙 Moedas insuficientes!'); sBad(); } };
+    box.appendChild(b);
+  });
+  show('shop');
+}
+
+/* ---------------- Wire de UI ---------------- */
+$('playBtn').onclick=startGame;
+$('howBtn').onclick=()=>{ hide('title'); show('how'); };
+$('howBack').onclick=()=>{ hide('how'); show('title'); };
+$('resMenu').onclick=()=>{ hide('result'); show('title'); };
+$('tabLive').onclick=()=>setTab('live');
+$('tabPhoto').onclick=()=>setTab('photo');
+$('tabCctv').onclick=()=>setTab('cctv');
+$('acceptBtn').onclick=()=>decide(true);
+$('rejectBtn').onclick=()=>decide(false);
+$('shopBtn').onclick=openShop;
+$('shopClose').onclick=()=>hide('shop');
+
+// atalhos de teclado
+window.addEventListener('keydown',e=>{
+  if($('game').classList.contains('hidden'))return;
+  if(e.key==='1') setTab('live'); else if(e.key==='2') setTab('photo'); else if(e.key==='3') setTab('cctv');
+  else if(e.key==='a'||e.key==='A'||e.key==='Enter') decide(true);
+  else if(e.key==='r'||e.key==='R'||e.key===' ') { e.preventDefault(); decide(false); }
+});
+</script>
+</body>
+</html>
