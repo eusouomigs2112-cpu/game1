@@ -2,8 +2,15 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>NEON RUSH — Jogão da Hora</title>
+<!-- App-like / instalável -->
+<meta name="theme-color" content="#05010f" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="NEON RUSH" />
+<link rel="manifest" href='data:application/manifest+json,{"name":"NEON RUSH","short_name":"NEON RUSH","display":"fullscreen","background_color":"%2305010f","theme_color":"%237c5cff","orientation":"any","start_url":"."}' />
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; overflow:hidden; background:#05010f; font-family:"Segoe UI",system-ui,-apple-system,sans-serif; color:#fff; touch-action:none; user-select:none; }
@@ -106,7 +113,7 @@
     <div class="item"><span class="dot" style="background:#ff7ce8;color:#ff7ce8"></span>Ímã</div>
   </div>
   <button class="btn" id="startBtn">JOGAR ▶</button>
-  <div class="hint">Funciona no toque 📱 e no mouse 🖱️</div>
+  <div class="hint">👆 Toque em qualquer lugar da tela para entrar</div>
 </div>
 
 <!-- Tela de game over -->
@@ -293,8 +300,22 @@
     });
   }
 
+  function goFullscreen() {
+    // Tela cheia estilo app (best-effort; ignora se o navegador nao deixar)
+    try {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (req && !document.fullscreenElement && !document.webkitFullscreenElement) {
+        const p = req.call(el);
+        if (p && p.catch) p.catch(() => {});
+      }
+    } catch (e) {}
+  }
+
   function startGame() {
+    if (state === STATE.PLAY) return; // evita entrar duas vezes com clique + toque
     Audio.resume();
+    goFullscreen();
     state = STATE.PLAY; paused = false;
     $('startScreen').classList.add('hidden');
     $('overScreen').classList.add('hidden');
@@ -330,6 +351,16 @@
 
   $('startBtn').addEventListener('click', startGame);
   $('againBtn').addEventListener('click', startGame);
+  // "Cliquei, entrei": tocar/clicar em qualquer lugar da tela ja entra no jogo
+  function screenEnter(e) {
+    if (e.target && e.target.id === 'mute') return; // deixa o botao de som funcionar
+    if (e.cancelable) e.preventDefault();
+    startGame();
+  }
+  ['click', 'touchstart'].forEach(ev => {
+    $('startScreen').addEventListener(ev, screenEnter, { passive: false });
+    $('overScreen').addEventListener(ev, screenEnter, { passive: false });
+  });
   $('mute').addEventListener('click', () => {
     const m = Audio.toggle();
     $('mute').textContent = m ? '🔇' : '🔊';
