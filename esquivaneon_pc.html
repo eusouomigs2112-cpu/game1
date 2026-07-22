@@ -88,7 +88,7 @@
 
 <div class="screen" id="start">
   <div class="title">ESQUIVA<br>NEON</div>
-  <div class="sub">Mova com o <b>mouse</b>, atire com <b>clique</b>/<b>espaço</b> (ou <b>setas</b>/<b>WASD</b>). <b>20 fases</b>, <b>20 naves</b> e cada fase traz um <b>tipo de objeto novo</b>!</div>
+  <div class="sub">Mova com o <b>mouse</b>, atire com <b>clique</b>/<b>espaço</b> (ou <b>setas</b>/<b>WASD</b>). <b>20 fases</b>, <b>20 naves</b> e <b>um inimigo a mais a cada fase</b>!</div>
   <button class="btn" id="playBtn">JOGAR</button>
   <div class="hint">🟢 vida · 🔵 escudo · 🩷 tiro triplo · 🟡 câmera lenta</div>
 </div>
@@ -598,8 +598,10 @@
 
     S.spawnTimer-=dt;
     const pd=phaseDiff();
-    const interval=Math.max(13,55-pd*8);
-    if(S.spawnTimer<=0){spawnEnemy();S.spawnTimer=interval; if(Math.random()<.25&&pd>.5)spawnEnemy();}
+    // um inimigo a mais na tela a cada fase (level): fase 1 = 3, fase 2 = 4, ...
+    const target=3+S.phase;
+    const interval=Math.max(9,38-pd*4);
+    if(S.spawnTimer<=0){ if(rocks.length<target) spawnEnemy(); S.spawnTimer=interval; }
     if(Math.random()<.004*dt) spawnPow();
 
     for(const b of bullets){b.x+=b.vx*dt;b.y+=b.vy*dt;}
