@@ -166,6 +166,7 @@
     <div class="row">
       <button class="btn" id="playBtn">▶ Começar o plantão</button>
       <button class="btn ghost" id="howBtn">📖 Como jogar</button>
+      <button class="btn ghost" id="fsBtn">⛶ Tela cheia</button>
     </div>
     <p class="sub" style="font-size:13px;opacity:.6">🔊 Use fones para a melhor (pior) experiência.</p>
   </div>
@@ -573,6 +574,10 @@ function openShop(){ if(G.busy&&!$('treat').classList.contains('hidden'))return;
 }
 
 /* ---------------- Wire de UI ---------------- */
+function toggleFullscreen(){ const el=document.documentElement;
+  if(!document.fullscreenElement && !document.webkitFullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); } }
+$('fsBtn').onclick=toggleFullscreen;
 $('playBtn').onclick=startGame;
 $('howBtn').onclick=()=>{ hide('title'); show('how'); };
 $('howBack').onclick=()=>{ hide('how'); show('title'); };

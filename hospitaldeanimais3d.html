@@ -111,6 +111,7 @@
   <div class="stat">🪙 <b id="hCoins">0</b></div>
   <div class="stat" id="hClass" title="Sua classe">🎓 Intern</div>
   <div class="stat clock" id="hClock">03:00</div>
+  <button class="btn ghost small" id="fsBtn" title="Tela cheia" style="padding:6px 10px">⛶</button>
 </div>
 
 <!-- bottom bar -->
@@ -145,6 +146,7 @@
     <button class="btn" id="playBtn">▶ Bater ponto</button>
     <button class="btn ghost" id="clsBtn">🎓 Classes</button>
     <button class="btn ghost" id="howBtn">📖 Como jogar</button>
+    <button class="btn ghost" id="fsBtn2">⛶ Tela cheia</button>
   </div>
   <p class="sub" style="font-size:13px;opacity:.6">🔊 Fones recomendados. Mouse para olhar · <span class="kbd">W A S D</span> anda.</p>
 </div>
@@ -657,6 +659,18 @@ window.addEventListener('keydown',e=>{ if(!G.running)return;
   if(k==='f'){ takePhoto(); } else if(k==='c'){ toggleCam(); }
   else if(e.key==='Enter'){ decide(true); } else if(e.key===' '){ e.preventDefault(); decide(false); }
 });
+
+/* ---------- Tela cheia ---------- */
+function toggleFullscreen(){
+  const el=document.documentElement;
+  if(!document.fullscreenElement && !document.webkitFullscreenElement){
+    (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el);
+  } else {
+    (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document);
+  }
+}
+$('fsBtn').onclick=toggleFullscreen;
+$('fsBtn2').onclick=toggleFullscreen;
 
 /* ---------- Boot ---------- */
 initThree();
