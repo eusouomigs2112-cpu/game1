@@ -452,6 +452,60 @@
     cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.4); }
   #lookBtn.on{ background:rgba(124,92,255,.55); border-color:#caa8ff; }
   #lookBtn:active{ transform:translateY(1px); }
+
+  /* ============ GRÁFICOS: menus com nebulosa animada (céu de sonho) ============ */
+  .overlay {
+    background:
+      radial-gradient(circle at 50% 38%, rgba(52,28,90,.80), rgba(6,4,12,.95) 72%),
+      radial-gradient(62% 60% at 16% 20%, rgba(124,92,255,.30), transparent 60%),
+      radial-gradient(58% 55% at 84% 28%, rgba(56,150,255,.24), transparent 60%),
+      radial-gradient(62% 60% at 60% 90%, rgba(255,80,190,.22), transparent 62%);
+    background-size:220% 220%, 170% 170%, 170% 170%, 180% 180%;
+    animation:overlayGlow 28s ease-in-out infinite alternate;
+  }
+  @keyframes overlayGlow {
+    0%   { background-position:50% 40%,  0%  0%, 100%  0%, 50% 100%; }
+    50%  { background-position:50% 56%, 22% 16%,  78% 10%, 42%  84%; }
+    100% { background-position:50% 46%,  6% 22%,  96% 15%, 56%  96%; }
+  }
+  /* vinheta cinematográfica mais rica (clima durante o jogo) */
+  #vignette {
+    background:
+      radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,.30) 82%, rgba(0,0,0,.60) 100%),
+      radial-gradient(ellipse at center, rgba(20,8,40,0) 62%, rgba(20,8,40,.20) 100%);
+  }
+
+  /* ============ HISTÓRIA: cartão narrativo ao entrar em cada mundo ============ */
+  #storycard {
+    position:fixed; inset:0; z-index:9; display:none; pointer-events:none;
+    align-items:flex-start; justify-content:center; padding:64px 24px 0;
+  }
+  #storycard.on { display:flex; }
+  #storycard .card {
+    max-width:660px; text-align:center; transform:translateY(0);
+    background:linear-gradient(180deg, rgba(20,11,38,.80), rgba(8,5,16,.70));
+    border:1px solid rgba(124,92,255,.42); border-radius:20px;
+    padding:22px 32px; backdrop-filter:blur(7px);
+    box-shadow:0 22px 70px rgba(0,0,0,.6), 0 0 44px rgba(124,92,255,.20);
+    animation:scIn .7s cubic-bezier(.2,.8,.2,1);
+  }
+  #storycard.out .card { animation:scOut .7s ease forwards; }
+  #storycard .chap { font-size:11px; letter-spacing:3px; opacity:.6; text-transform:uppercase; }
+  #storycard .ttl {
+    font-size:clamp(22px,4.4vw,34px); margin:6px 0 12px; font-weight:800;
+    background:linear-gradient(90deg,#9b8cff,#6cf,#ff6cd9);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 0 30px rgba(124,92,255,.35);
+  }
+  #storycard .txt { font-size:15px; line-height:1.7; opacity:.92; font-style:italic; color:#eae4ff; }
+  @keyframes scIn  { from{opacity:0; transform:translateY(-16px);} to{opacity:1; transform:none;} }
+  @keyframes scOut { from{opacity:1;} to{opacity:0; transform:translateY(-10px);} }
+
+  /* prólogo/epílogo — narrativa longa rolável */
+  .story-body { max-width:600px; text-align:left; margin:6px auto 4px; }
+  .story-body p { margin-bottom:12px; line-height:1.75; font-size:15px; opacity:.9; }
+  .story-body p.lead { font-size:16px; opacity:1; color:#e9e2ff; }
+  .story-body .sig { text-align:right; opacity:.6; font-style:italic; font-size:14px; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -513,7 +567,7 @@
 
 <div id="start" class="overlay hidden">
   <h1>O Jogo dos Sonhos</h1>
-  <p>Você está preso dentro de um sonho que vira pesadelo. Atravesse cada fase até a <b>porta brilhante</b> para escapar — mas algo te persegue nos corredores.</p>
+  <p>Você adormeceu e não acordou mais. Sua mente afundou em <b>O Sonho</b> — 25 mundos, cada um mais fundo que o anterior, cada um guardado por um medo com forma. Cada <b>porta brilhante</b> te puxa mais para baixo, rumo ao <b>Núcleo</b>, onde o sonho segura a última fagulha do seu despertar. Atravesse todos e <b>acorde</b>.</p>
   <div class="keys">
     <div class="key"><b>W A S D</b> mover</div>
     <div class="key"><b>Mouse</b> olhar</div>
@@ -539,6 +593,7 @@
   </div>
   <div class="btnrow">
     <button id="startBtn">▶ Jogar Sozinho</button>
+    <button id="storyBtn" class="ghost">📖 História</button>
     <button id="modesBtn" class="ghost">🎮 Modos</button>
   </div>
   <div style="margin:14px 0 4px; font-size:13px; opacity:.7; letter-spacing:1px;">👥 AMIGOS ONLINE (CO-OP · 2 JOGADORES)</div>
@@ -1095,12 +1150,41 @@
 
 <div id="win" class="overlay hidden">
   <h1>Você acordou.</h1>
-  <p>Você atravessou todas as fases e escapou do sonho. Por enquanto.</p>
+  <div class="story-body" id="epilogueBody">
+    <p class="lead">A porta do Núcleo se abre para uma luz branca — e a luz é o teto do seu quarto.</p>
+    <p>Você acorda. O relógio marca uma hora impossível; o suor é real, o coração ainda dispara. Atravessou os 25 mundos, encarou cada medo pelo nome e nenhum te segurou até o fim.</p>
+    <p>Lá longe, num último sussurro que já não te alcança, O Sonho promete: <i>“da próxima vez, você não vai querer sair.”</i></p>
+    <p class="sig">— Fim. Mas todo mundo dorme de novo.</p>
+  </div>
   <div class="btnrow">
     <button id="winBtn">Sonhar de novo</button>
     <button id="lobbyBtn2" class="ghost">↩ Voltar ao Lobby</button>
   </div>
 </div>
+
+<!-- PRÓLOGO — a história antes de começar -->
+<div id="prologue" class="overlay hidden">
+  <h1>O Sonho</h1>
+  <div class="story-body">
+    <p class="lead">Você fechou os olhos numa noite comum. Não foi uma noite comum.</p>
+    <p>Existe um lugar embaixo do sono — mais fundo que os sonhos, mais antigo que os pesadelos. Chamam de <b>O Sonho</b>. Ele se alimenta de quem cai fundo demais e nunca mais encontra o caminho de volta para os próprios olhos.</p>
+    <p>Você caiu. Agora sua mente é um corredor sem fim, e cada porta que brilha no escuro não te leva para fora — te leva para <b>baixo</b>, camada após camada, até o <b>Núcleo do Sonho</b>. É lá que ele guarda a última fagulha do seu despertar, apagando devagar.</p>
+    <p>Em cada mundo mora um medo com forma e nome, e todos têm uma só vontade: que você fique. Quando a tela sangrar de vermelho e o ar apitar agudo, o medo acordou. <b>Corra. Esconda-se. Não pare.</b></p>
+    <p>De algum lugar muito distante, alguém está chamando o seu nome. Se você atravessar os 25 mundos, talvez chegue a tempo de ouvir — e <b>acordar</b>.</p>
+    <p class="sig">25 mundos. 25 medos. Uma saída: para cima.</p>
+  </div>
+  <div class="btnrow">
+    <button id="prologuePlay">▶ Começar a descer</button>
+    <button id="prologueBack" class="ghost">↩ Voltar</button>
+  </div>
+</div>
+
+<!-- CARTÃO DE HISTÓRIA — aparece ao entrar em cada mundo -->
+<div id="storycard"><div class="card">
+  <div class="chap" id="scChap">CAMADA 1 / 25</div>
+  <div class="ttl" id="scTtl">O Labirinto</div>
+  <div class="txt" id="scTxt"></div>
+</div></div>
 
 <div id="pause" class="overlay hidden">
   <h1>Pausado</h1>
@@ -1276,6 +1360,37 @@ const THEMES = {
  25:{ name:'O Núcleo do Sonho',   fog:0x2a1040, fogD:0.022, floor:0x140820, build:'dreamcore',
       monster:{key:'nucleo',     name:'O Núcleo'} },
 };
+
+// ===================== HISTÓRIA (beats por mundo) =====================
+// Um cartão narrativo curto aparece ao entrar em cada camada do Sonho.
+const STORY = {
+  1:{ txt:'Você deita, os olhos pesam — e o teto do quarto vira parede de labirinto. O Faminto já sente o cheiro do sono novo. A única regra: siga a luz da porta.' },
+  2:{ txt:'A cidade tem todas as ruas da sua memória, mas nenhuma leva pra casa. Nas vitrines, um vulto anda no mesmo passo que você: O Espreitador aprende como você foge.' },
+  3:{ txt:'Luzes de parque, música tortas, risada que não para. O Palhaço promete diversão eterna — e no sonho, “eterno” é uma ameaça. Ache a saída antes do próximo riso.' },
+  4:{ txt:'Corredores de escola vazios, o sinal que nunca toca. A Pálida espera no fim de cada fila. Aqui você lembra de ter medo do escuro — e o escuro lembra de você.' },
+  5:{ txt:'Tudo fica vermelho. As paredes pulsam como algo vivo respirando. O Carmesim não te caça: ele te apressa. Baixe a cabeça, salte os obstáculos, não desacelere.' },
+  6:{ txt:'Cheiro de anestésico. A Enfermeira faz a ronda e insiste que você “descanse mais um pouco”. Descansar aqui é nunca mais levantar. Passe pela porta de saída.' },
+  7:{ txt:'A floresta engole a luz. Entre as árvores, O Espírito repete o seu nome com a voz de quem você ama — não é ele. Não pare para responder.' },
+  8:{ txt:'Água parada, canos gotejando o tempo. O Rastejante vive onde o sonho apodrece. Quanto mais fundo você desce, mais perto do Núcleo — e do que te prende.' },
+  9:{ txt:'A mansão é rica de detalhes que você jurava conhecer. O Mordomo abre portas com um sorriso educado e tranca outras. Cortesia, aqui, é uma jaula.' },
+  10:{ txt:'Terra fresca, nomes gastos nas lápides. O Coveiro cava um buraco do seu tamanho e diz que “é só por precaução”. Prove que ele cavou à toa.' },
+  11:{ txt:'Gravidade estranha, silêncio de vácuo. A Estação orbita um planeta que não existe. O Alienígena não é de fora — é o que sobra de você quando o sono te esvazia.' },
+  12:{ txt:'O frio morde de dentro pra fora. O Wendigo tem a fome que nunca sacia, o mesmo vazio que o Sonho quer te ensinar. Mantenha o corpo em movimento pra não congelar.' },
+  13:{ txt:'Engrenagens sem operário, esteiras que não param. O Autômato repete uma tarefa há tempo demais — como você, preso no mesmo pesadelo. Quebre o ciclo: alcance a porta.' },
+  14:{ txt:'Pedra antiga, armadilhas mais antigas ainda. O Guardião protege um segredo que já é seu: você está quase no meio do caminho. Metade acordado, metade perdido.' },
+  15:{ txt:'Não há chão, nem teto, nem antes. Só O Vazio e O Devorador, que come a diferença entre você e o nada. Corra até a luz enquanto ainda existe um “você” pra correr.' },
+  16:{ txt:'Você atravessou fundo demais — e escapou do roteiro. Paredes amarelas, zumbido de lâmpadas, quilômetros iguais. O Vigia patrulha Os Fundos. Aqui começa o sonho de verdade.' },
+  17:{ txt:'Azulejo úmido, luz refletida em teto d’água. As Salas da Piscina não terminam. O Afogado quer te levar pro fundo mais quieto que existe. Não olhe a água parada tempo demais.' },
+  18:{ txt:'A mesma cama, repetida até o horizonte. O Quarto Infinito é o sonho te oferecendo conforto pra você deitar de novo. O Sonâmbulo já deitou — e nunca mais levantou.' },
+  19:{ txt:'Uma piscina gigante, seca, sem por quê. Ecos de crianças que não estão lá. O Vulto mora no fundo de concreto. Suba pelas escadas antes que o silêncio pese demais.' },
+  20:{ txt:'Lojas acesas, nenhum cliente, música de elevador em loop. O Shopping Vazio vende só uma coisa: ficar. Entre os Manequins, um sempre muda de lugar quando você pisca.' },
+  21:{ txt:'Trigo até onde a vista alcança, céu cor de ferrugem, sol que não se põe. O Campo Eterno é bonito de um jeito errado. O Espantalho aponta o caminho — mas nunca o certo.' },
+  22:{ txt:'Um parquinho enferrujado range no vento. A Criança quer brincar “só mais uma vez”, e “só mais uma” nunca acaba. Você está fundo demais. A voz que te chama está mais forte.' },
+  23:{ txt:'Baias, papéis, um telefone que toca sozinho. O Escritório é o tédio virado pesadelo. O Funcionário faz hora extra desde sempre. Não assine nada. Só ache a saída.' },
+  24:{ txt:'Cadeiras em fila, uma senha que nunca é chamada. A Sala de Espera é o último truque do Sonho: te fazer esperar pra sempre. A Recepcionista sorri. Não espere. Passe.' },
+  25:{ txt:'O Núcleo do Sonho pulsa como um coração escuro — e dentro dele, sua última fagulha de acordar. Ele oferece o sono perfeito, pra sempre. A voz que te chama grita agora. ACORDE.' },
+};
+function storyBeat(p){ const b=STORY[p]; return b?b.txt:''; }
 
 const WORLD = { cell: 4 };  // tamanho da célula do corredor
 
@@ -1776,6 +1891,7 @@ function buildPhase(p){
     setTimeout(()=>showMsg('🚩 Checkpoint salvo (fase '+cp+')!',3000),3300); } });
 
   showMsg('Fase '+p+' — '+TH.name+' · ache a porta brilhante',3200);
+  showStoryCard(p);   // 📖 beat de história do mundo
   document.getElementById('phase').textContent=p;
   document.getElementById('hint').textContent='🌍 '+TH.name+' · 👹 '+TH.monster.name;
 }
@@ -3211,6 +3327,24 @@ function flashTransition(){
   d.style.boxShadow='inset 0 0 300px 200px rgba(255,255,255,.9)';
   setTimeout(()=>d.style.boxShadow='inset 0 0 200px 40px rgba(200,0,40,0)',300);
 }
+// 📖 cartão de história ao entrar num mundo (aparece por alguns segundos e some)
+let _storyTimer=null;
+function showStoryCard(p){
+  const txt=storyBeat(p); if(!txt) return;
+  const TH=THEMES[p]||THEMES[1];
+  const el=document.getElementById('storycard'); if(!el) return;
+  document.getElementById('scChap').textContent='CAMADA '+p+' / '+MAX_PHASE;
+  document.getElementById('scTtl').textContent=TH.name+' · '+TH.monster.name;
+  document.getElementById('scTxt').textContent=txt;
+  clearTimeout(_storyTimer);
+  el.classList.remove('out'); el.classList.add('on');
+  // some sozinho: fica ~6.5s, depois faz o fade de saída
+  _storyTimer=setTimeout(()=>{
+    el.classList.add('out');
+    _storyTimer=setTimeout(()=>{ el.classList.remove('on','out'); }, 700);
+  }, 6500);
+}
+function hideStoryCard(){ clearTimeout(_storyTimer); const el=document.getElementById('storycard'); if(el) el.classList.remove('on','out'); }
 function beginPlay(sp){
   const start = sp||1;
   stopFriendPolling();   // já estamos numa partida; para de listar amigos
@@ -3226,7 +3360,7 @@ function beginPlay(sp){
   document.getElementById('danger').style.display='';
   document.getElementById('minimap').style.display = minimapOn?'block':'none';
   document.getElementById('ptHud').classList.add('hidden');
-  ['device','start','death','win','modes','porteiro','ptOver'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  ['device','start','prologue','death','win','modes','porteiro','ptOver'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   if(controlMode==='mobile') document.getElementById('touch').classList.add('on');
   buildPhase(start);
   playIntro();   // animação de "acordar no sonho"
@@ -3290,7 +3424,7 @@ function die(){
     showMsg('💀 Você caiu! Seu parceiro pode te reviver — ou você volta na próxima fase.',5000);
     // gameState segue 'playing' para o loop continuar pro parceiro
   } else {
-    gameState='dead';
+    gameState='dead'; hideStoryCard();
     stopAmbience();         // corta a música na hora
     silenceAudioSoon(1300); // após o rugido de morte, silêncio TOTAL na tela de morte
     const msgs=['O pesadelo te alcançou no corredor.','Você nunca chegou na porta.','A criatura sorriu antes de te pegar.','Acordar? Talvez nunca.'];
@@ -3300,12 +3434,12 @@ function die(){
   }
 }
 function winGame(){
-  gameState='win'; setLook(false);
+  gameState='win'; setLook(false); hideStoryCard();
   stopAmbience(); silenceAudioSoon(500);   // silencia a trilha ao vencer
   document.getElementById('win').classList.remove('hidden');
 }
 function backToLobby(){
-  gameState='menu'; player.dead=false; checkpoint=1; spectator=false;
+  gameState='menu'; player.dead=false; checkpoint=1; spectator=false; hideStoryCard();
   stopAmbience(); silenceAudioSoon(500);   // silencia a trilha ao voltar pro lobby
   stopVoice(); stopFriendPolling();
   if(net.peer){ try{net.peer.destroy();}catch(e){} }
@@ -3313,7 +3447,7 @@ function backToLobby(){
   net.roster={}; net.playerId=null; net.isCoord=false; net._joining=null;
   setLook(false);
   document.getElementById('touch').classList.remove('on');
-  ['death','win','start'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  ['death','win','start','prologue'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   document.getElementById('mpInfo').innerHTML='';
   document.getElementById('friendList').innerHTML='';
   document.getElementById('onlineBtn').textContent='🟢 Ficar Online';
@@ -7887,6 +8021,19 @@ document.querySelector('.diff[data-d="normal"]').classList.add('active'); // pad
 document.getElementById('startBtn').onclick=startGame;
 document.getElementById('retryBtn').onclick=retryGame;
 document.getElementById('winBtn').onclick=startGame;
+// 📖 História: prólogo
+document.getElementById('storyBtn').onclick=()=>{
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('prologue').classList.remove('hidden');
+};
+document.getElementById('prologueBack').onclick=()=>{
+  document.getElementById('prologue').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');
+};
+document.getElementById('prologuePlay').onclick=()=>{
+  document.getElementById('prologue').classList.add('hidden');
+  startGame();
+};
 document.getElementById('lobbyBtn').onclick=backToLobby;
 document.getElementById('lobbyBtn2').onclick=backToLobby;
 document.getElementById('onlineBtn').onclick=goOnline;
