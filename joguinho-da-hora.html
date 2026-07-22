@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PULSO — Joguinho da Hora</title>
+<style>
+  :root{
+    --bg:#05060f; --bg2:#0b0d22;
+    --cy:#22e3ff; --pk:#ff3ea5; --yl:#ffe14d; --gn:#4dff9e; --rd:#ff4d5e;
+    --txt:#eaf2ff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:#000;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--txt);user-select:none;-webkit-user-select:none;touch-action:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none}
+  .hud{position:fixed;top:0;left:0;right:0;padding:14px 18px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:10;font-variant-numeric:tabular-nums}
+  .hud .box{background:rgba(8,10,26,.55);backdrop-filter:blur(6px);border:1px solid rgba(120,160,255,.18);border-radius:14px;padding:8px 14px;line-height:1.15}
+  .hud .lbl{font-size:11px;letter-spacing:.18em;text-transform:uppercase;opacity:.6}
+  .hud .val{font-size:24px;font-weight:800}
+  #combo{color:var(--yl)}
+  .center{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;text-align:center;padding:24px}
+  .card{background:rgba(8,10,26,.72);backdrop-filter:blur(10px);border:1px solid rgba(120,160,255,.22);border-radius:24px;padding:34px 30px;max-width:440px;box-shadow:0 24px 80px rgba(0,0,0,.6)}
+  h1{font-size:64px;font-weight:900;letter-spacing:.04em;line-height:.95;margin-bottom:6px;
+     background:linear-gradient(120deg,var(--cy),var(--pk) 55%,var(--yl));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 18px rgba(120,180,255,.35))}
+  .sub{opacity:.75;font-size:15px;margin-bottom:22px;line-height:1.5}
+  .btn{pointer-events:auto;cursor:pointer;border:none;border-radius:999px;padding:15px 40px;font-size:19px;font-weight:800;letter-spacing:.02em;color:#04121a;
+       background:linear-gradient(120deg,var(--cy),var(--gn));box-shadow:0 10px 30px rgba(34,227,255,.35);transition:transform .12s ease, filter .12s ease}
+  .btn:active{transform:scale(.95)}
+  .btn.pk{background:linear-gradient(120deg,var(--pk),var(--yl));box-shadow:0 10px 30px rgba(255,62,165,.35)}
+  .tips{margin-top:20px;font-size:13px;opacity:.62;line-height:1.7}
+  .tips b{color:var(--cy)}
+  .best{margin-top:14px;font-size:14px;opacity:.8}
+  .best b{color:var(--yl);font-size:18px}
+  .hide{display:none!important}
+  .go-score{font-size:20px;opacity:.85;margin:2px 0 18px}
+  .go-score b{color:var(--yl);font-size:40px;display:block;font-weight:900}
+  .newrec{color:var(--pk);font-weight:800;letter-spacing:.15em;font-size:13px;text-transform:uppercase;margin-bottom:6px;animation:pop 1s ease infinite}
+  @keyframes pop{50%{transform:scale(1.08)}}
+  #mute{position:fixed;bottom:14px;right:16px;z-index:30;pointer-events:auto;cursor:pointer;background:rgba(8,10,26,.55);border:1px solid rgba(120,160,255,.18);border-radius:12px;width:42px;height:42px;font-size:18px;color:var(--txt);display:flex;align-items:center;justify-content:center}
+  .credit{position:fixed;bottom:14px;left:16px;z-index:5;font-size:11px;opacity:.35;letter-spacing:.1em}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+
+<div class="hud hide" id="hud">
+  <div class="box"><div class="lbl">Pontos</div><div class="val" id="score">0</div></div>
+  <div class="box" style="text-align:right"><div class="lbl">Combo</div><div class="val" id="combo">x1</div></div>
+</div>
+
+<div class="center" id="menu">
+  <div class="card">
+    <h1>PULSO</h1>
+    <div class="sub">Desvia dos vermelhos. Pega as estrelas.<br>Segura o combo e bate o recorde. Da hora, né? ✨</div>
+    <button class="btn" id="play">JOGAR</button>
+    <div class="best" id="bestMenu"></div>
+    <div class="tips">
+      <b>PC:</b> mexa o mouse pra guiar a bolinha.<br>
+      <b>Celular:</b> arraste o dedo na tela.<br>
+      Pega <b style="color:var(--yl)">estrelas</b> = combo sobe. Encosta em <b style="color:var(--rd)">vermelho</b> = perde vida.
+    </div>
+  </div>
+</div>
+
+<div class="center hide" id="over">
+  <div class="card">
+    <div class="newrec hide" id="newrec">🏆 Novo recorde!</div>
+    <div class="go-score">Você fez<b id="finalScore">0</b></div>
+    <button class="btn pk" id="again">DE NOVO</button>
+    <div class="best" id="bestOver"></div>
+  </div>
+</div>
+
+<button id="mute" title="Som">🔊</button>
+<div class="credit">PULSO · joguinho da hora</div>
+
+<script>
+(()=>{
+"use strict";
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W=0,H=0,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){
+  W=innerWidth;H=innerHeight;
+  cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize',resize);resize();
+
+// ---------- estado ----------
+const S={menu:0,play:1,over:2};
+let state=S.menu;
+let score=0, combo=1, comboTimer=0, lives=3, t=0, spawnT=0, starT=0, shake=0, difficulty=0;
+let best=+(localStorage.getItem('pulso_best')||0);
+
+const player={x:W/2,y:H/2,tx:W/2,ty:H/2,r:14,trail:[]};
+let enemies=[], stars=[], parts=[], rings=[];
+
+// ---------- entrada ----------
+function setTarget(x,y){player.tx=x;player.ty=y;}
+addEventListener('mousemove',e=>setTarget(e.clientX,e.clientY));
+addEventListener('touchstart',e=>{if(e.touches[0])setTarget(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+addEventListener('touchmove',e=>{if(e.touches[0])setTarget(e.touches[0].clientX,e.touches[0].clientY);e.preventDefault();},{passive:false});
+
+// ---------- audio (WebAudio, sem arquivos) ----------
+let AC=null, muted=(localStorage.getItem('pulso_muted')==='1');
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function beep(freq,dur,type='sine',vol=.18){
+  if(muted)return; const a=ac(); if(!a)return;
+  const o=a.createOscillator(),g=a.createGain();
+  o.type=type;o.frequency.value=freq;o.connect(g);g.connect(a.destination);
+  const n=a.currentTime;g.gain.setValueAtTime(0,n);g.gain.linearRampToValueAtTime(vol,n+.01);
+  g.gain.exponentialRampToValueAtTime(.0001,n+dur);o.start(n);o.stop(n+dur);
+}
+const muteBtn=document.getElementById('mute');
+function renderMute(){muteBtn.textContent=muted?'🔇':'🔊';}
+muteBtn.onclick=()=>{muted=!muted;localStorage.setItem('pulso_muted',muted?'1':'0');renderMute();};
+renderMute();
+
+// ---------- helpers ----------
+const rnd=(a,b)=>a+Math.random()*(b-a);
+function burst(x,y,color,n=14,spd=4){
+  for(let i=0;i<n;i++){const an=rnd(0,Math.PI*2),s=rnd(.4,1)*spd;
+    parts.push({x,y,vx:Math.cos(an)*s,vy:Math.sin(an)*s,life:1,color,r:rnd(1.5,4)});}
+}
+function ring(x,y,color){rings.push({x,y,r:6,color,life:1});}
+
+// ---------- spawn ----------
+function spawnEnemy(){
+  const edge=Math.floor(rnd(0,4));let x,y;
+  if(edge===0){x=-30;y=rnd(0,H);}else if(edge===1){x=W+30;y=rnd(0,H);}
+  else if(edge===2){x=rnd(0,W);y=-30;}else{x=rnd(0,W);y=H+30;}
+  const ta=Math.atan2(player.y-y,player.x-x)+rnd(-.5,.5);
+  const sp=rnd(1.6,2.6)+difficulty*.5;
+  const big=Math.random()<.18;
+  enemies.push({x,y,vx:Math.cos(ta)*sp,vy:Math.sin(ta)*sp,r:big?24:15,homing:Math.random()<.35});
+}
+function spawnStar(){
+  stars.push({x:rnd(60,W-60),y:rnd(90,H-60),r:11,pulse:rnd(0,6.28),life:rnd(6,9)});
+}
+
+// ---------- ciclo de jogo ----------
+function reset(){
+  score=0;combo=1;comboTimer=0;lives=3;t=0;spawnT=0;starT=0;shake=0;difficulty=0;
+  enemies=[];stars=[];parts=[];rings=[];player.trail=[];
+  player.x=player.tx=W/2;player.y=player.ty=H/2;
+  for(let i=0;i<3;i++)spawnStar();
+}
+function start(){reset();state=S.play;hud.classList.remove('hide');menu.classList.add('hide');over.classList.add('hide');ac()&&ac().resume&&ac().resume();}
+function gameOver(){
+  state=S.over;shake=24;burst(player.x,player.y,'#ff4d5e',40,7);
+  beep(160,.5,'sawtooth',.2);setTimeout(()=>beep(90,.6,'sawtooth',.18),90);
+  const rec=score>best; if(rec){best=score;localStorage.setItem('pulso_best',best);}
+  document.getElementById('finalScore').textContent=score.toLocaleString('pt-BR');
+  document.getElementById('newrec').classList.toggle('hide',!rec);
+  bestOver.textContent='Recorde: '+best.toLocaleString('pt-BR');
+  hud.classList.add('hide');over.classList.remove('hide');
+}
+
+function hurt(){
+  lives--;shake=18;combo=1;comboTimer=0;
+  burst(player.x,player.y,'#ff4d5e',20,5);beep(140,.25,'square',.16);
+  if(lives<=0)gameOver();
+}
+
+function update(dt){
+  t+=dt;difficulty=Math.min(6,t/12);
+  // player segue alvo (suave)
+  player.x+=(player.tx-player.x)*.22;
+  player.y+=(player.ty-player.y)*.22;
+  player.trail.push({x:player.x,y:player.y});
+  if(player.trail.length>16)player.trail.shift();
+
+  // combo decai
+  if(comboTimer>0){comboTimer-=dt;if(comboTimer<=0)combo=1;}
+
+  // pontos por tempo sobrevivido
+  score+=Math.round(dt*10*combo);
+
+  // spawn inimigos
+  spawnT-=dt;
+  if(spawnT<=0){spawnEnemy();spawnT=Math.max(.35,1.1-difficulty*.12);}
+  // spawn estrelas
+  starT-=dt;
+  if(starT<=0 && stars.length<5){spawnStar();starT=rnd(1.2,2.4);}
+
+  // inimigos
+  for(let i=enemies.length-1;i>=0;i--){
+    const e=enemies[i];
+    if(e.homing){const a=Math.atan2(player.y-e.y,player.x-e.x);const acc=.06;
+      e.vx+=Math.cos(a)*acc;e.vy+=Math.sin(a)*acc;
+      const sp=Math.hypot(e.vx,e.vy),mx=3+difficulty*.4;if(sp>mx){e.vx=e.vx/sp*mx;e.vy=e.vy/sp*mx;}}
+    e.x+=e.vx;e.y+=e.vy;
+    if(e.x<-80||e.x>W+80||e.y<-80||e.y>H+80){enemies.splice(i,1);continue;}
+    const d=Math.hypot(e.x-player.x,e.y-player.y);
+    if(d<e.r+player.r-3){enemies.splice(i,1);hurt();}
+  }
+  // estrelas
+  for(let i=stars.length-1;i>=0;i--){
+    const s=stars[i];s.pulse+=dt*4;s.life-=dt;
+    if(s.life<=0){stars.splice(i,1);continue;}
+    const d=Math.hypot(s.x-player.x,s.y-player.y);
+    if(d<s.r+player.r+4){
+      stars.splice(i,1);
+      combo=Math.min(99,combo+1);comboTimer=3;
+      const gain=50*combo;score+=gain;
+      burst(s.x,s.y,'#ffe14d',16,5);ring(s.x,s.y,'#ffe14d');
+      beep(520+combo*40,.12,'triangle',.16);beep(780+combo*40,.1,'sine',.1);
+    }
+  }
+  // partículas
+  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.94;p.vy*=.94;p.life-=dt*1.8;if(p.life<=0)parts.splice(i,1);}
+  for(let i=rings.length-1;i>=0;i--){const r=rings[i];r.r+=6;r.life-=dt*2.2;if(r.life<=0)rings.splice(i,1);}
+
+  if(shake>0)shake*=.86;
+}
+
+// ---------- render ----------
+function draw(){
+  ctx.save();
+  const sx=(Math.random()-.5)*shake, sy=(Math.random()-.5)*shake;
+  ctx.translate(sx,sy);
+
+  // fundo
+  const g=ctx.createRadialGradient(W/2,H*.4,50,W/2,H/2,Math.max(W,H));
+  g.addColorStop(0,'#0b0d22');g.addColorStop(1,'#05060f');
+  ctx.fillStyle=g;ctx.fillRect(-40,-40,W+80,H+80);
+
+  // grade sutil
+  ctx.strokeStyle='rgba(120,160,255,.05)';ctx.lineWidth=1;
+  const gs=60;for(let x=0;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // rings
+  rings.forEach(r=>{ctx.globalAlpha=Math.max(0,r.life);ctx.strokeStyle=r.color;ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,6.28);ctx.stroke();});
+  ctx.globalAlpha=1;
+
+  // estrelas
+  stars.forEach(s=>{
+    const pr=s.r+Math.sin(s.pulse)*2;
+    ctx.globalAlpha=Math.min(1,s.life);
+    ctx.shadowColor='#ffe14d';ctx.shadowBlur=18;
+    drawStar(s.x,s.y,pr,pr*.45,'#ffe14d');
+    ctx.shadowBlur=0;ctx.globalAlpha=1;
+  });
+
+  // inimigos
+  enemies.forEach(e=>{
+    ctx.shadowColor=e.homing?'#ff3ea5':'#ff4d5e';ctx.shadowBlur=16;
+    ctx.fillStyle=e.homing?'#ff3ea5':'#ff4d5e';
+    ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,6.28);ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.beginPath();ctx.arc(e.x-e.r*.3,e.y-e.r*.3,e.r*.28,0,6.28);ctx.fill();
+  });
+
+  // rastro do player
+  for(let i=0;i<player.trail.length;i++){const p=player.trail[i];
+    ctx.globalAlpha=(i/player.trail.length)*.5;ctx.fillStyle='#22e3ff';
+    ctx.beginPath();ctx.arc(p.x,p.y,player.r*(i/player.trail.length),0,6.28);ctx.fill();}
+  ctx.globalAlpha=1;
+
+  // player
+  if(state===S.play){
+    ctx.shadowColor='#22e3ff';ctx.shadowBlur=24;
+    ctx.fillStyle='#eaf2ff';
+    ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,6.28);ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#22e3ff';
+    ctx.beginPath();ctx.arc(player.x,player.y,player.r*.55,0,6.28);ctx.fill();
+  }
+
+  // partículas
+  parts.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.28);ctx.fill();});
+  ctx.globalAlpha=1;
+
+  ctx.restore();
+
+  // vidas (corações) desenhadas fixas
+  if(state===S.play){
+    for(let i=0;i<3;i++){
+      ctx.globalAlpha=i<lives?1:.22;
+      ctx.font='22px sans-serif';ctx.fillText('❤️', W/2-33+i*24, 34);
+    }
+    ctx.globalAlpha=1;
+  }
+}
+function drawStar(cx,cy,outer,inner,color){
+  ctx.fillStyle=color;ctx.beginPath();
+  for(let i=0;i<10;i++){const r=i%2?inner:outer;const a=Math.PI/5*i-Math.PI/2;
+    const x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.closePath();ctx.fill();
+}
+
+// ---------- loop ----------
+let last=performance.now();
+function frame(now){
+  let dt=(now-last)/1000;last=now;if(dt>.05)dt=.05;
+  if(state===S.play)update(dt);
+  else{ // anima partículas mesmo fora do jogo
+    for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vx*=.94;p.vy*=.94;p.life-=dt*1.8;if(p.life<=0)parts.splice(i,1);}
+    if(shake>0)shake*=.86;
+  }
+  draw();
+  if(state===S.play){
+    document.getElementById('score').textContent=score.toLocaleString('pt-BR');
+    const cEl=document.getElementById('combo');cEl.textContent='x'+combo;
+    cEl.style.transform='scale('+(1+Math.min(.4,(combo-1)*.03))+')';
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- UI ----------
+const menu=document.getElementById('menu'),over=document.getElementById('over'),hud=document.getElementById('hud');
+const bestOver=document.getElementById('bestOver');
+function showBest(){document.getElementById('bestMenu').innerHTML=best>0?('Recorde: <b>'+best.toLocaleString('pt-BR')+'</b>'):'';}
+showBest();
+document.getElementById('play').onclick=()=>{start();};
+document.getElementById('again').onclick=()=>{start();};
+addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='Enter'){if(state!==S.play)start();}});
+})();
+</script>
+</body>
+</html>
