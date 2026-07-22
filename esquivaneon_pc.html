@@ -20,18 +20,30 @@
   }
   #topbar b { color:var(--accent); font-variant-numeric:tabular-nums; }
   .combo { color:var(--accent2)!important; }
+  #shiptag {
+    position:absolute; top:calc(58px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    font-size:12px; letter-spacing:1.5px; opacity:.85; white-space:nowrap; text-align:center;
+    text-shadow:0 1px 6px #000;
+  }
+  #shiptag b { color:var(--accent); }
+  #shipbar { width:130px; height:4px; margin:5px auto 0; background:rgba(255,255,255,.14); border-radius:3px; overflow:hidden; }
+  #shipbar i { display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .2s; }
 
-  /* botão voltar */
-  #back, #mute {
-    position:absolute; top:calc(10px + env(safe-area-inset-top));
+  #mute {
+    position:absolute; top:calc(10px + env(safe-area-inset-top)); right:12px;
+    pointer-events:auto; z-index:9; background:rgba(8,6,22,.6);
+    border:1px solid rgba(0,229,255,.35); color:#eaf6ff; font-size:20px;
+    width:44px; height:44px; border-radius:14px; backdrop-filter:blur(6px);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+
+  #back {
+    position:absolute; top:calc(10px + env(safe-area-inset-top)); left:12px;
     pointer-events:auto; z-index:9; background:rgba(8,6,22,.6);
     border:1px solid rgba(0,229,255,.35); color:#eaf6ff; font-size:20px;
     width:44px; height:44px; border-radius:14px; backdrop-filter:blur(6px);
     display:flex; align-items:center; justify-content:center; text-decoration:none; cursor:pointer;
   }
-  #back { left:12px; }
-  #mute { right:12px; }
-
   .screen {
     position:fixed; inset:0; z-index:8; display:flex; flex-direction:column;
     align-items:center; justify-content:center; text-align:center; padding:24px;
@@ -44,7 +56,7 @@
     background:linear-gradient(90deg,var(--accent),var(--accent2));
     -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:8px;
   }
-  .sub { opacity:.85; font-size:15px; max-width:320px; margin-bottom:26px; line-height:1.5; }
+  .sub { opacity:.85; font-size:15px; max-width:340px; margin-bottom:26px; line-height:1.5; }
   .btn {
     pointer-events:auto; cursor:pointer; border:none; font-weight:800; letter-spacing:1px;
     font-size:22px; padding:18px 52px; border-radius:44px; color:#04121a;
@@ -52,7 +64,7 @@
     box-shadow:0 0 28px rgba(0,229,255,.5); -webkit-tap-highlight-color:transparent;
   }
   .btn:active { transform:scale(.97); }
-  .hint { margin-top:22px; font-size:13px; opacity:.6; max-width:320px; line-height:1.7; }
+  .hint { margin-top:22px; font-size:13px; opacity:.6; max-width:340px; line-height:1.7; }
   #finalScore { font-size:20px; margin-bottom:8px; }
   #finalScore b { color:var(--accent); font-size:30px; }
   #best { opacity:.7; font-size:15px; margin-bottom:24px; }
@@ -71,11 +83,12 @@
     <span>Nv <b id="level">1</b></span>
     <span id="lives">❤❤❤</span>
   </div>
+  <div id="shiptag"><span id="shipline">🚀 <b>EXPLORADOR</b></span><div id="shipbar"><i id="shipfill"></i></div></div>
 </div>
 
 <div class="screen" id="start">
   <div class="title">ESQUIVA<br>NEON</div>
-  <div class="sub">Mova com o <b>mouse</b> e atire com <b>clique</b> ou <b>espaço</b>. Também dá pra usar as <b>setas</b> / <b>WASD</b>. Desvie das rochas e pegue os power-ups!</div>
+  <div class="sub">Mova com o <b>mouse</b> e atire com <b>clique</b> ou <b>espaço</b> (também dá pra usar <b>setas</b>/<b>WASD</b>). Destrua asteroides pra <b>evoluir a nave</b> e ficar mais forte!</div>
   <button class="btn" id="playBtn">JOGAR</button>
   <div class="hint">🟢 vida · 🔵 escudo · 🩷 tiro triplo · 🟡 câmera lenta</div>
 </div>
@@ -104,33 +117,117 @@
   window.addEventListener('resize',resize); resize();
 
   const S={running:false,over:false,t:0,score:0,level:1,lives:3,combo:1,comboTimer:0,
-    slowmo:0,shield:0,triple:0,spawnTimer:0,difficulty:0,shake:0,flashHit:0};
+    slowmo:0,shield:0,triple:0,spawnTimer:0,difficulty:0,shake:0,flashHit:0,
+    kills:0,tier:0,toast:null};
+
+  // ------- Naves: sobem de tier a cada X asteroides destruidos -------
+  // Cada tier muda o formato, a cor, o dano e a quantidade de tiros.
+  const SHIPS=[
+    { name:'EXPLORADOR', kills:0,   cd:12, dmg:1, shots:[0],
+      top:'#aef7ff', bot:'#00e5ff', glow:'#00e5ff', accent:'#ff4d4d', draw:drawArrow },
+    { name:'INTERCEPTOR',kills:10,  cd:10, dmg:1, shots:[-0.05,0.05],
+      top:'#b9ffd8', bot:'#18e58a', glow:'#18e58a', accent:'#eaffef', draw:drawInterceptor },
+    { name:'CAÇA-X',     kills:30,  cd:9,  dmg:2, shots:[-0.12,0.12],
+      top:'#e6efff', bot:'#7aa0ff', glow:'#7aa0ff', accent:'#ff4d4d', draw:drawXwing },
+    { name:'CRUZADOR',   kills:70,  cd:8,  dmg:2, shots:[-0.18,0,0.18],
+      top:'#e0c9ff', bot:'#8a4dff', glow:'#a06bff', accent:'#ffd6ff', draw:drawCruiser },
+    { name:'DESTROYER',  kills:150, cd:7,  dmg:3, shots:[-0.22,-0.07,0.07,0.22],
+      top:'#ffe6a0', bot:'#ff9e2b', glow:'#ffb347', accent:'#fff2cc', draw:drawDestroyer },
+  ];
+  function shipHull(c,r,ship){
+    c.shadowColor=ship.glow; c.shadowBlur=18;
+    const grad=c.createLinearGradient(0,-r*1.3,0,r*1.1);
+    grad.addColorStop(0,ship.top); grad.addColorStop(1,ship.bot);
+    c.fillStyle=grad; c.fill(); c.shadowBlur=0;
+  }
+  function drawArrow(c,r,ship){
+    c.beginPath(); c.moveTo(0,-r); c.lineTo(r*.8,r*.9); c.lineTo(0,r*.4); c.lineTo(-r*.8,r*.9); c.closePath();
+    shipHull(c,r,ship);
+  }
+  function drawInterceptor(c,r,ship){
+    c.beginPath();
+    c.moveTo(0,-r*1.15); c.lineTo(r*.34,-r*.1); c.lineTo(r*.98,r*.85); c.lineTo(r*.3,r*.55);
+    c.lineTo(0,r*.85); c.lineTo(-r*.3,r*.55); c.lineTo(-r*.98,r*.85); c.lineTo(-r*.34,-r*.1); c.closePath();
+    shipHull(c,r,ship);
+    c.fillStyle=ship.accent; c.beginPath(); c.arc(0,-r*.15,r*.14,0,7); c.fill();
+  }
+  function drawXwing(c,r,ship){ // caça estilo Star Wars (X-wing) visto de cima
+    c.lineWidth=3; c.strokeStyle=ship.bot; c.shadowColor=ship.glow; c.shadowBlur=10;
+    for(const s of [-1,1]){
+      c.beginPath(); c.moveTo(s*r*.2,-r*.15); c.lineTo(s*r*1.15,-r*.95); c.stroke();
+      c.beginPath(); c.moveTo(s*r*.2, r*.2); c.lineTo(s*r*1.15, r*.95); c.stroke();
+    }
+    c.shadowBlur=0;
+    for(const s of [-1,1]){ // pontas dos canhões (vermelho X-wing)
+      c.fillStyle=ship.accent;
+      c.beginPath(); c.arc(s*r*1.15,-r*.95,2.6,0,7); c.fill();
+      c.beginPath(); c.arc(s*r*1.15, r*.95,2.6,0,7); c.fill();
+    }
+    c.beginPath(); // fuselagem
+    c.moveTo(0,-r*1.25); c.lineTo(r*.22,-r*.4); c.lineTo(r*.22,r*.95); c.lineTo(0,r*1.1);
+    c.lineTo(-r*.22,r*.95); c.lineTo(-r*.22,-r*.4); c.closePath();
+    shipHull(c,r,ship);
+    c.fillStyle='#0b1030'; c.beginPath(); c.arc(0,-r*.25,r*.15,0,7); c.fill(); // cabine
+  }
+  function drawCruiser(c,r,ship){
+    c.beginPath();
+    c.moveTo(0,-r*1.25); c.lineTo(r*.3,-r*.3); c.lineTo(r*1.2,r*.2); c.lineTo(r*1.2,r*.55);
+    c.lineTo(r*.42,r*.5); c.lineTo(r*.5,r*1.05); c.lineTo(0,r*.8); c.lineTo(-r*.5,r*1.05);
+    c.lineTo(-r*.42,r*.5); c.lineTo(-r*1.2,r*.55); c.lineTo(-r*1.2,r*.2); c.lineTo(-r*.3,-r*.3); c.closePath();
+    shipHull(c,r,ship);
+    c.fillStyle=ship.accent; c.beginPath(); c.arc(0,-r*.35,r*.16,0,7); c.fill();
+  }
+  function drawDestroyer(c,r,ship){ // cunha gigante estilo Star Destroyer
+    c.beginPath();
+    c.moveTo(0,-r*1.4); c.lineTo(r*1.3,r*1.05); c.lineTo(r*.4,r*.78); c.lineTo(0,r*1.1);
+    c.lineTo(-r*.4,r*.78); c.lineTo(-r*1.3,r*1.05); c.closePath();
+    shipHull(c,r,ship);
+    c.strokeStyle=ship.accent; c.lineWidth=1.5; c.globalAlpha=.7;
+    c.beginPath(); c.moveTo(0,-r*1.2); c.lineTo(0,r*.85); c.stroke();
+    c.beginPath(); c.moveTo(-r*.5,r*.2); c.lineTo(r*.5,r*.2); c.stroke(); c.globalAlpha=1;
+    c.fillStyle=ship.accent; c.beginPath(); c.arc(0,r*.4,r*.13,0,7); c.fill();
+  }
+  function onKill(){ S.kills++;
+    let nt=0; for(let i=0;i<SHIPS.length;i++) if(S.kills>=SHIPS[i].kills) nt=i;
+    if(nt>S.tier){ S.tier=nt; tierUp(); }
+  }
+  function tierUp(){
+    const sh=SHIPS[S.tier];
+    S.toast={text:'▲ NAVE EVOLUÍDA · '+sh.name, timer:140};
+    burst(player.x,player.y,sh.glow,34,8); S.shake=Math.max(S.shake,8);
+    beep(660,.12,'triangle',.08); setTimeout(()=>beep(990,.16,'triangle',.08),90);
+    if(navigator.vibrate) navigator.vibrate([40,40,60]);
+  }
   let best=+(localStorage.getItem('esquivaneon_best')||0);
 
-  // nave um pouco maior no celular pra facilitar
   const player={x:W/2,y:H*0.78,tx:W/2,ty:H*0.78,r:18,cd:0};
   let rocks=[],bullets=[],pows=[],parts=[],stars=[];
   function initStars(){ stars=[]; for(let i=0;i<80;i++) stars.push({x:Math.random()*W,y:Math.random()*H,z:Math.random()*.8+.2,s:Math.random()*1.6+.3}); }
   initStars();
 
-  // ------- Controles PC: mouse + teclado -------
-  const keys={}; let firing=false;
-  window.addEventListener('keydown',e=>{
-    keys[e.code]=true;
-    if(e.code==='Space'){firing=true;e.preventDefault();}
-    if(!S.running&&(e.code==='Space'||e.code==='Enter')){e.preventDefault();el('playBtn').click();}
-  });
-  window.addEventListener('keyup',e=>{keys[e.code]=false; if(e.code==='Space')firing=false;});
-  window.addEventListener('mousemove',e=>{player.tx=e.clientX;player.ty=e.clientY;});
-  canvas.addEventListener('mousedown',()=>{if(S.running)firing=true;});
-  window.addEventListener('mouseup',()=>firing=false);
-  // suporte a toque também (caso rode num laptop com tela sensível)
+  // ------- Detecta se tem toque; senão usa mouse/teclado -------
+  const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints>0;
   let touchId=null;
-  canvas.addEventListener('touchstart',e=>{e.preventDefault();if(touchId===null){const t=e.changedTouches[0];touchId=t.identifier;player.tx=t.clientX;player.ty=t.clientY-46;firing=true;}},{passive:false});
-  canvas.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===touchId){player.tx=t.clientX;player.ty=t.clientY-46;}},{passive:false});
-  function endTouch(e){e.preventDefault();for(const t of e.changedTouches)if(t.identifier===touchId){touchId=null;firing=false;}}
+  const FINGER_OFFSET = 46;
+  const keys={}; let firing=false;
+
+  canvas.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    if(touchId===null){ const t=e.changedTouches[0]; touchId=t.identifier; player.tx=t.clientX; player.ty=t.clientY-FINGER_OFFSET; }
+  },{passive:false});
+  canvas.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    for(const t of e.changedTouches) if(t.identifier===touchId){ player.tx=t.clientX; player.ty=t.clientY-FINGER_OFFSET; }
+  },{passive:false});
+  function endTouch(e){ e.preventDefault(); for(const t of e.changedTouches) if(t.identifier===touchId){ touchId=null; } }
   canvas.addEventListener('touchend',endTouch,{passive:false});
   canvas.addEventListener('touchcancel',endTouch,{passive:false});
+
+  window.addEventListener('keydown',e=>{ keys[e.code]=true; if(e.code==='Space'){firing=true;e.preventDefault();} });
+  window.addEventListener('keyup',e=>{ keys[e.code]=false; if(e.code==='Space')firing=false; });
+  window.addEventListener('mousemove',e=>{ player.tx=e.clientX; player.ty=e.clientY; });
+  canvas.addEventListener('mousedown',()=>{ if(S.running)firing=true; });
+  window.addEventListener('mouseup',()=>firing=false);
 
   // ------- Áudio -------
   let actx=null;
@@ -142,9 +239,9 @@
     }catch(_){}
   }
 
-  // ------- Música de fundo (synth loop, sem arquivos externos) -------
-  const music={on:(localStorage.getItem('esquivaneon_music')!=='0'),node:null,timer:null,step:0,gain:null};
-  const SEQ=[0,3,5,7,10,7,5,3,0,3,7,10,12,10,7,3]; // escala menor pentatônica-ish
+  // ------- Música de fundo (synth loop) -------
+  const music={on:(localStorage.getItem('esquivaneon_music')!=='0'),timer:null,step:0,gain:null};
+  const SEQ=[0,3,5,7,10,7,5,3,0,3,7,10,12,10,7,3];
   const BASS=[0,0,-2,-2,-4,-4,-5,-5];
   function midi(n){ return 220*Math.pow(2,n/12); }
   function playNote(freq,dur,type,vol){
@@ -153,8 +250,7 @@
     o.type=type; o.frequency.value=freq; o.connect(g); g.connect(music.gain||actx.destination);
     const n=actx.currentTime;
     g.gain.setValueAtTime(0,n); g.gain.linearRampToValueAtTime(vol,n+0.02);
-    g.gain.exponentialRampToValueAtTime(.0001,n+dur);
-    o.start(n); o.stop(n+dur+0.02);
+    g.gain.exponentialRampToValueAtTime(.0001,n+dur); o.start(n); o.stop(n+dur+0.02);
   }
   function musicTick(){
     if(!actx||!music.on) return;
@@ -190,10 +286,12 @@
   }
   function fire(){
     if(player.cd>0) return;
-    player.cd=S.triple>0?9:12;
-    const shots=S.triple>0?[-0.22,0,0.22]:[0];
-    for(const a of shots) bullets.push({x:player.x+Math.sin(a)*10,y:player.y-16,vx:Math.sin(a)*9,vy:-13,r:4.5});
-    beep(880,.05,'square',.03);
+    const sh=SHIPS[S.tier];
+    player.cd=sh.cd;
+    let shots=sh.shots.slice();
+    if(S.triple>0) shots=shots.concat([-0.3,0.3]); // power-up: leque extra
+    for(const a of shots) bullets.push({x:player.x+Math.sin(a)*12,y:player.y-16,vx:Math.sin(a)*9.5,vy:-13,r:4.5,dmg:sh.dmg});
+    beep(820+S.tier*40,.05,'square',.03);
   }
   const addScore=n=>{S.score+=Math.round(n*S.combo);};
   function bumpCombo(){S.combo=Math.min(9,S.combo+1);S.comboTimer=150;}
@@ -216,6 +314,7 @@
     parts=parts.filter(p=>p.life>0);
     if(S.shake>0) S.shake=Math.max(0,S.shake-dtRaw);
     if(S.flashHit>0) S.flashHit=Math.max(0,S.flashHit-.05*dtRaw);
+    if(S.toast&&S.toast.timer>0) S.toast.timer-=dtRaw;
     if(!S.running) return;
     S.t+=dt; S.difficulty=S.t/1400; S.level=1+Math.floor(S.t/600);
     if(S.slowmo>0)S.slowmo-=dtRaw; if(S.shield>0)S.shield-=dtRaw; if(S.triple>0)S.triple-=dtRaw;
@@ -233,7 +332,10 @@
     player.ty=Math.max(player.r,Math.min(H-player.r,player.ty));
 
     if(player.cd>0) player.cd-=dt;
-    if(firing) fire();
+    // no toque atira sozinho; no PC só quando clica/espaço
+    if(hasTouch ? touchId!==null : firing) fire();
+    // fallback: se estiver no celular sem dedo na tela, ainda atira devagar pra não ficar parado
+    if(hasTouch && touchId===null) fire();
 
     S.spawnTimer-=dt;
     const interval=Math.max(16,55-S.difficulty*10);
@@ -246,8 +348,8 @@
 
     for(const b of bullets){ for(const rk of rocks){ if(rk.dead)continue;
       const dx=b.x-rk.x,dy=b.y-rk.y; if(dx*dx+dy*dy<(rk.r+b.r)*(rk.r+b.r)){
-        b.dead=true; rk.hp--; burst(b.x,b.y,'#7cf7ff',5,3);
-        if(rk.hp<=0){rk.dead=true;addScore(Math.round(rk.r));bumpCombo();burst(rk.x,rk.y,'#00e5ff',18,5);beep(rand(300,500),.08,'triangle',.05);}
+        b.dead=true; rk.hp-=(b.dmg||1); burst(b.x,b.y,'#7cf7ff',5,3);
+        if(rk.hp<=0){rk.dead=true;addScore(Math.round(rk.r));bumpCombo();onKill();burst(rk.x,rk.y,SHIPS[S.tier].glow,18,5);beep(rand(300,500),.08,'triangle',.05);}
         else beep(600,.03,'square',.03); break;
       } } }
     bullets=bullets.filter(b=>!b.dead);
@@ -292,16 +394,26 @@
     ctx.restore();
     if(S.flashHit>0){ctx.fillStyle=`rgba(255,40,40,${S.flashHit*0.4})`;ctx.fillRect(0,0,W,H);}
     if(S.slowmo>0){ctx.fillStyle='rgba(255,210,63,0.06)';ctx.fillRect(0,0,W,H);}
+    if(S.toast&&S.toast.timer>0){
+      ctx.save();
+      ctx.globalAlpha=Math.min(1,S.toast.timer/25);
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='#fff'; ctx.shadowColor=SHIPS[S.tier].glow; ctx.shadowBlur=22;
+      ctx.font='800 clamp(20px,5.5vw,34px) system-ui';
+      ctx.fillText(S.toast.text, W/2, H*0.32);
+      ctx.restore();
+    }
   }
   function drawPlayer(){
+    const sh=SHIPS[S.tier];
     ctx.save();ctx.translate(player.x,player.y);
-    if(S.shield>0){ctx.globalAlpha=.4+.3*Math.sin(S.t*.2);ctx.strokeStyle='#00e5ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,player.r+12,0,7);ctx.stroke();ctx.globalAlpha=1;}
-    ctx.shadowColor=S.triple>0?'#ff2bd6':'#00e5ff';ctx.shadowBlur=18;
-    ctx.beginPath();ctx.moveTo(0,-player.r);ctx.lineTo(player.r*.8,player.r*.9);ctx.lineTo(0,player.r*.4);ctx.lineTo(-player.r*.8,player.r*.9);ctx.closePath();
-    const grad=ctx.createLinearGradient(0,-player.r,0,player.r);
-    grad.addColorStop(0,S.triple>0?'#ff8be8':'#aef7ff');grad.addColorStop(1,S.triple>0?'#ff2bd6':'#00e5ff');
-    ctx.fillStyle=grad;ctx.fill();ctx.shadowBlur=0;
-    if(S.running){ctx.beginPath();ctx.moveTo(-4,player.r*.7);ctx.lineTo(0,player.r*.9+rand(2,10));ctx.lineTo(4,player.r*.7);ctx.closePath();ctx.fillStyle='#ffd23f';ctx.fill();}
+    if(S.shield>0){ctx.globalAlpha=.4+.3*Math.sin(S.t*.2);ctx.strokeStyle='#00e5ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,player.r+13,0,7);ctx.stroke();ctx.globalAlpha=1;}
+    // chama do motor
+    if(S.running){ctx.beginPath();ctx.moveTo(-4,player.r*.7);ctx.lineTo(0,player.r*(1.0+S.tier*.06)+rand(2,10));ctx.lineTo(4,player.r*.7);ctx.closePath();ctx.fillStyle=S.triple>0?'#ff9de8':'#ffd23f';ctx.fill();}
+    // casco da nave (formato do tier atual)
+    sh.draw(ctx,player.r,sh);
+    // brilho rosa quando com tiro triplo
+    if(S.triple>0){ctx.strokeStyle='#ff2bd6';ctx.lineWidth=2;ctx.globalAlpha=.6+.3*Math.sin(S.t*.3);ctx.stroke();ctx.globalAlpha=1;}
     ctx.restore();
   }
   const el=id=>document.getElementById(id);
@@ -309,10 +421,20 @@
     el('score').textContent=S.score; el('level').textContent=S.level;
     el('lives').textContent='❤'.repeat(Math.max(0,S.lives));
     if(S.combo>1){el('comboBox').style.display='';el('combo').textContent='x'+S.combo;} else el('comboBox').style.display='none';
+    const sh=SHIPS[S.tier], nx=SHIPS[S.tier+1];
+    if(nx){
+      const base=sh.kills, need=nx.kills-base, prog=Math.min(need,S.kills-base);
+      el('shipline').innerHTML='🚀 <b>'+sh.name+'</b> · faltam '+(need-prog)+' p/ evoluir';
+      el('shipfill').style.width=(prog/need*100)+'%';
+    } else {
+      el('shipline').innerHTML='🚀 <b>'+sh.name+'</b> · nave máxima!';
+      el('shipfill').style.width='100%';
+    }
   }
   function startGame(){
     S.running=true;S.over=false;S.t=0;S.score=0;S.level=1;S.lives=3;S.combo=1;S.comboTimer=0;
     S.slowmo=0;S.shield=0;S.triple=0;S.spawnTimer=0;S.difficulty=0;S.shake=0;S.flashHit=0;
+    S.kills=0;S.tier=0;S.toast=null;
     rocks=[];bullets=[];pows=[];parts=[];
     player.x=player.tx=W/2;player.y=player.ty=H*0.78;player.cd=0;
     el('start').classList.add('hidden');el('over').classList.add('hidden');updateHUD();
@@ -334,5 +456,6 @@
   requestAnimationFrame(loop);
 })();
 </script>
+
 </body>
 </html>
