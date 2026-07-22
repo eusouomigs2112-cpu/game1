@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>ONÍRIA — um sonho dreamcore</title>
+<style>
+  :root{ --ink:#f4ecff; --glow:#ffb8ec; --glow2:#a9b6ff; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:#0a0710;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;color:var(--ink)}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+
+  #vhs{position:fixed;inset:0;pointer-events:none;z-index:6;mix-blend-mode:overlay;opacity:.16;
+    background:repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 1px,transparent 1px 3px)}
+  #vhs::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 120% at 50% 50%,transparent 55%,rgba(0,0,0,.5))}
+
+  #hud{position:fixed;inset:0;z-index:7;pointer-events:none;opacity:0;transition:opacity .8s}
+  #hud.on{opacity:1}
+  #mem{position:absolute;top:22px;left:0;right:0;text-align:center;font-size:15px;letter-spacing:.32em;text-transform:uppercase;
+    text-shadow:0 0 18px var(--glow),0 2px 10px #000}
+  #mem b{font-size:30px;display:block;letter-spacing:.06em;margin-top:2px;color:#fff;text-shadow:0 0 26px var(--glow)}
+  #depth{position:absolute;top:24px;right:26px;font-size:12px;letter-spacing:.28em;text-transform:uppercase;opacity:.7}
+  #fps{position:absolute;top:24px;left:26px;font-size:11px;letter-spacing:.18em;opacity:.4}
+  #toast{position:absolute;left:0;right:0;bottom:16%;text-align:center;font-size:clamp(18px,3.4vw,30px);font-style:italic;
+    opacity:0;transition:opacity .6s;text-shadow:0 0 24px var(--glow2),0 3px 14px #000;padding:0 8vw}
+  #reticle{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;
+    background:rgba(255,255,255,.85);box-shadow:0 0 12px var(--glow);opacity:.55}
+  #hint{position:absolute;bottom:20px;left:0;right:0;text-align:center;font-size:12px;letter-spacing:.22em;text-transform:uppercase;opacity:.42}
+
+  #veil{position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;text-align:center;
+    background:radial-gradient(120% 120% at 50% 30%,#241634 0%,#0a0710 70%);transition:opacity .8s;cursor:pointer}
+  #veil.hide{opacity:0;pointer-events:none}
+  .card{max-width:580px;padding:0 28px;transform:translateY(-4%)}
+  .title{font-size:clamp(44px,10vw,96px);font-weight:800;letter-spacing:.18em;
+    background:linear-gradient(180deg,#fff,var(--glow) 55%,var(--glow2));-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 60px rgba(255,184,236,.35);animation:breathe 6s ease-in-out infinite}
+  @keyframes breathe{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
+  .sub{margin-top:6px;font-size:13px;letter-spacing:.5em;text-transform:uppercase;opacity:.6}
+  .desc{margin:26px auto 0;font-size:15px;line-height:1.7;opacity:.82;max-width:460px}
+  .keys{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .k{border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 12px;font-size:12px;letter-spacing:.12em;
+    background:rgba(255,255,255,.05);text-transform:uppercase}
+  .go{margin-top:30px;font-size:16px;letter-spacing:.3em;text-transform:uppercase;opacity:.9;animation:pulse 2.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+  #loading{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:#0a0710;
+    letter-spacing:.4em;text-transform:uppercase;font-size:13px;opacity:.7}
+  #err{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:#150a12;
+    color:#ffb8c8;font-size:14px;padding:40px;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="vhs"></div>
+
+  <div id="hud">
+    <div id="mem">memórias<b>0</b></div>
+    <div id="depth">nível do sonho · 1</div>
+    <div id="fps"></div>
+    <div id="reticle"></div>
+    <div id="toast"></div>
+    <div id="hint">wasd mover · shift correr · mouse olhar · m som · +/− qualidade · esc acordar</div>
+  </div>
+
+  <div id="loading">carregando o sonho…</div>
+  <div id="err"></div>
+
+  <div id="veil" class="hide">
+    <div class="card">
+      <div class="title">ONÍRIA</div>
+      <div class="sub">um sonho dreamcore</div>
+      <div class="desc">Você acorda dentro de um lugar que quase reconhece. Vagueie pela névoa pastel sobre a água parada e recolha as <b>memórias</b> que flutuam — cada uma sussurra algo. Não há como perder. Só há o sonho.</div>
+      <div class="keys">
+        <span class="k">W A S D</span><span class="k">Shift correr</span><span class="k">Mouse olhar</span><span class="k">M som</span>
+      </div>
+      <div class="go">clique para sonhar</div>
+    </div>
+  </div>
+
+<!--BUNDLE-->
+</body>
+</html>

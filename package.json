@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "playwright-core": "^1.61.1"
+  },
+  "name": "oniria",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}

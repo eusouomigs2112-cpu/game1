@@ -1,0 +1,5 @@
+node_modules/
+dist_*.js
+scene.png
+shot.png
+*.tmp
