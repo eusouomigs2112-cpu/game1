@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>O Chamado do Mar</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>" />
+<style>
+  :root{ --gold:#f4c86a; --sea:#7fd4e6; --ink:#04141c; }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; overflow:hidden; background:#02060b; color:#eaf6ff;
+    font-family:"Georgia","Times New Roman",serif; -webkit-font-smoothing:antialiased; }
+  canvas{ display:block; }
+  #app{ position:fixed; inset:0; }
+
+  /* ---------- HUD ---------- */
+  #hud{ position:fixed; inset:0; pointer-events:none; z-index:6;
+    opacity:0; transition:opacity 1s ease; font-family:"Trebuchet MS",system-ui,sans-serif; }
+  #hud.on{ opacity:1; }
+
+  .panel{ background:rgba(4,20,28,.42); border:1px solid rgba(127,212,230,.25);
+    backdrop-filter:blur(6px); border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,.35); }
+
+  #objective{ position:absolute; top:18px; left:50%; transform:translateX(-50%);
+    padding:10px 22px; text-align:center; max-width:80vw; }
+  #objective .lbl{ font-size:11px; letter-spacing:3px; color:var(--gold); text-transform:uppercase; opacity:.85; }
+  #objective .txt{ font-size:17px; margin-top:2px; text-shadow:0 2px 6px #000; }
+
+  #beacons{ position:absolute; top:16px; right:18px; padding:10px 16px; display:flex; gap:9px; align-items:center; }
+  #beacons .dot{ width:14px; height:14px; border-radius:50%; background:#123; border:1px solid #2a5f6e;
+    box-shadow:inset 0 0 4px #000; transition:.4s; }
+  #beacons .dot.lit{ background:var(--gold); border-color:#fff0c0;
+    box-shadow:0 0 12px var(--gold),0 0 22px rgba(244,200,106,.6); }
+  #beacons .cap{ font-size:12px; letter-spacing:1px; color:#bfe9f5; margin-right:4px; }
+
+  #compass{ position:absolute; left:20px; bottom:20px; width:104px; height:104px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; }
+  #compass .ring{ position:absolute; inset:8px; border-radius:50%; border:1px solid rgba(127,212,230,.35); }
+  #compass .n{ position:absolute; top:5px; left:50%; transform:translateX(-50%); font-size:10px; color:#9fdbe9; }
+  #needle{ width:0;height:0; border-left:8px solid transparent; border-right:8px solid transparent;
+    border-bottom:38px solid var(--gold); transform-origin:50% 78%; filter:drop-shadow(0 0 5px rgba(244,200,106,.8)); }
+  #needle.tail{ border-bottom-color:#3a6b78; }
+  #compass .dist{ position:absolute; bottom:10px; left:50%; transform:translateX(-50%); font-size:11px; color:#cfeef7; }
+
+  #speedo{ position:absolute; right:20px; bottom:20px; padding:8px 16px; text-align:center; min-width:130px; }
+  #speedo .v{ font-size:26px; font-weight:700; color:#eaf6ff; line-height:1; }
+  #speedo .u{ font-size:10px; letter-spacing:2px; color:#8fc8d8; }
+  #speedo .sail{ font-size:11px; margin-top:4px; color:var(--gold); letter-spacing:1px; }
+
+  #hint{ position:absolute; bottom:22px; left:50%; transform:translateX(-50%);
+    font-size:13px; color:#bfe9f5; text-shadow:0 2px 4px #000; opacity:0; transition:.5s; pointer-events:none;
+    background:rgba(4,20,28,.55); padding:8px 18px; border-radius:20px; border:1px solid rgba(127,212,230,.3); }
+  #hint.show{ opacity:1; }
+
+  #toast{ position:absolute; top:34%; left:50%; transform:translate(-50%,-50%) scale(.9);
+    font-size:30px; font-family:Georgia,serif; color:var(--gold); text-shadow:0 3px 14px #000,0 0 30px rgba(244,200,106,.5);
+    opacity:0; transition:.45s; text-align:center; }
+  #toast.show{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+  /* ---------- Overlays (title / cutscene / end) ---------- */
+  #overlay{ position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    text-align:center; transition:opacity 1.2s ease; }
+  #overlay.hidden{ opacity:0; pointer-events:none; }
+  .veil{ position:absolute; inset:0; background:
+     radial-gradient(120% 90% at 50% 20%, rgba(10,40,55,.25), rgba(2,8,14,.86) 70%, #02060b 100%); }
+  .bars{ position:absolute; inset:0; pointer-events:none; }
+  .bars:before,.bars:after{ content:""; position:absolute; left:0; right:0; height:0; background:#000;
+    transition:height 1s ease; }
+  .bars:before{ top:0; } .bars:after{ bottom:0; }
+  #overlay.cine .bars:before,#overlay.cine .bars:after{ height:11vh; }
+
+  #ov-inner{ position:relative; max-width:760px; padding:0 28px; z-index:2; }
+  #title{ font-size:clamp(38px,8vw,86px); letter-spacing:4px; line-height:1;
+    background:linear-gradient(180deg,#fff,#f4c86a 60%,#c98b2e);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 6px 40px rgba(244,200,106,.25); }
+  #subtitle{ margin-top:14px; font-size:15px; letter-spacing:6px; color:#9fdbe9; text-transform:uppercase; }
+  #story{ font-size:clamp(17px,2.4vw,23px); line-height:1.65; color:#eaf6ff; min-height:120px;
+    text-shadow:0 2px 10px #000; }
+  #story .who{ display:block; color:var(--gold); font-size:14px; letter-spacing:3px; text-transform:uppercase; margin-bottom:10px; }
+  .cursorblink{ display:inline-block; width:9px; margin-left:1px; color:var(--gold); animation:bl 1s steps(1) infinite; }
+  @keyframes bl{ 50%{opacity:0} }
+
+  .btn{ pointer-events:auto; cursor:pointer; margin-top:30px; display:inline-block;
+    padding:14px 40px; font-size:16px; letter-spacing:3px; text-transform:uppercase; color:#04141c;
+    background:linear-gradient(180deg,#ffe6ab,#f4c86a); border:none; border-radius:40px; font-family:"Trebuchet MS",sans-serif;
+    box-shadow:0 8px 26px rgba(244,200,106,.4); transition:transform .15s, box-shadow .2s; font-weight:700; }
+  .btn:hover{ transform:translateY(-2px) scale(1.03); box-shadow:0 12px 34px rgba(244,200,106,.6); }
+  .btn.ghost{ background:transparent; color:#cfeef7; border:1px solid rgba(127,212,230,.5); box-shadow:none; margin-left:12px; }
+  .btn.ghost:hover{ background:rgba(127,212,230,.12); }
+  .prompt{ margin-top:26px; font-size:13px; letter-spacing:2px; color:#9fdbe9; opacity:.8; animation:pulse 2s infinite; }
+  @keyframes pulse{ 50%{opacity:.35} }
+
+  #howto{ text-align:left; display:inline-block; margin-top:8px; }
+  #howto h3{ color:var(--gold); letter-spacing:3px; font-size:14px; text-transform:uppercase; margin-bottom:14px; text-align:center; }
+  #howto .row{ display:flex; align-items:center; gap:14px; margin:9px 0; font-family:"Trebuchet MS",sans-serif; }
+  .key{ display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:34px; padding:0 9px;
+    background:rgba(127,212,230,.1); border:1px solid rgba(127,212,230,.4); border-radius:8px; font-size:13px;
+    box-shadow:0 3px 0 rgba(127,212,230,.18); color:#eaf6ff; }
+  #howto .row span{ color:#cfeef7; font-size:15px; }
+
+  #loading{ position:fixed; inset:0; z-index:40; background:#02060b; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:22px; transition:opacity .8s; }
+  #loading.hidden{ opacity:0; pointer-events:none; }
+  .lh{ width:60px;height:60px; position:relative; }
+  .lh .beam{ position:absolute; inset:0; border-radius:50%; background:var(--gold);
+    box-shadow:0 0 30px 8px rgba(244,200,106,.6); animation:pulse 1.4s ease-in-out infinite; }
+  #loadtxt{ letter-spacing:4px; font-size:13px; color:#9fdbe9; text-transform:uppercase; }
+  #loadbar{ width:220px; height:3px; background:rgba(127,212,230,.2); border-radius:3px; overflow:hidden; }
+  #loadbar i{ display:block; height:100%; width:0; background:linear-gradient(90deg,#7fd4e6,#f4c86a); transition:width .3s; }
+
+  #audiotoggle{ position:fixed; top:16px; left:18px; z-index:8; pointer-events:auto; cursor:pointer;
+    width:40px;height:40px; border-radius:10px; display:flex;align-items:center;justify-content:center;
+    font-size:18px; opacity:.7; transition:.2s; }
+  #audiotoggle:hover{ opacity:1; }
+  .credit{ position:fixed; bottom:8px; left:0; right:0; text-align:center; font-size:11px; color:#3f6472;
+    z-index:7; letter-spacing:2px; pointer-events:none; }
+  @media (max-width:640px){ #compass{width:84px;height:84px} #speedo{min-width:104px} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="objective" class="panel"><div class="lbl">Objetivo</div><div class="txt">—</div></div>
+  <div id="beacons" class="panel"><span class="cap">BOIAS</span></div>
+  <div id="compass" class="panel"><div class="ring"></div><div class="n">N</div><div id="needle"></div><div class="dist">—</div></div>
+  <div id="speedo" class="panel"><div class="v">0</div><div class="u">NÓS</div><div class="sail">VELA RECOLHIDA</div></div>
+  <div id="hint"></div>
+  <div id="toast"></div>
+</div>
+<div id="audiotoggle" class="panel" title="Som (M)">🔊</div>
+<div class="credit">O CHAMADO DO MAR · use fones de ouvido 🎧</div>
+
+<!-- Cinematic overlay -->
+<div id="overlay">
+  <div class="veil"></div>
+  <div class="bars"></div>
+  <div id="ov-inner"></div>
+</div>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="lh"><div class="beam"></div></div>
+  <div id="loadtxt">Erguendo o oceano…</div>
+  <div id="loadbar"><i></i></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./three-vendor/build/three.module.js",
+    "three/addons/": "./three-vendor/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { Water } from 'three/addons/objects/Water.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+/* =======================================================================
+   O CHAMADO DO MAR — jogo de navegação oceânica
+   Three.js · oceano Gerstner (Water) · céu volumétrico (Sky) · bloom HDR
+   ======================================================================= */
+
+const $ = s => document.querySelector(s);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp = (a,b,t)=>a+(b-a)*t;
+const smooth = t => t*t*(3-2*t);
+
+let renderer, scene, camera, composer, bloomPass, clock;
+let water, sky, sun = new THREE.Vector3(), pmrem, sunLight, hemi;
+let boat, lantern, lanternLight, sailMesh, flag, wake, spray;
+let lighthouse, lhBeam, lhLantern, lhLight;
+const buoys = [];
+let rain, rainVel;
+let lightningLight, lightningTimer = 4;
+
+let state = 'boot';          // boot | title | cutscene | play | ending | win
+let lit = 0;                 // boias acesas
+const TOTAL = 5;
+let stormT = 0;              // 0..1 intensidade da tempestade
+let dawnT = 0;               // 0..1 amanhecer final
+let phase = 'seek';          // seek (acender boias) | tofarol | done
+
+// --- estado do barco
+const B = {
+  pos:new THREE.Vector3(0,0,120), heading:Math.PI, speed:0, throttle:0, steer:0,
+  sail:false, bob:0
+};
+const WORLD_R = 1500;
+const LH_POS = new THREE.Vector3(0,0,-1150);
+
+// --- input
+const keys = {};
+addEventListener('keydown',e=>{ keys[e.code]=true;
+  if(e.code==='KeyM') toggleAudio();
+  if(e.code==='Space'){ e.preventDefault(); if(state==='play') B.sail=!B.sail; }
+});
+addEventListener('keyup',e=>{ keys[e.code]=false; });
+
+/* ---------------------- BOOT ---------------------- */
+init();
+
+function setLoad(p,msg){ $('#loadbar i').style.width=(p*100)+'%'; if(msg) $('#loadtxt').textContent=msg; }
+
+async function init(){
+  renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.4;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  $('#app').appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x9fc3d6, 0.00035);
+
+  camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 1, 20000);
+  camera.position.set(0,60,220);
+
+  clock = new THREE.Clock();
+  pmrem = new THREE.PMREMGenerator(renderer);
+
+  setLoad(0.1,'Erguendo o oceano…');
+  buildLights();
+  await buildOcean();      setLoad(0.5,'Pintando o céu…');
+  buildSky();              setLoad(0.68,'Construindo o navio…');
+  buildBoat();             setLoad(0.8,'Ancorando as boias…');
+  buildBuoys();
+  buildLighthouse();       setLoad(0.9,'Trazendo a tempestade…');
+  buildRain();
+  buildComposer();
+  applyWeather(0);         setLoad(1,'Pronto.');
+
+  addEventListener('resize', onResize);
+  renderer.setAnimationLoop(loop);
+
+  // hook de depuração (teleporte/estado) — inofensivo em produção
+  window.__dbg = {
+    toBuoy:i=>{ const b=buoys[i]; B.pos.set(b.g.position.x,0,b.g.position.z-40); },
+    toFarol:()=>{ B.pos.set(LH_POS.x, 0, LH_POS.z+165); B.heading=Math.PI; },
+    state:()=>({state,lit,phase,stormT:+stormT.toFixed(2),dawnT:+dawnT.toFixed(2)})
+  };
+
+  setTimeout(()=>{ $('#loading').classList.add('hidden'); showTitle(); }, 500);
+}
+
+/* ---------------------- LIGHTS ---------------------- */
+function buildLights(){
+  hemi = new THREE.HemisphereLight(0xbfe4f0, 0x0a2530, 0.55);
+  scene.add(hemi);
+  sunLight = new THREE.DirectionalLight(0xfff0d8, 2.4);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(1024,1024);
+  const d=400; const c=sunLight.shadow.camera;
+  c.left=-d;c.right=d;c.top=d;c.bottom=-d;c.near=1;c.far=2000;
+  sunLight.shadow.bias=-0.0004;
+  scene.add(sunLight, sunLight.target);
+
+  lightningLight = new THREE.PointLight(0xcfe6ff, 0, 4000, 1.4);
+  lightningLight.position.set(0,600,-200);
+  scene.add(lightningLight);
+}
+
+/* ---------------------- OCEAN ---------------------- */
+// Normal map da água gerado proceduralmente (seamless) — zero dependência externa.
+function makeWaterNormals(size=512){
+  const cv=document.createElement('canvas'); cv.width=cv.height=size;
+  const ctx=cv.getContext('2d'); const img=ctx.createImageData(size,size); const d=img.data;
+  // ondas em frequências inteiras => tileável
+  const waves=[]; const rnd=mulberry(1337);
+  for(let i=0;i<14;i++){ const fx=Math.round(rnd()*6-3)||1, fy=Math.round(rnd()*6-3)||1;
+    waves.push({fx,fy,amp:1/(1+Math.hypot(fx,fy)),ph:rnd()*6.283}); }
+  const H=(x,y)=>{ let h=0; for(const w of waves){ h+=w.amp*Math.sin(2*Math.PI*(w.fx*x+w.fy*y)+w.ph);} return h; };
+  const e=1/size;
+  for(let y=0;y<size;y++) for(let x=0;x<size;x++){
+    const u=x/size, v=y/size;
+    const hx=H(u+e,v)-H(u-e,v), hy=H(u,v+e)-H(u,v-e);
+    const nx=-hx, ny=-hy, nz=0.9;
+    const l=Math.hypot(nx,ny,nz);
+    const i=(y*size+x)*4;
+    d[i]  =((nx/l)*0.5+0.5)*255;
+    d[i+1]=((ny/l)*0.5+0.5)*255;
+    d[i+2]=((nz/l)*0.5+0.5)*255;
+    d[i+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+  const tex=new THREE.CanvasTexture(cv);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  return tex;
+}
+function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+function buildOcean(){
+  return new Promise(res=>{
+    const geo = new THREE.PlaneGeometry(20000,20000);
+    water = new Water(geo, {
+      textureWidth:512, textureHeight:512,
+      waterNormals: makeWaterNormals(512),
+      sunDirection: new THREE.Vector3(),
+      sunColor: 0xffffff,
+      waterColor: 0x0a3d4a,
+      distortionScale: 3.6,
+      fog: true
+    });
+    water.rotation.x = -Math.PI/2;
+    scene.add(water);
+    res();
+  });
+}
+
+/* ---------------------- SKY ---------------------- */
+let skyParams = { turbidity:6, rayleigh:2.3, mie:0.004, mieG:0.82, elevation:9, azimuth:150 };
+function buildSky(){
+  sky = new Sky();
+  sky.scale.setScalar(20000);
+  scene.add(sky);
+  updateSky();
+}
+let envTimer = 0;
+function updateSky(force){
+  const u = sky.material.uniforms;
+  u['turbidity'].value = skyParams.turbidity;
+  u['rayleigh'].value = skyParams.rayleigh;
+  u['mieCoefficient'].value = skyParams.mie;
+  u['mieDirectionalG'].value = skyParams.mieG;
+  const phi = THREE.MathUtils.degToRad(90 - skyParams.elevation);
+  const theta = THREE.MathUtils.degToRad(skyParams.azimuth);
+  sun.setFromSphericalCoords(1, phi, theta);
+  u['sunPosition'].value.copy(sun);
+  if(water) water.material.uniforms['sunDirection'].value.copy(sun).normalize();
+  // luz solar segue o sol
+  sunLight.position.copy(sun).multiplyScalar(800).add(new THREE.Vector3(B.pos.x,0,B.pos.z));
+  sunLight.target.position.set(B.pos.x,0,B.pos.z);
+  // ambiente (caro) — só recalcula quando forçado
+  if(force){
+    scene.environment = pmrem.fromScene(sky).texture;
+  }
+}
+
+/* ---------------------- BOAT ---------------------- */
+function buildBoat(){
+  boat = new THREE.Group();
+
+  // casco a partir de um perfil lateral extrudado
+  const s = new THREE.Shape();
+  s.moveTo(-16,3);
+  s.quadraticCurveTo(-19,-5, -10,-7);   // popa
+  s.lineTo(11,-7);
+  s.quadraticCurveTo(22,-6, 22,4);      // proa levantada
+  s.lineTo(18,4);
+  s.lineTo(-14,4);
+  s.closePath();
+  const hullGeo = new THREE.ExtrudeGeometry(s,{ depth:11, bevelEnabled:true, bevelThickness:1.2, bevelSize:1.4, bevelSegments:3, steps:1 });
+  hullGeo.center();
+  const woodDark = new THREE.MeshStandardMaterial({ color:0x4a2f1c, roughness:0.72, metalness:0.05 });
+  const hull = new THREE.Mesh(hullGeo, woodDark);
+  hull.rotation.y = Math.PI/2;
+  hull.castShadow = hull.receiveShadow = true;
+  boat.add(hull);
+
+  // deck
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(9.4,1,30),
+    new THREE.MeshStandardMaterial({ color:0x8a6640, roughness:0.6 }));
+  deck.position.y = 3.4; deck.castShadow = deck.receiveShadow = true;
+  boat.add(deck);
+
+  // cabine
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(7,5,8),
+    new THREE.MeshStandardMaterial({ color:0x6b4a2c, roughness:0.55 }));
+  cabin.position.set(0,6.5,-6); cabin.castShadow = true;
+  boat.add(cabin);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(7.6,1,8.6),
+    new THREE.MeshStandardMaterial({ color:0x2e2016, roughness:0.5 }));
+  roof.position.set(0,9.2,-6); boat.add(roof);
+
+  // mastro + verga
+  const mat = new THREE.MeshStandardMaterial({ color:0x3a2a1a, roughness:0.6 });
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.8,34,10), mat);
+  mast.position.set(0,20,1); mast.castShadow = true;
+  boat.add(mast);
+
+  // vela (plano levemente curvado)
+  const sailGeo = new THREE.PlaneGeometry(20,22,12,12);
+  const pos = sailGeo.attributes.position;
+  for(let i=0;i<pos.count;i++){ const x=pos.getX(i); pos.setZ(i, Math.cos(x/20*Math.PI)*2.2 - 2.2); }
+  sailGeo.computeVertexNormals();
+  sailMesh = new THREE.Mesh(sailGeo, new THREE.MeshStandardMaterial({
+    color:0xf3ead7, roughness:0.9, side:THREE.DoubleSide }));
+  sailMesh.position.set(0,20,2.5); sailMesh.castShadow = true;
+  sailMesh.scale.y = 0.05;               // recolhida no início
+  boat.add(sailMesh);
+
+  // bandeira
+  const flagGeo = new THREE.PlaneGeometry(7,4,10,4);
+  flag = new THREE.Mesh(flagGeo, new THREE.MeshStandardMaterial({ color:0xc23b3b, roughness:.8, side:THREE.DoubleSide }));
+  flag.position.set(3.4,35.5,1); boat.add(flag);
+
+  // lanterna do faroleiro na proa (brilha)
+  lantern = new THREE.Mesh(new THREE.SphereGeometry(1.5,16,16),
+    new THREE.MeshStandardMaterial({ color:0xffdf9a, emissive:0xffcf6a, emissiveIntensity:3 }));
+  lantern.position.set(0,9,15); boat.add(lantern);
+  lanternLight = new THREE.PointLight(0xffcf7a, 6, 120, 1.6);
+  lanternLight.position.set(0,10,15); boat.add(lanternLight);
+
+  scene.add(boat);
+
+  // esteira (wake) — pontos
+  wake = makePoints(600, 0xffffff, 4.5, 0.5);
+  spray = makePoints(300, 0xffffff, 3.2, 0.9);
+  scene.add(wake, spray);
+}
+
+function makePoints(n, color, size, opacity){
+  const g = new THREE.BufferGeometry();
+  const p = new Float32Array(n*3);
+  const life = new Float32Array(n);
+  for(let i=0;i<n;i++){ p[i*3+1]=-999; life[i]=0; }
+  g.setAttribute('position', new THREE.BufferAttribute(p,3));
+  const m = new THREE.PointsMaterial({ color, size, transparent:true, opacity,
+    depthWrite:false, blending:THREE.AdditiveBlending, sizeAttenuation:true });
+  const pts = new THREE.Points(g,m);
+  pts.userData = { life, idx:0, n };
+  return pts;
+}
+function emitPoint(pts, x,y,z, ttl){
+  const i = pts.userData.idx; const arr = pts.geometry.attributes.position.array;
+  arr[i*3]=x; arr[i*3+1]=y; arr[i*3+2]=z; pts.userData.life[i]=ttl;
+  pts.userData.idx=(i+1)%pts.userData.n;
+}
+function updatePoints(pts, dt, rise){
+  const arr = pts.geometry.attributes.position.array, life=pts.userData.life;
+  for(let i=0;i<pts.userData.n;i++){ if(life[i]>0){ life[i]-=dt; arr[i*3+1]+=rise*dt; if(life[i]<=0) arr[i*3+1]=-9999; } }
+  pts.geometry.attributes.position.needsUpdate=true;
+}
+
+/* ---------------------- BUOYS ---------------------- */
+const BUOY_POS = [
+  new THREE.Vector3(-380, 0, -180),
+  new THREE.Vector3( 520, 0, -120),
+  new THREE.Vector3( 260, 0, -560),
+  new THREE.Vector3(-560, 0, -640),
+  new THREE.Vector3(  40, 0, -760),
+];
+function buildBuoys(){
+  BUOY_POS.forEach((p,i)=>{
+    const g = new THREE.Group();
+    const buoyMat = new THREE.MeshStandardMaterial({ color:0xb0272b, roughness:0.5, metalness:0.1 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(6,8,14,16), buoyMat);
+    body.position.y=4; body.castShadow=true; g.add(body);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(6.2,6.2,3,16),
+      new THREE.MeshStandardMaterial({ color:0xf0f0e8, roughness:.6 }));
+    band.position.y=8; g.add(band);
+    // gaiola + luz
+    const cageMat = new THREE.MeshStandardMaterial({ color:0x33221a, roughness:.6, metalness:.4 });
+    for(let k=0;k<4;k++){ const bar=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,10,6),cageMat);
+      const a=k/4*Math.PI*2; bar.position.set(Math.cos(a)*3.4,16,Math.sin(a)*3.4); g.add(bar); }
+    const lampMat = new THREE.MeshStandardMaterial({ color:0x221100, emissive:0x000000, emissiveIntensity:0, roughness:.3 });
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(3.2,16,16), lampMat);
+    lamp.position.y=16.5; g.add(lamp);
+    const light = new THREE.PointLight(0xffc860, 0, 260, 1.6); light.position.y=17; g.add(light);
+    // feixe vertical (aparece quando acesa)
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.6,5,260,16,1,true),
+      new THREE.MeshBasicMaterial({ color:0xffcf7a, transparent:true, opacity:0, side:THREE.DoubleSide,
+        depthWrite:false, blending:THREE.AdditiveBlending }));
+    beam.position.y=140; g.add(beam);
+
+    g.position.copy(p); scene.add(g);
+    buoys.push({ g, lamp, light, beam, lit:false, phase:Math.random()*6.28, idx:i });
+  });
+}
+
+/* ---------------------- LIGHTHOUSE ---------------------- */
+function buildLighthouse(){
+  lighthouse = new THREE.Group();
+  // ilha rochosa
+  const rockMat = new THREE.MeshStandardMaterial({ color:0x3b4750, roughness:0.95 });
+  const island = new THREE.Mesh(new THREE.ConeGeometry(140,90,7,1), rockMat);
+  island.position.y=-30; island.rotation.y=0.5; island.castShadow=island.receiveShadow=true;
+  lighthouse.add(island);
+  const rockGeo = new THREE.IcosahedronGeometry(1,0);
+  for(let i=0;i<8;i++){ const r=new THREE.Mesh(rockGeo,rockMat);
+    const a=Math.random()*6.28, d=60+Math.random()*60;
+    r.position.set(Math.cos(a)*d, 2+Math.random()*6, Math.sin(a)*d);
+    r.scale.setScalar(8+Math.random()*14); r.rotation.set(Math.random(),Math.random(),Math.random());
+    r.castShadow=true; lighthouse.add(r); }
+
+  // torre listrada
+  const tower = new THREE.Group();
+  const white = new THREE.MeshStandardMaterial({ color:0xe9e4d6, roughness:.7 });
+  const red   = new THREE.MeshStandardMaterial({ color:0xb0272b, roughness:.7 });
+  const segs=7, h=22;
+  for(let i=0;i<segs;i++){ const rB=18-i*1.1, rT=18-(i+1)*1.1;
+    const seg=new THREE.Mesh(new THREE.CylinderGeometry(rT,rB,h,24), i%2?red:white);
+    seg.position.y=8+h*i+h/2; seg.castShadow=seg.receiveShadow=true; tower.add(seg); }
+  const gallery = new THREE.Mesh(new THREE.CylinderGeometry(13,13,4,24),
+    new THREE.MeshStandardMaterial({ color:0x2b2b2b, roughness:.6, metalness:.4 }));
+  gallery.position.y=8+h*segs+2; tower.add(gallery);
+  // lanterna
+  lhLantern = new THREE.Mesh(new THREE.CylinderGeometry(9,9,14,16),
+    new THREE.MeshStandardMaterial({ color:0x111318, emissive:0x000000, emissiveIntensity:0,
+      roughness:.2, metalness:.3, transparent:true, opacity:.85 }));
+  lhLantern.position.y=8+h*segs+11; tower.add(lhLantern);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(11,10,16),
+    new THREE.MeshStandardMaterial({ color:0x3a1f1f, roughness:.6 }));
+  cap.position.y=8+h*segs+23; tower.add(cap);
+
+  tower.position.y=0; lighthouse.add(tower);
+  lighthouse.position.copy(LH_POS);
+  scene.add(lighthouse);
+
+  // luz + feixe rotativo (apagados)
+  lhLight = new THREE.PointLight(0xfff0c8, 0, 2000, 1.3);
+  lhLight.position.set(LH_POS.x, 8+h*segs+11, LH_POS.z);
+  scene.add(lhLight);
+
+  lhBeam = new THREE.Mesh(new THREE.ConeGeometry(70, 1400, 24, 1, true),
+    new THREE.MeshBasicMaterial({ color:0xfff0c8, transparent:true, opacity:0, side:THREE.DoubleSide,
+      depthWrite:false, blending:THREE.AdditiveBlending }));
+  lhBeam.rotation.z = Math.PI/2;               // aponta horizontal
+  lhBeam.position.set(LH_POS.x, 8+h*segs+11, LH_POS.z);
+  scene.add(lhBeam);
+}
+
+/* ---------------------- RAIN ---------------------- */
+function buildRain(){
+  const N=6000; const g=new THREE.BufferGeometry();
+  const p=new Float32Array(N*3); rainVel=new Float32Array(N);
+  for(let i=0;i<N;i++){ p[i*3]=(Math.random()-.5)*900; p[i*3+1]=Math.random()*500; p[i*3+2]=(Math.random()-.5)*900; rainVel[i]=260+Math.random()*180; }
+  g.setAttribute('position',new THREE.BufferAttribute(p,3));
+  const m=new THREE.PointsMaterial({ color:0x9fb8c8, size:0.9, transparent:true, opacity:0, depthWrite:false });
+  rain=new THREE.Points(g,m); rain.userData.N=N; scene.add(rain);
+}
+
+/* ---------------------- COMPOSER (BLOOM) ---------------------- */
+function buildComposer(){
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene,camera));
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.5, 0.5, 0.85);
+  composer.addPass(bloomPass);
+  composer.addPass(new OutputPass());
+}
+
+/* ---------------------- WEATHER ---------------------- */
+// storm: 0 (dourado calmo) -> 1 (tempestade); dawn: 0 -> 1 (amanhecer final)
+function applyWeather(dt){
+  const s = stormT, dn = dawnT;
+  // céu
+  skyParams.turbidity = lerp(6, 20, s)*(1-dn) + 3*dn;
+  skyParams.rayleigh  = lerp(2.3, 0.4, s)*(1-dn) + 2.6*dn;
+  skyParams.mie       = lerp(0.004, 0.035, s);
+  skyParams.elevation = lerp(9, -2, s)*(1-dn) + 8*dn;      // sol baixo (hora dourada) -> some na tempestade -> volta no amanhecer
+  skyParams.azimuth   = lerp(150, 188, s);
+  updateSky(false);
+
+  // luz
+  sunLight.intensity = lerp(1.9, 0.25, s)*(1-dn) + 2.8*dn;
+  sunLight.color.setHSL(lerp(0.075,0.6,s), 0.6, 0.58);
+  hemi.intensity = lerp(0.42, 0.16, s) + 0.28*dn;
+  renderer.toneMappingExposure = lerp(0.40, 0.30, s) + 0.12*dn;
+
+  // névoa
+  scene.fog.density = lerp(0.00025, 0.0019, s) * (1 - 0.55*dn);
+  const fc = new THREE.Color().setHSL(lerp(0.58,0.60,s), lerp(0.45,0.10,s), lerp(0.42,0.18,s));
+  if(dn>0) fc.lerp(new THREE.Color(0xffc890), dn*0.55);
+  scene.fog.color.copy(fc);
+
+  // água
+  if(water){
+    water.material.uniforms['distortionScale'].value = lerp(4.2, 9, s);
+    water.material.uniforms['size'].value = lerp(1.2, 2.6, s);
+    const wc = new THREE.Color().setHSL(0.57, lerp(0.65,0.35,s), lerp(0.06,0.035,s));
+    water.material.uniforms['waterColor'].value.copy(wc);
+    water.material.uniforms['sunColor'].value.setHSL(lerp(0.09,0.55,s),0.5,lerp(0.85,0.5,s));
+  }
+  // chuva
+  rain.material.opacity = lerp(0, 0.55, clamp((s-0.25)/0.55,0,1)) * (1-dn);
+  bloomPass.strength = lerp(0.5, 0.85, s) + 0.4*dn;
+}
+
+/* ---------------------- LOOP ---------------------- */
+function loop(){
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  if(water) water.material.uniforms['time'].value += dt*(0.7 + stormT*0.9);
+
+  if(state==='play') updatePlay(dt,t);
+  animateWorld(dt,t);
+
+  // ambiente recalculado a cada ~1.2s (transições suaves de céu)
+  envTimer += dt;
+  if(envTimer>1.2){ envTimer=0; updateSky(true); }
+
+  composer.render();
+}
+
+/* --------- gameplay --------- */
+function updatePlay(dt,t){
+  // input
+  const fwd = (keys['KeyW']||keys['ArrowUp'])?1:0;
+  const back= (keys['KeyS']||keys['ArrowDown'])?1:0;
+  const left= (keys['KeyA']||keys['ArrowLeft'])?1:0;
+  const right=(keys['KeyD']||keys['ArrowRight'])?1:0;
+
+  B.throttle = lerp(B.throttle, fwd - back*0.6, 1-Math.pow(0.001,dt));
+  const sailBoost = B.sail ? 1.9 : 1.0;
+  const maxSpeed = 46 * sailBoost;
+  const target = B.throttle * maxSpeed;
+  B.speed = lerp(B.speed, target, 1-Math.pow(0.02,dt));
+
+  const speedFactor = clamp(Math.abs(B.speed)/18, 0.15, 1);
+  const turn = (left - right) * 1.1 * speedFactor;
+  B.steer = lerp(B.steer, turn, 1-Math.pow(0.02,dt));
+  B.heading += B.steer * dt * (B.speed>=0?1:-1);
+
+  B.pos.x += Math.sin(B.heading)*B.speed*dt;
+  B.pos.z += Math.cos(B.heading)*B.speed*dt;
+
+  // limite do mundo
+  const r = Math.hypot(B.pos.x - LH_POS.x*0, B.pos.z);
+  const dCenter = Math.hypot(B.pos.x, B.pos.z);
+  if(dCenter > WORLD_R){
+    const nx=B.pos.x/dCenter, nz=B.pos.z/dCenter;
+    B.pos.x=nx*WORLD_R; B.pos.z=nz*WORLD_R; B.speed*=0.4;
+    flashHint('⚓ Mar aberto demais — volte para as boias', 1.6);
+  }
+
+  // colisão com a ilha do farol
+  const dLH = B.pos.distanceTo(LH_POS);
+  if(dLH < 130){
+    const nx=(B.pos.x-LH_POS.x)/dLH, nz=(B.pos.z-LH_POS.z)/dLH;
+    B.pos.x=LH_POS.x+nx*130; B.pos.z=LH_POS.z+nz*130; B.speed*=0.3;
+  }
+
+  // acender boias
+  if(phase==='seek'){
+    for(const b of buoys){ if(!b.lit && b.g.position.distanceTo(B.pos) < 55){ lightBuoy(b); } }
+  }
+  // chegar ao farol
+  if(phase==='tofarol' && dLH < 185){ triggerEnding(); }
+
+  // vela visual
+  const sy = B.sail ? 1 : 0.05;
+  sailMesh.scale.y = lerp(sailMesh.scale.y, sy, 1-Math.pow(0.004,dt));
+
+  // esteira + spray
+  if(Math.abs(B.speed) > 6){
+    const bx=B.pos.x - Math.sin(B.heading)*22, bz=B.pos.z - Math.cos(B.heading)*22;
+    emitPoint(wake, bx+(Math.random()-.5)*10, 1.5, bz+(Math.random()-.5)*10, 1.2);
+    if(Math.abs(B.speed) > 30 && Math.random()<0.6){
+      const fx=B.pos.x + Math.sin(B.heading)*24, fz=B.pos.z + Math.cos(B.heading)*24;
+      emitPoint(spray, fx+(Math.random()-.5)*8, 4+Math.random()*6, fz+(Math.random()-.5)*8, 0.7);
+    }
+  }
+
+  updateHUD();
+}
+
+function animateWorld(dt,t){
+  // barco boiando
+  if(boat){
+    B.bob += dt;
+    const amp = 1.4 + stormT*3.2;
+    boat.position.set(B.pos.x, Math.sin(t*1.1)*amp + Math.sin(t*0.6+1)*amp*0.4, B.pos.z);
+    boat.rotation.y = B.heading;
+    boat.rotation.z = Math.sin(t*0.9)*(0.03+stormT*0.10) - B.steer*0.15;
+    boat.rotation.x = Math.sin(t*1.3+2)*(0.02+stormT*0.08) - B.throttle*0.04;
+    // pulso da lanterna
+    lanternLight.intensity = 6 + Math.sin(t*3)*1.2;
+    // bandeira tremula
+    if(flag){ const p=flag.geometry.attributes.position; for(let i=0;i<p.count;i++){ const x=p.getX(i);
+      p.setZ(i, Math.sin(t*6 + x*0.6)*(0.6+stormT*1.4)*((x+3.5)/7)); } p.needsUpdate=true; }
+  }
+
+  // câmera de perseguição
+  if(state==='play' || state==='ending'){
+    const back = 108 + Math.abs(B.speed)*0.55;
+    const cx = B.pos.x - Math.sin(B.heading)*back;
+    const cz = B.pos.z - Math.cos(B.heading)*back;
+    const cy = 52 + Math.abs(B.speed)*0.14;
+    camera.position.lerp(new THREE.Vector3(cx,cy,cz), 1-Math.pow(0.001,dt));
+    const look = new THREE.Vector3(B.pos.x + Math.sin(B.heading)*50, 14, B.pos.z + Math.cos(B.heading)*50);
+    camera.lookAt(look);
+  } else {
+    // câmera cinematográfica orbitando na tela de título
+    const a = t*0.06;
+    camera.position.set(Math.sin(a)*260, 70+Math.sin(t*0.2)*14, Math.cos(a)*260 + 120);
+    camera.lookAt(0,10,0);
+  }
+
+  // boias
+  for(const b of buoys){
+    b.g.position.y = Math.sin(t*1.2 + b.phase)*(1.5+stormT*2.5);
+    b.g.rotation.z = Math.sin(t*0.8+b.phase)*0.08;
+    if(b.lit){ const pulse=0.7+Math.sin(t*2+b.phase)*0.3;
+      b.light.intensity = 60*pulse; b.beam.material.opacity=0.12*pulse; }
+  }
+
+  // farol
+  if(lighthouse){
+    lhBeam.rotation.y += dt*0.9;
+    if(lhLight.intensity>0){
+      const rot = t*0.9;
+      // gira o cone: recria direção via rotação do grupo beam em torno do eixo Y
+      lhBeam.rotation.z = Math.PI/2;
+      lhBeam.rotation.y = rot;
+    }
+  }
+
+  // chuva segue a câmera
+  if(rain.material.opacity>0.01){
+    const arr=rain.geometry.attributes.position.array;
+    for(let i=0;i<rain.userData.N;i++){ arr[i*3+1]-=rainVel[i]*dt;
+      if(arr[i*3+1]<0){ arr[i*3]=camera.position.x+(Math.random()-.5)*900; arr[i*3+1]=400+Math.random()*120; arr[i*3+2]=camera.position.z+(Math.random()-.5)*900; } }
+    rain.geometry.attributes.position.needsUpdate=true;
+  } else {
+    // mantém a chuva ao redor da câmera mesmo invisível
+    rain.position.set(camera.position.x,0,camera.position.z);
+  }
+
+  // raios durante a tempestade
+  lightningLight.intensity *= Math.pow(0.02, dt);
+  if(stormT>0.5){
+    lightningTimer -= dt;
+    if(lightningTimer<=0){ lightningTimer = 3+Math.random()*7;
+      lightningLight.position.set(camera.position.x+(Math.random()-.5)*800, 500, camera.position.z-300-Math.random()*400);
+      lightningLight.intensity = 700 + Math.random()*600;
+      thunder();
+    }
+  }
+
+  updatePoints(wake, dt, 3);
+  updatePoints(spray, dt, 22);
+
+  // amanhecer no fim
+  if(state==='win' || state==='ending'){ /* dawnT animado em triggerEnding */ }
+}
+
+/* ---------------------- GAME EVENTS ---------------------- */
+function lightBuoy(b){
+  b.lit=true; lit++;
+  b.lamp.material.emissive.setHex(0xffcf6a); b.lamp.material.emissiveIntensity=4;
+  b.light.intensity=60;
+  playChime();
+  document.querySelectorAll('#beacons .dot')[b.idx]?.classList.add('lit');
+  toast(`Boia acesa · ${lit}/${TOTAL}`);
+  // a tempestade cresce a cada boia
+  animateStorm(lit/TOTAL);
+  if(lit>=TOTAL){
+    phase='tofarol';
+    setObjective('Todas as boias arderam. Siga a última luz até o Farol do Fim do Mundo.');
+    flashHint('🧭 Rume ao norte — a bússola aponta ao Farol', 4);
+  } else {
+    setObjective(`Reacenda as boias perdidas na tempestade · ${lit}/${TOTAL}`);
+  }
+}
+
+let stormAnim=null;
+function animateStorm(target){
+  const from=stormT, start=performance.now(), dur=4000;
+  cancelAnimationFrame(stormAnim);
+  const step=()=>{ const k=clamp((performance.now()-start)/dur,0,1);
+    stormT = lerp(from, target, smooth(k)); applyWeather(0);
+    if(k<1) stormAnim=requestAnimationFrame(step); };
+  step();
+}
+
+function triggerEnding(){
+  if(state!=='play') return;
+  state='ending'; hideHUD();
+  B.throttle=0;
+  // acende o farol
+  lhLantern.material.emissive.setHex(0xfff0c8); lhLantern.material.emissiveIntensity=5;
+  lhLight.intensity=900; lhBeam.material.opacity=0.16;
+  bigChord();
+  // clareia: tempestade -> amanhecer
+  const start=performance.now(), dur=6000, fromStorm=stormT;
+  const step=()=>{ const k=clamp((performance.now()-start)/dur,0,1);
+    stormT=lerp(fromStorm,0,smooth(k)); dawnT=smooth(k); applyWeather(0);
+    lhLight.intensity=700+Math.sin(performance.now()*0.004)*200;
+    if(k<1) requestAnimationFrame(step); };
+  step();
+
+  setTimeout(()=> runCutscene(ENDING, ()=> showWin()), 3200);
+}
+
+/* ---------------------- HUD ---------------------- */
+function showHUD(){ $('#hud').classList.add('on'); }
+function hideHUD(){ $('#hud').classList.remove('on'); }
+function setObjective(txt){ $('#objective .txt').textContent = txt; }
+function updateHUD(){
+  const kn = Math.round(Math.abs(B.speed)*1.1);
+  $('#speedo .v').textContent = kn;
+  $('#speedo .sail').textContent = B.sail ? 'VELA IÇADA ⛵' : 'VELA RECOLHIDA';
+  $('#speedo .sail').style.color = B.sail ? '#8fe6a0' : '#f4c86a';
+
+  // bússola aponta ao alvo (boia mais próxima não-acesa, ou farol)
+  let target=null, best=1e9;
+  if(phase==='seek'){ for(const b of buoys){ if(!b.lit){ const d=b.g.position.distanceTo(B.pos); if(d<best){best=d;target=b.g.position;} } } }
+  else target=LH_POS;
+  if(target){
+    const dx=target.x-B.pos.x, dz=target.z-B.pos.z;
+    const bearing=Math.atan2(dx,dz);           // ângulo mundial
+    const rel = bearing - B.heading;           // relativo à proa
+    $('#needle').style.transform = `rotate(${-THREE.MathUtils.radToDeg(rel)}deg)`;
+    const dist=Math.hypot(dx,dz);
+    $('#compass .dist').textContent = (dist/10).toFixed(0)+' cabos';
+  }
+}
+function flashHint(txt,secs=2.5){ const h=$('#hint'); h.textContent=txt; h.classList.add('show');
+  clearTimeout(h._t); h._t=setTimeout(()=>h.classList.remove('show'), secs*1000); }
+function toast(txt){ const el=$('#toast'); el.textContent=txt; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1600); }
+
+/* ---------------------- OVERLAYS / CUTSCENES ---------------------- */
+const ov = $('#overlay'), inner = $('#ov-inner');
+
+const PROLOGUE = [
+  { who:'', text:'Há três noites, o Farol do Fim do Mundo se apagou.' },
+  { who:'', text:'Sem a sua luz, os navios se perdem no breu — e o mar cobra o seu preço.' },
+  { who:'O velho faroleiro', text:'"As cinco boias guardam a chama do farol. A tempestade as apagou, uma a uma."' },
+  { who:'O velho faroleiro', text:'"Vá, rapaz. Reacenda cada boia. Só então o farol voltará a arder."' },
+  { who:'', text:'Você solta as amarras. À frente, apenas escuridão e o chamado do mar.' },
+];
+const ENDING = [
+  { who:'', text:'A última chama salta da boia ao topo do farol.' },
+  { who:'', text:'A luz varre o mar — e a tempestade se rende ao amanhecer.' },
+  { who:'O velho faroleiro', text:'"Você devolveu a luz ao mundo. Os navios voltarão para casa."' },
+  { who:'', text:'O farol gira, paciente, como sempre girou. E você, faroleiro, já não navega sozinho.' },
+];
+
+let csResolve=null, csLines=null, csIdx=0, typing=false, typeTimer=null, fullText='';
+function runCutscene(lines, done){
+  state='cutscene';
+  csLines=lines; csIdx=0; csResolve=done;
+  ov.classList.remove('hidden'); ov.classList.add('cine');
+  renderCutLine();
+  const adv=e=>{ if(e.type==='keydown' && e.code!=='Space' && e.code!=='Enter') return;
+    if(typing){ finishTyping(); } else { nextCutLine(); } };
+  ov._adv=adv;
+  window.addEventListener('keydown',adv); ov.addEventListener('click',adv);
+}
+function renderCutLine(){
+  const l=csLines[csIdx];
+  inner.innerHTML = `<div id="story">${l.who?`<span class="who">${l.who}</span>`:''}<span id="typed"></span><span class="cursorblink">▍</span></div>
+    <div class="prompt">clique ou aperte <b>Espaço</b> para continuar</div>`;
+  fullText=l.text; typeText();
+}
+function typeText(){
+  typing=true; let i=0; const el=$('#typed');
+  clearInterval(typeTimer);
+  typeTimer=setInterval(()=>{ el.textContent=fullText.slice(0,++i);
+    if(i>=fullText.length){ clearInterval(typeTimer); typing=false; } }, 26);
+}
+function finishTyping(){ clearInterval(typeTimer); $('#typed').textContent=fullText; typing=false; }
+function nextCutLine(){
+  csIdx++;
+  if(csIdx>=csLines.length){ endCutscene(); }
+  else renderCutLine();
+}
+function endCutscene(){
+  window.removeEventListener('keydown',ov._adv); ov.removeEventListener('click',ov._adv);
+  ov.classList.remove('cine');
+  const cb=csResolve; csResolve=null;
+  ov.classList.add('hidden');
+  setTimeout(()=>{ if(cb) cb(); }, 900);
+}
+
+/* --------- title --------- */
+function showTitle(){
+  state='title';
+  ov.classList.remove('hidden');
+  inner.innerHTML = `
+    <div id="title">O Chamado<br>do Mar</div>
+    <div id="subtitle">Uma travessia em cinco luzes</div>
+    <button class="btn" id="startBtn">Zarpar</button>
+    <button class="btn ghost" id="howBtn">Como jogar</button>
+    <div class="prompt">🎧 melhor com som e em tela cheia</div>`;
+  $('#startBtn').onclick = ()=>{ startAudio(); ov.classList.add('hidden');
+    setTimeout(()=> runCutscene(PROLOGUE, beginPlay), 900); };
+  $('#howBtn').onclick = showHowTo;
+}
+function showHowTo(){
+  inner.innerHTML = `
+    <div id="howto">
+      <h3>Como jogar</h3>
+      <div class="row"><span class="key">W</span><span>Acelerar o barco</span></div>
+      <div class="row"><span class="key">S</span><span>Ré / frear</span></div>
+      <div class="row"><span class="key">A</span><span class="key">D</span><span>Virar o leme</span></div>
+      <div class="row"><span class="key">␣</span><span>Içar / recolher a vela (mais velocidade)</span></div>
+      <div class="row"><span class="key">M</span><span>Ligar / desligar o som</span></div>
+      <div class="row" style="margin-top:16px"><span>🧭 A bússola aponta para a próxima <b>boia</b>. Chegue perto para reacendê-la.</span></div>
+      <div class="row"><span>⛯ Acenda as 5 boias e leve a chama ao <b>Farol</b>.</span></div>
+    </div>
+    <div><button class="btn" id="backBtn">Voltar</button></div>`;
+  $('#backBtn').onclick = showTitle;
+}
+function beginPlay(){
+  state='play';
+  // monta os pontos das boias no HUD
+  const bc=$('#beacons');
+  BUOY_POS.forEach(()=>{ const d=document.createElement('div'); d.className='dot'; bc.appendChild(d); });
+  setObjective(`Reacenda as boias perdidas na tempestade · 0/${TOTAL}`);
+  showHUD();
+  flashHint('W para acelerar · Espaço iça a vela · A/D para virar', 5);
+  updateSky(true);
+}
+function showWin(){
+  state='win';
+  ov.classList.remove('hidden');
+  inner.innerHTML = `
+    <div id="title" style="font-size:clamp(30px,6vw,64px)">O Farol Vive</div>
+    <div id="subtitle">Fim · obrigado por jogar</div>
+    <div id="story" style="min-height:auto;margin-top:18px">Cinco luzes, um só caminho para casa.</div>
+    <button class="btn" id="againBtn">Navegar de novo</button>`;
+  $('#againBtn').onclick = ()=> location.reload();
+}
+
+/* ---------------------- AUDIO (Web Audio, sintetizado) ---------------------- */
+let AC=null, master=null, audioOn=true, windGain, waveGain, droneGain;
+function startAudio(){
+  if(AC) { AC.resume(); return; }
+  try{
+    AC = new (window.AudioContext||window.webkitAudioContext)();
+    master = AC.createGain(); master.gain.value=0.0; master.connect(AC.destination);
+    master.gain.linearRampToValueAtTime(0.85, AC.currentTime+2);
+
+    // ruído base
+    const buf = AC.createBuffer(1, AC.sampleRate*3, AC.sampleRate);
+    const d = buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+
+    // vento (ruído filtrado agudo, com LFO)
+    const wind = AC.createBufferSource(); wind.buffer=buf; wind.loop=true;
+    const wf = AC.createBiquadFilter(); wf.type='bandpass'; wf.frequency.value=600; wf.Q.value=0.7;
+    windGain = AC.createGain(); windGain.gain.value=0.06;
+    wind.connect(wf).connect(windGain).connect(master); wind.start();
+    const lfo=AC.createOscillator(); lfo.frequency.value=0.1;
+    const lfoG=AC.createGain(); lfoG.gain.value=0.04; lfo.connect(lfoG).connect(windGain.gain); lfo.start();
+
+    // ondas (ruído grave)
+    const wave = AC.createBufferSource(); wave.buffer=buf; wave.loop=true;
+    const wvf = AC.createBiquadFilter(); wvf.type='lowpass'; wvf.frequency.value=280;
+    waveGain = AC.createGain(); waveGain.gain.value=0.14;
+    wave.connect(wvf).connect(waveGain).connect(master); wave.start();
+    const wlfo=AC.createOscillator(); wlfo.frequency.value=0.18;
+    const wlfoG=AC.createGain(); wlfoG.gain.value=0.06; wlfo.connect(wlfoG).connect(waveGain.gain); wlfo.start();
+
+    // drone musical (duas oscilações graves)
+    droneGain = AC.createGain(); droneGain.gain.value=0.05; droneGain.connect(master);
+    [55, 82.4, 110].forEach((f,i)=>{ const o=AC.createOscillator(); o.type='sine'; o.frequency.value=f;
+      const g=AC.createGain(); g.gain.value=i===0?0.5:0.22; o.connect(g).connect(droneGain); o.start();
+      const vib=AC.createOscillator(); vib.frequency.value=0.05+i*0.03; const vg=AC.createGain(); vg.gain.value=f*0.004;
+      vib.connect(vg).connect(o.frequency); vib.start(); });
+  }catch(e){ console.warn('audio off',e); }
+}
+function toggleAudio(){ audioOn=!audioOn; if(!AC) return;
+  master.gain.linearRampToValueAtTime(audioOn?0.85:0, AC.currentTime+0.3);
+  $('#audiotoggle').textContent = audioOn?'🔊':'🔇'; }
+$('#audiotoggle').onclick = toggleAudio;
+
+function tone(freq, dur, type='sine', vol=0.2, when=0){
+  if(!AC||!audioOn) return; const o=AC.createOscillator(), g=AC.createGain();
+  o.type=type; o.frequency.value=freq; o.connect(g).connect(master);
+  const t=AC.currentTime+when; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur); o.start(t); o.stop(t+dur+0.05);
+}
+function playChime(){ [880,1174,1568].forEach((f,i)=>tone(f,1.2,'sine',0.16,i*0.08)); }
+function bigChord(){ [261.6,329.6,392,523.3].forEach((f,i)=>tone(f,3.5,'triangle',0.14,i*0.12)); }
+function thunder(){ if(!AC||!audioOn) return;
+  const buf=AC.createBuffer(1,AC.sampleRate*1.5,AC.sampleRate); const d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
+  const s=AC.createBufferSource(); s.buffer=buf; const f=AC.createBiquadFilter(); f.type='lowpass'; f.frequency.value=180;
+  const g=AC.createGain(); g.gain.value=0.5; s.connect(f).connect(g).connect(master); s.start();
+}
+
+/* ---------------------- RESIZE ---------------------- */
+function onResize(){
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+  composer.setSize(innerWidth,innerHeight);
+  bloomPass.setSize(innerWidth,innerHeight);
+}
+</script>
+</body>
+</html>
