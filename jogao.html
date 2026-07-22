@@ -314,8 +314,6 @@
 
   function startGame() {
     if (state === STATE.PLAY) return; // evita entrar duas vezes com clique + toque
-    Audio.resume();
-    goFullscreen();
     state = STATE.PLAY; paused = false;
     $('startScreen').classList.add('hidden');
     $('overScreen').classList.add('hidden');
@@ -328,6 +326,10 @@
     updateHUD();
     lastTime = performance.now();
     requestAnimationFrame(loop);
+    // Extras que alguns navegadores bloqueiam (som e tela cheia).
+    // Ficam DEPOIS de o jogo comecar e sao protegidos, entao nunca impedem a entrada.
+    try { Audio.resume(); } catch (e) {}
+    try { goFullscreen(); } catch (e) {}
   }
 
   function gameOver() {
