@@ -58,6 +58,14 @@
   /* crosshair */
   #cross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:8;color:#fff;opacity:.5;
     font-size:20px;pointer-events:none;mix-blend-mode:difference}
+  #prompt{position:fixed;left:50%;top:58%;transform:translateX(-50%);z-index:9;pointer-events:none;
+    background:rgba(6,9,15,.82);border:1px solid var(--acc);border-radius:10px;padding:8px 16px;font-size:16px;font-weight:bold;
+    box-shadow:0 4px 16px rgba(0,0,0,.5);white-space:nowrap}
+  #lobbyHint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:9;pointer-events:none;
+    color:var(--dim);font-size:14px;background:rgba(6,9,15,.7);border-radius:20px;padding:7px 16px}
+  #lobbyHint b{color:var(--txt)}
+  #fade{position:fixed;inset:0;z-index:45;background:#000;opacity:0;pointer-events:none;transition:opacity .5s}
+  #fade.on{opacity:1}
 
   /* photo polaroid */
   #photo{position:fixed;right:16px;bottom:150px;z-index:12;width:190px;background:#f3efe4;border-radius:6px;
@@ -102,6 +110,9 @@
 <body>
 <canvas id="c"></canvas>
 <div id="cross" class="hidden">✛</div>
+<div id="prompt" class="hidden"></div>
+<div id="lobbyHint" class="hidden"><b>W A S D</b> anda · <b>Mouse</b> olha · <b>Clique/E</b> interage · <b>Esc</b> solta o mouse</div>
+<div id="fade"></div>
 
 <!-- HUD -->
 <div id="hud" class="hidden">
@@ -300,6 +311,10 @@ function nightPlan(n){ return { total:5+n, anom:clamp(0.34+0.05*n,0,0.62) }; }
    THREE — cena
    ===================================================================== */
 let scene,camera,renderer,clock, room, deskGroup, monitor, monCtx, monTex, shutter, ceilLight, patientGroup=null;
+let hemi, clinicGroup=null, lobbyGroup=null, clinicLights=[], lobbyLights=[], interactables=[], hovered=null;
+let MODE='menu';
+const L={ x:0, y:1.6, z:3.5, yaw:0, pitch:0, locked:false, fw:false, bk:false, lf:false, rt:false };
+const raycaster=new THREE.Raycaster();
 let camTarget=new THREE.Vector3(0,1.15,-3);
 const CAM_BASE=new THREE.Vector3(0,1.55,1.7);
 
@@ -312,13 +327,36 @@ function initThree(){
   camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.05,80);
   camera.position.copy(CAM_BASE); camera.lookAt(camTarget);
   clock=new THREE.Clock();
-  scene.add(new THREE.HemisphereLight(0x27324a,0x0a0d14,0.5));
+  hemi=new THREE.HemisphereLight(0x27324a,0x0a0d14,0.5); scene.add(hemi);
   ceilLight=new THREE.PointLight(0xfff0d8,1.7,18,1.4); ceilLight.position.set(0,3.1,-1.2); scene.add(ceilLight);
   const deskLamp=new THREE.PointLight(0xbfe0ff,0.7,10); deskLamp.position.set(0,2.0,0.4); scene.add(deskLamp);
+  clinicLights=[ceilLight,deskLamp];
   buildRoom(); buildDesk(); buildMonitor();
+  clinicGroup=new THREE.Group(); scene.add(clinicGroup);
+  [room,deskGroup,monitor,shutter].forEach(o=>{ if(o){ scene.remove(o); clinicGroup.add(o); } });
+  buildLobby();
+  setMode('menu');
   window.addEventListener('resize',onResize);
-  canvas.addEventListener('mousemove',e=>{ G.mouse.x=(e.clientX/innerWidth)*2-1; G.mouse.y=(e.clientY/innerHeight)*2-1; });
+  canvas.addEventListener('mousemove',e=>{
+    if(MODE==='lobby' && L.locked){ L.yaw-=e.movementX*0.0022; L.pitch=clamp(L.pitch-e.movementY*0.0022,-1.2,1.0); }
+    else { G.mouse.x=(e.clientX/innerWidth)*2-1; G.mouse.y=(e.clientY/innerHeight)*2-1; }
+  });
+  document.addEventListener('pointerlockchange',()=>{ L.locked=(document.pointerLockElement===canvas); });
+  canvas.addEventListener('click',()=>{ if(MODE==='lobby'){ if(!L.locked){ try{canvas.requestPointerLock();}catch(e){} } else { triggerHovered(); } } });
   animate();
+}
+function setMode(m){ MODE=m;
+  const inLobby=(m==='lobby'), inShift=(m==='shift');
+  if(clinicGroup) clinicGroup.visible=inShift;
+  if(lobbyGroup) lobbyGroup.visible=inLobby;
+  clinicLights.forEach(l=>l.visible=inShift);
+  lobbyLights.forEach(l=>l.visible=inLobby);
+  if(hemi) hemi.intensity=inLobby?1.1:0.5;
+  scene.fog = inLobby ? new THREE.FogExp2(0x0c1420,0.03) : new THREE.FogExp2(0x05070c,0.055);
+  scene.background = new THREE.Color(inLobby?0x0c1420:0x05070c);
+  $('lobbyHint').classList.toggle('hidden',!inLobby);
+  $('cross').classList.toggle('hidden',!(inLobby||inShift));
+  if(!inLobby){ $('prompt').classList.add('hidden'); }
 }
 function onResize(){ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); }
 
@@ -347,6 +385,93 @@ function buildRoom(){
   // shutter (drops in front of desk when rejecting)
   shutter=new THREE.Mesh(new THREE.BoxGeometry(5,3.2,0.2),new THREE.MeshStandardMaterial({color:0x6a6f7a,roughness:0.5,metalness:0.5})); shutter.position.set(0,3.2+2.2,-2.4); shutter.visible=false; scene.add(shutter);
 }
+/* ---------- LOBBY 3D (hub andável) ---------- */
+function signTex(lines,bg,fg,fs){
+  const cv=document.createElement('canvas'); cv.width=512; cv.height=256; const x=cv.getContext('2d');
+  x.fillStyle=bg||'#12324a'; x.fillRect(0,0,512,256); x.strokeStyle=fg||'#8fe0ff'; x.lineWidth=8; x.strokeRect(8,8,496,240);
+  x.fillStyle=fg||'#eaf4ff'; x.textAlign='center'; x.textBaseline='middle';
+  const arr=lines.split('\n'); arr.forEach((l,i)=>{ x.font='bold '+(fs||54)+'px Trebuchet MS,sans-serif'; x.fillText(l,256,128-(arr.length-1)*34+i*68); });
+  const t=new THREE.CanvasTexture(cv); t.colorSpace=THREE.SRGBColorSpace; return new THREE.MeshBasicMaterial({map:t,transparent:true});
+}
+function buildLobby(){
+  lobbyGroup=new THREE.Group(); scene.add(lobbyGroup);
+  const W=16, D=20, H=4;
+  // luzes do lobby (mais claras/acolhedoras)
+  const l1=new THREE.PointLight(0xbfe6ff,1.3,26,1.2); l1.position.set(0,3.4,2); lobbyGroup.add(l1);
+  const l2=new THREE.PointLight(0xffe6c0,1.0,24,1.3); l2.position.set(0,3.4,-6); lobbyGroup.add(l2);
+  lobbyLights=[l1,l2];
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(W,D),mat(0x33424f,0.9)); floor.rotation.x=-Math.PI/2; floor.position.z=-4; lobbyGroup.add(floor);
+  const grid=new THREE.GridHelper(W,16,0x5fb0c8,0x2a3a46); grid.position.set(0,0.02,-4); lobbyGroup.add(grid);
+  const rug=new THREE.Mesh(new THREE.PlaneGeometry(4,7),mat(0x2f6f8a,0.95)); rug.rotation.x=-Math.PI/2; rug.position.set(0,0.03,-2); lobbyGroup.add(rug);
+  const ceil=new THREE.Mesh(new THREE.PlaneGeometry(W,D),mat(0x22303c,1)); ceil.rotation.x=Math.PI/2; ceil.position.set(0,H,-4); lobbyGroup.add(ceil);
+  const wm=mat(0x3d5060,0.95);
+  const mk=(w,h,d,x,y,z)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),wm); b.position.set(x,y,z); lobbyGroup.add(b); return b; };
+  mk(W,H,0.3,0,H/2,-14); mk(W,H,0.3,0,H/2,6); mk(0.3,H,D,-W/2,H/2,-4); mk(0.3,H,D,W/2,H/2,-4);
+  // letreiro grande na parede do fundo
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(8,2.4),signTex('🏥 HOSPITAL\nDE ANIMAIS','#0e2233','#7fe0ff',60)); sign.position.set(0,3,-13.7); lobbyGroup.add(sign);
+  // balcão + porta do plantão (interativo)
+  const counter=new THREE.Mesh(new THREE.BoxGeometry(6,1.1,1.2),mat(0x5a4030,0.7)); counter.position.set(0,0.55,-11); lobbyGroup.add(counter);
+  const doorFrame=new THREE.Mesh(new THREE.BoxGeometry(2.6,3.2,0.3),mat(0x2a1c12,0.6)); doorFrame.position.set(0,1.6,-13.5); lobbyGroup.add(doorFrame);
+  const door=new THREE.Mesh(new THREE.PlaneGeometry(2.2,2.9),signTex('▶ COMEÇAR\nPLANTÃO','#7a1420','#ffe0e0',48)); door.position.set(0,1.55,-13.33); lobbyGroup.add(door);
+  const doorGlow=new THREE.PointLight(0xff5060,0.8,6); doorGlow.position.set(0,1.6,-12.6); lobbyGroup.add(doorGlow); lobbyLights.push(doorGlow);
+  // painel de CLASSES (armários) parede esquerda
+  const lockers=new THREE.Group(); lockers.position.set(-7.6,0,-4); lobbyGroup.add(lockers);
+  const cols=['#e0574d','#5cc8ff','#3ad98a','#ffcf55','#b98aff'];
+  cols.forEach((c,i)=>{ const lk=new THREE.Mesh(new THREE.BoxGeometry(0.4,2.2,1.1),mat(parseInt(c.slice(1),16),0.6)); lk.position.set(0,1.1,-2.5+i*1.25); lockers.add(lk); });
+  const clsSign=new THREE.Mesh(new THREE.PlaneGeometry(3.2,1.4),signTex('🎓 CLASSES','#123a2a','#8fffc0',54)); clsSign.rotation.y=Math.PI/2; clsSign.position.set(-7.55,3,-4); lobbyGroup.add(clsSign);
+  // máquina (lojinha) parede direita
+  const vend=new THREE.Mesh(new THREE.BoxGeometry(0.9,2.2,1.2),mat(0x243a2a,0.5)); vend.position.set(7.4,1.1,-3); lobbyGroup.add(vend);
+  const vendFace=new THREE.Mesh(new THREE.PlaneGeometry(1.0,1.6),signTex('🛒\nLOJINHA','#0e2a18','#8fffc0',46)); vendFace.rotation.y=-Math.PI/2; vendFace.position.set(6.93,1.3,-3); lobbyGroup.add(vendFace);
+  // placa Como jogar
+  const howSign=new THREE.Mesh(new THREE.PlaneGeometry(2.6,1.4),signTex('📖 COMO\nJOGAR','#2a2440','#cbb8ff',48)); howSign.position.set(4.5,2.2,-13.6); lobbyGroup.add(howSign);
+  // bancos + plantas
+  for(let s=-1;s<=1;s+=2){ const bench=new THREE.Mesh(new THREE.BoxGeometry(3,0.4,0.9),mat(0x6a4a30,0.8)); bench.position.set(s*4.5,0.5,0); lobbyGroup.add(bench);
+    const pot=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.35,0.5,10),mat(0x8a5a3a,0.8)); pot.position.set(s*6,0.25,2.5); lobbyGroup.add(pot);
+    const leaf=new THREE.Mesh(new THREE.ConeGeometry(0.5,1.1,8),mat(0x3a9a4a,0.9)); leaf.position.set(s*6,1.1,2.5); lobbyGroup.add(leaf); }
+  // pets decorativos sentados
+  ['🐶','🐱','🐰'].forEach((e,i)=>{ /* sprites simples via canvas */ });
+  // ------- interativos (raycast) -------
+  interactables=[
+    {mesh:door,     kind:'shift',   label:'▶ Começar o plantão',  pos:door.position},
+    {mesh:clsSign,  kind:'classes', label:'🎓 Ver classes',        pos:clsSign.position},
+    {mesh:vendFace, kind:'shop',    label:'🛒 Abrir a lojinha',    pos:vendFace.position},
+    {mesh:howSign,  kind:'how',     label:'📖 Como jogar',         pos:howSign.position}
+  ];
+}
+// obstáculos AABB do lobby (para colisão simples)
+const LOBBY_AABB=[ {x0:-3,x1:3,z0:-11.6,z1:-10.4}, {x0:-8,x1:-7.2,z0:-6.6,z1:-1.4}, {x0:6.9,x1:8,z0:-3.6,z1:-2.4},
+  {x0:-6,x1:-3,z0:-0.5,z1:0.5}, {x0:3,x1:6,z0:-0.5,z1:0.5} ];
+function lobbyCollide(nx,nz){ const r=0.4;
+  // paredes
+  nx=clamp(nx,-7.4,7.4); nz=clamp(nz,-13.0,5.4);
+  for(const a of LOBBY_AABB){ if(nx>a.x0-r&&nx<a.x1+r&&nz>a.z0-r&&nz<a.z1+r){
+    const dl=Math.abs(nx-(a.x0-r)),dr=Math.abs((a.x1+r)-nx),du=Math.abs(nz-(a.z0-r)),dd=Math.abs((a.z1+r)-nz);
+    const m=Math.min(dl,dr,du,dd); if(m===dl)nx=a.x0-r; else if(m===dr)nx=a.x1+r; else if(m===du)nz=a.z0-r; else nz=a.z1+r; } }
+  return [nx,nz];
+}
+function updateLobby(dt){
+  const spd=4.2; const fx=-Math.sin(L.yaw), fz=-Math.cos(L.yaw), sx=Math.cos(L.yaw), sz=-Math.sin(L.yaw);
+  let mx=0,mz=0; if(L.fw){mx+=fx;mz+=fz;} if(L.bk){mx-=fx;mz-=fz;} if(L.rt){mx+=sx;mz+=sz;} if(L.lf){mx-=sx;mz-=sz;}
+  const len=Math.hypot(mx,mz)||1; mx/=len; mz/=len;
+  if(L.fw||L.bk||L.lf||L.rt){ const nx=L.x+mx*spd*dt, nz=L.z+mz*spd*dt; const c=lobbyCollide(nx,nz); L.x=c[0]; L.z=c[1]; }
+  camera.position.set(L.x,L.y,L.z);
+  const dir=new THREE.Vector3(-Math.sin(L.yaw)*Math.cos(L.pitch), Math.sin(L.pitch), -Math.cos(L.yaw)*Math.cos(L.pitch));
+  camera.lookAt(camera.position.clone().add(dir));
+  // interativos: por proximidade + estar de frente (robusto)
+  hovered=null; let bestDot=0.5;
+  for(const it of interactables){ const to=it.pos.clone().sub(camera.position); const d=to.length(); if(d<3.8){
+    to.normalize(); const dot=to.dot(dir); if(dot>bestDot){ bestDot=dot; hovered=it; } } }
+  const pr=$('prompt'); if(hovered){ pr.textContent=hovered.label+'   [clique / E]'; pr.classList.remove('hidden'); } else pr.classList.add('hidden');
+}
+function triggerHovered(){ if(!hovered)return; const k=hovered.kind; tone(600,0.08,'sine',0.1);
+  if(k==='shift'){ startShift(); }
+  else if(k==='classes'){ releaseLock(); renderClasses(); show('classes'); $('clsBack').onclick=()=>{ hide('classes'); resumeLobby(); }; }
+  else if(k==='shop'){ releaseLock(); openShop(); }
+  else if(k==='how'){ releaseLock(); show('how'); $('howBack').onclick=()=>{ hide('how'); resumeLobby(); }; }
+}
+function releaseLock(){ if(document.pointerLockElement){ try{document.exitPointerLock();}catch(e){} } }
+function resumeLobby(){ /* volta pro lobby; usuário clica na tela pra travar o mouse de novo */ $('prompt').classList.add('hidden'); }
+
 function buildDesk(){
   deskGroup=new THREE.Group(); scene.add(deskGroup);
   const top=new THREE.Mesh(new THREE.BoxGeometry(5,0.18,1.3),mat(0x6b4a2e,0.7)); top.position.set(0,1.0,-0.4); deskGroup.add(top);
@@ -602,24 +727,37 @@ function renderClasses(){ $('clsCoins').textContent=G.coins; const list=$('class
 }
 
 /* ---------- Fluxo de noites ---------- */
-function startGame(){ audio(); startHum(); G.running=true; G.night=1; G.sanity=100; applyClassStart(); startNight();
-  ['title','how','classes','result'].forEach(hide); show('hud'); show('bar'); show('c'); $('cross').classList.remove('hidden'); }
+function fadeThen(fn){ const f=$('fade'); f.classList.add('on'); setTimeout(()=>{ fn(); setTimeout(()=>f.classList.remove('on'),80); },520); }
+function enterLobby(){ audio(); startHum();
+  ['title','how','classes','result'].forEach(hide); hide('hud'); hide('bar'); show('c');
+  L.x=0; L.z=3.5; L.yaw=0; L.pitch=0;
+  fadeThen(()=>{ setMode('lobby'); toast('🚪 Bem-vindo ao lobby! Ande até a porta 🔴 pra começar.',3200); });
+}
+function startShift(){ releaseLock(); G.running=true; G.night=1; G.sanity=100; applyClassStart();
+  fadeThen(()=>{ setMode('shift'); ['title','how','classes','result'].forEach(hide); show('hud'); show('bar'); $('lobbyHint').classList.add('hidden'); $('prompt').classList.add('hidden'); startNight(); });
+}
+function startGame(){ enterLobby(); } // compat
 function applyClassStart(){ if(G.cls==='intern') G.sanity=clamp(G.sanity+10,0,100);
   if(G.cls==='nurse'){ /* café grátis */ setTimeout(()=>{ setSanity(G.sanity+20); toast('☕ Café grátis da Nurse! +20 🧠'); },400); } }
 function startNight(){ const plan=nightPlan(G.night); G.total=plan.total; G.seen=0; if(G.night>1 && G.cls==='intern') setSanity(G.sanity+10); refreshHud(); spawnPatient(); toast('🌙 Noite '+G.night+' — '+G.total+' pacientes. Boa sorte.',2600); }
 function nightComplete(){ G.busy=true; addCoins(10+G.night*2);
   $('resIcon').textContent='🌅'; $('resTitle').textContent='Amanheceu! Noite '+G.night+' concluída';
   $('resText').innerHTML='Você sobreviveu à noite <b>'+G.night+'</b>! 🐾<br>Sanidade: <b>'+Math.round(G.sanity)+'</b> · Ganhou <b>🪙 '+(10+G.night*2)+'</b> (total '+G.coins+')<br><span style="color:var(--dim)">A próxima noite tem mais pacientes... e mais anomalias.</span>';
-  $('resNext').textContent='🌙 Próxima noite'; $('resNext').onclick=()=>{ G.night++; hide('result'); startNight(); };
+  $('resNext').textContent='🌙 Próxima noite'; $('resNext').onclick=()=>{ G.night++; hide('result'); fadeThen(()=>{ setMode('shift'); startNight(); }); };
+  $('resClasses').textContent='🚪 Voltar ao lobby'; $('resClasses').onclick=()=>{ G.running=false; hide('result'); enterLobby(); };
   hide('bar'); show('result'); }
 function gameOver(){ if(!G.running)return; G.running=false; clearTimeout(G.photoTimer);
   jumpscare('💀',()=>{ $('resIcon').textContent='💀'; $('resTitle').textContent='Sua sanidade acabou...';
     $('resText').innerHTML='O plantão foi longe demais.<br>Chegou até a <b>Noite '+G.night+'</b>, atendeu <b>'+G.seen+'</b> pacientes.<br>🪙 Total de moedas: <b>'+G.coins+'</b>';
-    $('resNext').textContent='↻ Tentar de novo'; $('resNext').onclick=()=>{ hide('result'); startGame(); };
+    $('resNext').textContent='🚪 Voltar ao lobby'; $('resNext').onclick=()=>{ hide('result'); enterLobby(); };
+    $('resClasses').textContent='🎓 Classes'; $('resClasses').onclick=()=>{ hide('result'); renderClasses(); show('classes'); $('clsBack').onclick=()=>{ hide('classes'); show('result'); }; };
     hide('bar'); show('result'); }); }
 
 /* ---------- Loop de render ---------- */
 function animate(){ requestAnimationFrame(animate); const dt=Math.min(0.05,clock.getDelta()); monT+=dt;
+  if(MODE==='lobby'){ updateLobby(dt); renderer.render(scene,camera); return; }
+  if(MODE==='menu'){ camera.position.set(0,1.6,3.5); camera.lookAt(0,1.4,-4); renderer.render(scene,camera); return; }
+  // ---- modo plantão ----
   // luz piscando
   ceilLight.intensity=1.6+Math.sin(monT*7)*0.05 + (Math.random()<0.01?-0.9:0);
   // animação do paciente
@@ -646,7 +784,7 @@ $('howBack').onclick=()=>{hide('how');show('title');};
 $('clsBtn').onclick=()=>{hide('title');renderClasses();show('classes');};
 $('clsBack').onclick=()=>{hide('classes');show('title');};
 $('resClasses').onclick=()=>{hide('result');renderClasses();show('classes'); $('clsBack').onclick=()=>{hide('classes'); show('result');}; };
-$('resMenu').onclick=()=>{ G.running=false; hide('result'); hide('hud'); hide('bar'); $('cross').classList.add('hidden'); show('title'); $('clsBack').onclick=()=>{hide('classes');show('title');}; };
+$('resMenu').onclick=()=>{ G.running=false; releaseLock(); hide('result'); hide('hud'); hide('bar'); setMode('menu'); show('title'); $('clsBack').onclick=()=>{hide('classes');show('title');}; };
 $('btnPhoto').onclick=takePhoto;
 $('btnCam').onclick=toggleCam;
 $('btnShop').onclick=openShop;
@@ -654,11 +792,21 @@ $('shopClose').onclick=()=>hide('shop');
 $('btnAccept').onclick=()=>decide(true);
 $('btnReject').onclick=()=>decide(false);
 $('photo').onclick=()=>{ if(G.photoState==='ready'){ hide('photo'); G.photoState='none'; } };
-window.addEventListener('keydown',e=>{ if(!G.running)return;
+window.addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
+  if(MODE==='lobby'){
+    if(k==='w')L.fw=true; else if(k==='s')L.bk=true; else if(k==='a')L.lf=true; else if(k==='d')L.rt=true;
+    else if(k==='arrowup')L.fw=true; else if(k==='arrowdown')L.bk=true; else if(k==='arrowleft')L.lf=true; else if(k==='arrowright')L.rt=true;
+    else if(k==='e'){ triggerHovered(); }
+    return;
+  }
+  if(!G.running)return;
   if(k==='f'){ takePhoto(); } else if(k==='c'){ toggleCam(); }
   else if(e.key==='Enter'){ decide(true); } else if(e.key===' '){ e.preventDefault(); decide(false); }
 });
+window.addEventListener('keyup',e=>{ const k=e.key.toLowerCase();
+  if(k==='w'||k==='arrowup')L.fw=false; else if(k==='s'||k==='arrowdown')L.bk=false;
+  else if(k==='a'||k==='arrowleft')L.lf=false; else if(k==='d'||k==='arrowright')L.rt=false; });
 
 /* ---------- Tela cheia ---------- */
 function toggleFullscreen(){
