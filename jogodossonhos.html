@@ -1452,6 +1452,13 @@ function startAmbience(){
   sub.connect(subG); subG.connect(master); sub.start();
   stopList.push(sub);
 
+  // DRONE DE PROFUNDIDADE — cresce e afunda conforme você desce nas camadas -
+  const deepGain=audioCtx.createGain(); deepGain.gain.value=0; deepGain.connect(master);
+  const deepLP=audioCtx.createBiquadFilter(); deepLP.type='lowpass'; deepLP.frequency.value=180; deepLP.connect(deepGain);
+  const deepOsc=audioCtx.createOscillator(); deepOsc.type='triangle'; deepOsc.frequency.value=41.2; // E1
+  deepOsc.connect(deepLP); deepOsc.start();
+  stopList.push(deepOsc);
+
   // MELODIA esparsa tipo sino (lá menor pentatônica) ------------------------
   const melodyGain = audioCtx.createGain(); melodyGain.gain.value=0.9; melodyGain.connect(master);
   const scale=[440, 523.25, 587.33, 659.25, 783.99, 880]; // A4 C5 D5 E5 G5 A6
@@ -1489,7 +1496,15 @@ function startAmbience(){
   trem.connect(tremG); tremG.connect(tenseGain.gain); trem.start();
   stopList.push(trem);
 
-  ambience = { master, tenseGain, tenseOscs, trem, padLP, melodyGain, arpTimer, stopList };
+  ambience = { master, tenseGain, tenseOscs, trem, padLP, melodyGain, arpTimer, stopList, deepGain, deepOsc };
+}
+// muda o clima da trilha conforme a PROFUNDIDADE da camada (1 = raso, 25 = Núcleo)
+function setAmbienceDepth(p){
+  if(!ambience || !audioCtx) return;
+  const t=audioCtx.currentTime;
+  const d=Math.max(0, Math.min(1, (p-1)/24));   // 0 no mundo 1 → 1 no Núcleo
+  if(ambience.deepGain) ambience.deepGain.gain.linearRampToValueAtTime(0.04 + d*0.15, t+2.5);
+  if(ambience.deepOsc)  ambience.deepOsc.frequency.linearRampToValueAtTime(41.2 - d*9, t+2.5); // afunda ~32 Hz
 }
 // para TODA a trilha (drone + tensão) — usado ao morrer / vencer / sair
 function stopAmbience(){
@@ -1891,7 +1906,8 @@ function buildPhase(p){
     setTimeout(()=>showMsg('🚩 Checkpoint salvo (fase '+cp+')!',3000),3300); } });
 
   showMsg('Fase '+p+' — '+TH.name+' · ache a porta brilhante',3200);
-  showStoryCard(p);   // 📖 beat de história do mundo
+  showStoryCard(p);        // 📖 beat de história do mundo
+  setAmbienceDepth(p);     // 🎵 trilha mais funda/tensa quanto mais fundo você desce
   document.getElementById('phase').textContent=p;
   document.getElementById('hint').textContent='🌍 '+TH.name+' · 👹 '+TH.monster.name;
 }
@@ -3433,9 +3449,36 @@ function die(){
     document.getElementById('death').classList.remove('hidden');
   }
 }
+// finais diferentes conforme a dificuldade em que você acordou
+const EPILOGUES = {
+  facil:{ h:'Você acordou.', body:[
+    ['lead','A porta do Núcleo se abre para uma luz branca — e a luz é o teto do seu quarto.'],
+    ['','Você acorda ofegante, mas inteiro. Foi um sono agitado, nada além disso — pelo menos é o que você decide acreditar. Os medos ficaram lá embaixo, sem nome e sem forma.'],
+    ['','No espelho do banheiro, por um instante, seus olhos parecem cansados demais para uma noite só. Depois passa.'],
+    ['sig','— Fim (Fácil). Dormir de novo? Claro. Todo mundo dorme.'] ] },
+  normal:{ h:'Você acordou.', body:[
+    ['lead','A porta do Núcleo se abre para uma luz branca — e a luz é o teto do seu quarto.'],
+    ['','Você acorda. O relógio marca uma hora impossível; o suor é real, o coração ainda dispara. Atravessou os 25 mundos, encarou cada medo pelo nome e nenhum te segurou até o fim.'],
+    ['','Lá longe, num último sussurro que já não te alcança, O Sonho promete: “da próxima vez, você não vai querer sair.”'],
+    ['sig','— Fim (Normal). Mas todo mundo dorme de novo.'] ] },
+  dificil:{ h:'Você acordou — quase.', body:[
+    ['lead','A luz do Núcleo te cospe de volta para o quarto. Você senta na cama, arfando.'],
+    ['','Venceu no difícil: 25 medos, cada um mais rápido, mais faminto. Você lembra dos nomes de todos — e eles lembram do seu. Isso, no Sonho, é um laço que não desata fácil.'],
+    ['','A voz que te chamava se calou. Bom sinal. Só que a lâmpada do corredor pisca sozinha, e a sua sombra demora um segundo a mais pra te seguir.'],
+    ['sig','— Fim (Difícil). Você acordou. Ele continua acordado também.'] ] },
+  pesadelo:{ h:'Você… acordou?', body:[
+    ['lead','A porta do Núcleo se abre. Não há luz branca. Há o seu quarto, escuro, exatamente como você deixou.'],
+    ['','No Pesadelo, ninguém sai limpo. Você atravessou tudo, derrotou o Núcleo, e mesmo assim há um cheiro de sonho no ar, uma névoa fina que não devia estar ali. Você pisca. O relógio anda para trás um segundo.'],
+    ['','Do outro lado da parede, alguém sussurra o seu nome com a sua própria voz. Você se levanta pra ver — e o chão, por um instante, tem gosto de labirinto.'],
+    ['sig','— Fim (Pesadelo). Talvez você tenha acordado. Talvez o Sonho só tenha aberto os olhos.'] ] },
+};
 function winGame(){
   gameState='win'; setLook(false); hideStoryCard();
   stopAmbience(); silenceAudioSoon(500);   // silencia a trilha ao vencer
+  const ep=EPILOGUES[difficulty]||EPILOGUES.normal;
+  const winH=document.querySelector('#win h1'); if(winH) winH.textContent=ep.h;
+  const body=document.getElementById('epilogueBody');
+  if(body) body.innerHTML=ep.body.map(([c,txt])=>'<p'+(c?(' class="'+c+'"'):'')+'>'+txt+'</p>').join('');
   document.getElementById('win').classList.remove('hidden');
 }
 function backToLobby(){
