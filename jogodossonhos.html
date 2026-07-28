@@ -702,7 +702,7 @@
     </div>
     <div class="devbtn" id="modeBonde">
       <div class="ic">🚋</div><div class="lb">BONDE</div>
-      <div class="ds">Conduza o bonde histórico ladeira acima ao pôr do sol, pare nas estações e leve todos os passageiros ao topo — com cutscene e gráficos caprichados</div>
+      <div class="ds">Conduza o bonde histórico por 4 linhas (pôr do sol, praia, serra e cidade à noite), pare nas estações e leve todos os passageiros — com cutscenes e gráficos caprichados</div>
     </div>
   </div>
   <button class="ghost" id="modesBack">↩ Voltar</button>
@@ -6911,7 +6911,7 @@ const INSTR={
   escape:['Ache a chave escondida nos objetos e fuja da sala.','Clique nos objetos pra vasculhar; com a 🔑, clique na porta 🚪.'],
   avalanche:['Desça a montanha fugindo da neve, sem bater.','←/→ (ou A/D) desvia dos 🌲🪨. Bater deixa a neve te alcançar.'],
   perseguicao:['Persiga e capture o carro fugitivo pela cidade.','↑ acelera · ↓ freia · ←/→ esterça. Encoste no fugitivo 🚗.'],
-  bonde:['Leve o bonde histórico da estação lá embaixo até o Alto da Colina, parando em cada estação pra embarcar os passageiros que esperam.','↑/W acelera · ↓/S freia · <b>ESPAÇO</b> toca o sino 🛎️. Pare quase parado em cima da estação 🚏 pra o pessoal subir. Cuidado nas curvas e ladeiras!'],
+  bonde:['Conduza o bonde por 4 linhas diferentes (pôr do sol, praia, serra e cidade à noite). Em cada linha, pare nas estações pra embarcar os passageiros e chegue ao terminal — complete uma pra abrir a próxima.','↑/W acelera · ↓/S freia · <b>ESPAÇO</b> toca o sino 🛎️. Pare quase parado em cima da estação 🚏 pra o pessoal subir. Cuidado nas curvas e ladeiras!'],
 };
 function showHowto(g, startFn){
   mc._start=startFn;
@@ -7728,7 +7728,7 @@ miniRegister('bonde',{
     const body=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.85,6),new THREE.MeshStandardMaterial({color:shirt,roughness:0.8})); body.position.y=0.55; g.add(body);
     const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,6,5),new THREE.MeshStandardMaterial({color:0xe8b58a,roughness:0.7})); head.position.y=1.15; g.add(head);
     g.position.set(x,y,z); scene.add(g); return g; },
-  _buildTram(){ const g=new THREE.Group();
+  _buildTram(term){ const g=new THREE.Group();
     const yel=new THREE.MeshStandardMaterial({color:0xf2c12e,roughness:0.45,metalness:0.2});
     const dark=new THREE.MeshStandardMaterial({color:0x5a2016,roughness:0.5}); // vinho (trilhos de acabamento)
     const metal=new THREE.MeshStandardMaterial({color:0x2b2b30,roughness:0.4,metalness:0.7});
@@ -7760,95 +7760,146 @@ miniRegister('bonde',{
     const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,2.6,6),metal); pole.position.set(0,4.0,-1.2); pole.rotation.x=-0.5; g.add(pole);
     const spark=new THREE.PointLight(0xaad4ff,0.0,6); spark.position.set(0,5.1,-2.0); g.add(spark); g.userData.spark=spark;
     // placa de destino
-    const sign=make3DText('ALTO DA COLINA',2.0,{fs:52,color:'#3a2410',bg:'rgba(242,193,46,.96)',cw:512,ch:128}); sign.position.set(0,2.35,2.93); sign.scale.set(1.9,0.48,1); g.add(sign);
+    const sign=make3DText((term||'BONDE').toUpperCase(),2.0,{fs:48,color:'#3a2410',bg:'rgba(242,193,46,.96)',cw:512,ch:128}); sign.position.set(0,2.35,2.93); sign.scale.set(1.9,0.48,1); g.add(sign);
     scene.add(g); return g; },
+  // 🌲 pinheiro simples (variedade de vegetação nos níveis de montanha/noite)
+  _pine(x,z){ const g=new THREE.Group(); const h=1.2+Math.random()*0.7;
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.2,h,5),new THREE.MeshStandardMaterial({color:0x6a4a2a,roughness:0.95})); trunk.position.y=h/2; g.add(trunk);
+    const gm=new THREE.MeshStandardMaterial({color:0x2f6a3a,roughness:0.85});
+    for(let i=0;i<3;i++){ const c=new THREE.Mesh(new THREE.ConeGeometry(1.15-i*0.32,1.5,7),gm); c.position.y=h+i*0.85; g.add(c); }
+    g.position.set(x,0,z); scene.add(g); return g; },
   // ---------- ciclo de vida ----------
-  enter(){
-    // vista longa: afasta o plano de corte pra ver o céu/sol/colinas (restaura no exit)
-    this._farBak=camera.far; camera.far=900; camera.updateProjectionMatrix();
-    scene.background=new THREE.Color(0xe8a35a);   // fallback quente caso o domo falhe
-    // céu do pôr do sol (esfera com gradiente em canvas)
+  // ---------- NÍVEIS (cada um é uma linha do bonde com cenário/clima próprios) ----------
+  _levels:[
+    { name:'Santa Teodora', term:'Alto da Colina', cineDur:8.5,
+      caps:['SANTA TEODORA — a última linha de bonde da cidade.','Há cem anos o bonde amarelo sobe a ladeira ao pôr do sol.','Hoje o condutor é você. Toque o sino e leve todos ao topo.'],
+      route:[[0,0.1,26],[7,1.2,14],[-3,2.6,3],[9,4.2,-10],[-1,6.2,-23],[-15,8.0,-14],[-11,9.6,3],[-19,11.2,17],[-6,12.4,28]],
+      stations:['Largo do Bonde','Rua das Flores','Mirante','Igrejinha','Alto da Colina'],
+      sky:[[0,'#3a2a6a'],[0.34,'#7a4a8a'],[0.58,'#d2664a'],[0.78,'#ff9a4a'],[1,'#ffe0a0']], clouds:true, stars:true,
+      fog:['#e89a5a',60,340], bg:0xe8a35a, hemi:[0xffd9a0,0x3a3050,1.15],
+      sun:{pos:[-40,26,-118],color:0xffdca0,int:1.5,ball:0xfff0c0,glow:0xffb060},
+      ground:0x4a7a3a, hill:0x3f6e33, palette:[0xe8734a,0x4aa0a8,0xe8b34a,0xd25a7a,0x5a8ad2,0x6aa85a,0xd2c25a,0xa86ad2], decor:'palm', decorN:6, maxV:15 },
+    { name:'Vila Marina', term:'Farol da Marina', cineDur:4.5,
+      caps:['VILA MARINA — a manhã chega clara sobre o mar.','Leve os banhistas pela orla até o farol.'],
+      route:[[0,0.2,28],[10,0.7,16],[-6,1.2,6],[8,1.8,-8],[-4,2.4,-20],[12,3.0,-30],[-2,3.8,-42],[-16,4.4,-30],[-10,5.2,-12],[-20,6.0,6],[-8,6.8,24]],
+      stations:['Porto Velho','Praça do Mercado','Enseada','Quebra-Mar','Vila Alta','Farol da Marina'],
+      sky:[[0,'#2f6fd0'],[0.5,'#6fb0e8'],[0.82,'#bfe0f5'],[1,'#eaf6ff']], clouds:true, stars:false,
+      fog:['#bfe0f5',80,400], bg:0x9fd0f0, hemi:[0xcfe8ff,0x6a7a4a,1.3],
+      sun:{pos:[50,50,30],color:0xffffff,int:1.6,ball:0xfff8e0,glow:0xfff0c0},
+      ground:0x5aa050, hill:0x4a9048, palette:[0xf2f2ea,0xeaf0f5,0x9fd0e8,0xe8d24a,0xf0a0b0,0x8ad2c0], decor:'palm', decorN:9, maxV:16 },
+    { name:'Morro Alto', term:'Pico do Morro', cineDur:4.5,
+      caps:['MORRO ALTO — a ladeira mais íngreme da serra.','Segure a velocidade nas subidas… e cuidado nas descidas!'],
+      route:[[0,0.2,24],[6,2.6,12],[-4,5.2,0],[8,8.4,-12],[-2,11.8,-24],[-16,15.2,-14],[-10,18.6,4],[-20,22.0,20]],
+      stations:['Estação Baixa','Curva do Café','Capela','Mirante Alto','Torre','Pico do Morro'],
+      sky:[[0,'#6a5a9a'],[0.45,'#c98a6a'],[0.75,'#e8a85a'],[1,'#ffd98a']], clouds:true, stars:false,
+      fog:['#e0b080',50,320], bg:0xd0a070, hemi:[0xffe0b0,0x4a4030,1.1],
+      sun:{pos:[-30,44,-96],color:0xffca90,int:1.5,ball:0xffe0a0,glow:0xffb060},
+      ground:0x6e7a40, hill:0x5a6a30, palette:[0xe8a34a,0xd2694a,0xc9b45a,0x8a9a5a,0xb07a4a,0xd2b48a], decor:'pine', decorN:8, maxV:15 },
+    { name:'Cidade Alta', term:'Terminal Central', cineDur:4.5,
+      caps:['CIDADE ALTA — as luzes acendem ao anoitecer.','Última linha! Leve todos em segurança até o terminal.'],
+      route:[[0,0.2,30],[9,1.0,18],[-5,2.0,7],[10,3.2,-6],[-3,4.4,-18],[13,5.4,-28],[-1,6.6,-40],[-15,7.6,-30],[-9,8.8,-12],[-19,9.8,6],[-11,11.0,22],[-2,12.0,34]],
+      stations:['Estação Sul','Praça da Sé','Teatro','Avenida','Bairro Alto','Colina Norte','Terminal Central'],
+      sky:[[0,'#05060f'],[0.5,'#0a1230'],[0.82,'#1a2650'],[1,'#33406e']], clouds:false, stars:true,
+      fog:['#0a1230',45,280], bg:0x070a18, hemi:[0x2a3a64,0x0a0a14,0.65],
+      sun:{pos:[54,54,-70],color:0xbcd0ff,int:0.85,ball:0xeaf0ff,glow:0x9fb0e8},
+      ground:0x16241a, hill:0x11201a, palette:[0x2a3a6a,0x6a3a5a,0x3a6a5a,0x6a5a2a,0x5a2a3a,0x3a3a5a], decor:'pine', decorN:6, maxV:17 },
+  ],
+  _shirts:[0xd23b3b,0x3b6cd2,0x3bb26c,0xd2a83b,0xb23bd2,0x3bc2c2],
+  // constrói o mundo de um nível (retorna o total de passageiros a embarcar)
+  _build(cfg,level){
+    // céu (esfera com gradiente em canvas)
     const cv=document.createElement('canvas'); cv.width=64; cv.height=512; const cx=cv.getContext('2d');
-    const grd=cx.createLinearGradient(0,0,0,512); grd.addColorStop(0,'#3a2a6a'); grd.addColorStop(0.34,'#7a4a8a'); grd.addColorStop(0.58,'#d2664a'); grd.addColorStop(0.78,'#ff9a4a'); grd.addColorStop(1,'#ffe0a0');
+    const grd=cx.createLinearGradient(0,0,0,512); for(const st of cfg.sky) grd.addColorStop(st[0],st[1]);
     cx.fillStyle=grd; cx.fillRect(0,0,64,512);
-    // nuvens suaves e uma pitada de estrelas no alto
-    cx.globalAlpha=0.16; cx.fillStyle='#fff'; for(let i=0;i<9;i++){ const y=180+Math.random()*160; cx.beginPath(); cx.ellipse(32,y,28,5,0,0,Math.PI*2); cx.fill(); }
-    cx.globalAlpha=0.9; cx.fillStyle='#fff'; for(let i=0;i<20;i++){ cx.fillRect(Math.random()*64,Math.random()*120,1,1); } cx.globalAlpha=1;
+    if(cfg.clouds){ cx.globalAlpha=0.16; cx.fillStyle='#fff'; for(let i=0;i<9;i++){ const y=180+Math.random()*160; cx.beginPath(); cx.ellipse(32,y,28,5,0,0,Math.PI*2); cx.fill(); } cx.globalAlpha=1; }
+    if(cfg.stars){ cx.globalAlpha=0.9; cx.fillStyle='#fff'; for(let i=0;i<28;i++){ cx.fillRect(Math.random()*64,Math.random()*200,1,1); } cx.globalAlpha=1; }
     const sky=new THREE.CanvasTexture(cv);
-    const skyDome=new THREE.Mesh(new THREE.SphereGeometry(420,16,10),new THREE.MeshBasicMaterial({map:sky,side:THREE.BackSide,fog:false})); scene.add(skyDome);
-    scene.fog=new THREE.Fog(0xe89a5a,60,340);
-    scene.add(new THREE.HemisphereLight(0xffd9a0,0x3a3050,1.15));
-    const sun=new THREE.DirectionalLight(0xffdca0,1.5); sun.position.set(-60,40,-120); scene.add(sun);
-    const sunBall=new THREE.Mesh(new THREE.SphereGeometry(18,14,10),new THREE.MeshBasicMaterial({color:0xfff0c0,fog:false})); sunBall.position.set(-90,55,-260); scene.add(sunBall);
-    const sunGlow=new THREE.Mesh(new THREE.SphereGeometry(34,12,8),new THREE.MeshBasicMaterial({color:0xffb060,transparent:true,opacity:0.35,fog:false})); sunGlow.position.copy(sunBall.position); scene.add(sunGlow);
-    // colinas / chão
-    const ground=new THREE.Mesh(new THREE.PlaneGeometry(900,900),new THREE.MeshStandardMaterial({color:0x4a7a3a,roughness:1})); ground.rotation.x=-Math.PI/2; ground.position.y=-0.5; scene.add(ground);
-    const hillMat=new THREE.MeshStandardMaterial({color:0x3f6e33,roughness:1});
+    scene.add(new THREE.Mesh(new THREE.SphereGeometry(420,16,10),new THREE.MeshBasicMaterial({map:sky,side:THREE.BackSide,fog:false})));
+    scene.background=new THREE.Color(cfg.bg);
+    scene.fog=new THREE.Fog(cfg.fog[0],cfg.fog[1],cfg.fog[2]);
+    scene.add(new THREE.HemisphereLight(cfg.hemi[0],cfg.hemi[1],cfg.hemi[2]));
+    const sp=cfg.sun.pos; const sun=new THREE.DirectionalLight(cfg.sun.color,cfg.sun.int); sun.position.set(sp[0],sp[1],sp[2]); scene.add(sun);
+    const sunBall=new THREE.Mesh(new THREE.SphereGeometry(18,14,10),new THREE.MeshBasicMaterial({color:cfg.sun.ball,fog:false})); sunBall.position.set(sp[0]*2.2,sp[1]*1.3,sp[2]*2.2); scene.add(sunBall);
+    const sunGlow=new THREE.Mesh(new THREE.SphereGeometry(34,12,8),new THREE.MeshBasicMaterial({color:cfg.sun.glow,transparent:true,opacity:0.35,fog:false})); sunGlow.position.copy(sunBall.position); scene.add(sunGlow);
+    // chão + colinas
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(900,900),new THREE.MeshStandardMaterial({color:cfg.ground,roughness:1})); ground.rotation.x=-Math.PI/2; ground.position.y=-0.5; scene.add(ground);
+    const hillMat=new THREE.MeshStandardMaterial({color:cfg.hill,roughness:1});
     for(let i=0;i<5;i++){ const hill=new THREE.Mesh(new THREE.SphereGeometry(34+Math.random()*40,10,6),hillMat);
       hill.position.set((Math.random()-0.5)*260,-18,-70-Math.random()*170); hill.scale.y=0.5; scene.add(hill); }
-    // ---- trajeto do bonde (sobe a ladeira em curvas) ----
-    const P=[[0,0.1,26],[7,1.2,14],[-3,2.6,3],[9,4.2,-10],[-1,6.2,-23],[-15,8.0,-14],[-11,9.6,3],[-19,11.2,17],[-6,12.4,28]];
-    const pts=P.map(p=>new THREE.Vector3(p[0],p[1],p[2]));
+    // trajeto
+    const pts=cfg.route.map(p=>new THREE.Vector3(p[0],p[1],p[2]));
     const curve=new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.5); this.curve=curve; this.curveLen=curve.getLength();
-    // rua de paralelepípedo + rails + dormentes + fio aéreo
-    this._ribbon(2.6,0.03,0x6b6b72,0.95);   // rua
+    // rua + trilhos + dormentes + fio aéreo
+    this._ribbon(2.6,0.03,0x6b6b72,0.95);
     const railMat=new THREE.MeshStandardMaterial({color:0x8a8a92,roughness:0.35,metalness:0.85});
-    for(const off of [0.78,-0.78]){ const rc=this._offCurve(off,0.14); const rt=new THREE.Mesh(new THREE.TubeGeometry(rc,90,0.055,4,false),railMat); scene.add(rt); }
+    for(const off of [0.78,-0.78]){ const rc=this._offCurve(off,0.14); scene.add(new THREE.Mesh(new THREE.TubeGeometry(rc,90,0.055,4,false),railMat)); }
     const tieMat=new THREE.MeshStandardMaterial({color:0x4a3320,roughness:0.95}); const tieGeo=new THREE.BoxGeometry(2.0,0.08,0.28);
     for(let i=0;i<=30;i++){ const t=i/30,p=curve.getPointAt(t),s=this._sideVec(t); const tie=new THREE.Mesh(tieGeo,tieMat);
       tie.position.set(p.x,p.y+0.05,p.z); tie.rotation.y=Math.atan2(s.x,s.z); scene.add(tie); }
-    const wire=this._offCurve(0,4.9); const wireT=new THREE.Mesh(new THREE.TubeGeometry(wire,70,0.03,3,false),new THREE.MeshStandardMaterial({color:0x222222,roughness:0.8})); scene.add(wireT);
+    const wire=this._offCurve(0,4.9); scene.add(new THREE.Mesh(new THREE.TubeGeometry(wire,70,0.03,3,false),new THREE.MeshStandardMaterial({color:0x222222,roughness:0.8})));
     const poleMat=new THREE.MeshStandardMaterial({color:0x3a3a40,roughness:0.7,metalness:0.5});
-    const lampMat=new THREE.MeshStandardMaterial({color:0xfff0c0,emissive:0xffcf7a,emissiveIntensity:1.0}); const lampGeo=new THREE.SphereGeometry(0.28,8,6);
+    const lampMat=new THREE.MeshStandardMaterial({color:0xfff0c0,emissive:0xffcf7a,emissiveIntensity:cfg.stars?1.6:1.0}); const lampGeo=new THREE.SphereGeometry(0.28,8,6);
     for(let i=1;i<8;i++){ const t=i/8,p=curve.getPointAt(t),s=this._sideVec(t); const px=p.x+s.x*3.2,pz=p.z+s.z*3.2;
       const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.12,p.y+6,6),poleMat); pole.position.set(px,(p.y+6)/2-0.5,pz); scene.add(pole);
       const arm=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.09,0.09),poleMat); arm.position.set((px+p.x)/2,p.y+5.0,(pz+p.z)/2); arm.rotation.y=Math.atan2(s.x,s.z); scene.add(arm);
-      if(i%2===0){ const lamp=new THREE.Mesh(lampGeo,lampMat); lamp.position.set(px,p.y+4.3,pz); scene.add(lamp); } }   // luz via emissivo (sem PointLight — muito mais leve)
-    // casinhas coloridas dos dois lados + palmeiras
-    const palette=[0xe8734a,0x4aa0a8,0xe8b34a,0xd25a7a,0x5a8ad2,0x6aa85a,0xd2c25a,0xa86ad2];
+      if(i%2===0){ const lamp=new THREE.Mesh(lampGeo,lampMat); lamp.position.set(px,p.y+4.3,pz); scene.add(lamp); } }
+    // casario + vegetação
+    const palette=cfg.palette;
     for(let i=0;i<14;i++){ const t=0.03+i/15*0.94,p=curve.getPointAt(t),s=this._sideVec(t); const side=(i%2)?1:-1; const off=6.5+Math.random()*5;
       const hx=p.x+s.x*off*side,hz=p.z+s.z*off*side; const house=this._house(hx,hz, Math.atan2(-s.x*side,-s.z*side), palette[i%palette.length], 3.5+Math.random()*3.5);
       house.position.y=Math.max(0,p.y-2.2); }
-    for(let i=0;i<6;i++){ const t=Math.random(),p=curve.getPointAt(t),s=this._sideVec(t); const side=(i%2)?1:-1; const off=5.5+Math.random()*7;
-      const pm=this._palm(p.x+s.x*off*side,p.z+s.z*off*side); pm.position.y=Math.max(0,p.y-2.5); }
-    // ---- estações ----
-    const STN=['Largo do Bonde','Rua das Flores','Mirante','Igrejinha','Alto da Colina'];
-    const frac=[0.02,0.28,0.52,0.76,0.985]; const shirts=[0xd23b3b,0x3b6cd2,0x3bb26c,0xd2a83b,0xb23bd2,0x3bc2c2];
+    const decorFn = cfg.decor==='pine' ? this._pine.bind(this) : this._palm.bind(this);
+    for(let i=0;i<cfg.decorN;i++){ const t=Math.random(),p=curve.getPointAt(t),s=this._sideVec(t); const side=(i%2)?1:-1; const off=5.5+Math.random()*7;
+      const d=decorFn(p.x+s.x*off*side,p.z+s.z*off*side); d.position.y=Math.max(0,p.y-2.5); }
+    // estações (distribuídas ao longo do trajeto; a última é o terminal — só desembarque)
+    const STN=cfg.stations, N=STN.length;
     this.stations=[]; let totalPax=0;
-    frac.forEach((f,si)=>{ const p=curve.getPointAt(f),s=this._sideVec(f); const dist=f*this.curveLen;
-      const n = si===frac.length-1 ? 0 : 2+((si*3+1)%4); totalPax+=n;   // topo é só desembarque
-      // plataforma
+    for(let si=0;si<N;si++){ const f = si===0 ? 0.02 : (si===N-1 ? 0.985 : 0.02+0.965*(si/(N-1)));
+      const p=curve.getPointAt(f),s=this._sideVec(f); const dist=f*this.curveLen;
+      const n = si===N-1 ? 0 : 2+(((level||0)+si*2+1)%4); totalPax+=n;
       const plat=new THREE.Mesh(new THREE.BoxGeometry(4.5,0.3,3.2),new THREE.MeshStandardMaterial({color:0x9a9490,roughness:0.9}));
       plat.position.set(p.x+s.x*2.7,p.y+0.15,p.z+s.z*2.7); plat.rotation.y=Math.atan2(s.x,s.z); scene.add(plat);
-      // abrigo (telhadinho)
       const roof=new THREE.Mesh(new THREE.BoxGeometry(3.6,0.16,2.0),new THREE.MeshStandardMaterial({color:0x7a2a1e,roughness:0.7}));
       roof.position.set(p.x+s.x*3.4,p.y+2.6,p.z+s.z*3.4); roof.rotation.y=Math.atan2(s.x,s.z); scene.add(roof);
-      for(const c of [-1.4,1.4]){ const post=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,2.5,6),new THREE.MeshStandardMaterial({color:0x444,roughness:0.6}));
-        const sp2=this._sideVec(f); post.position.set(p.x+s.x*3.4+sp2.z*0+c*Math.cos(Math.atan2(s.x,s.z)), p.y+1.35, p.z+s.z*3.4+c*Math.sin(Math.atan2(s.x,s.z))*0); scene.add(post); }
-      // placa 🚏
+      const ang=Math.atan2(s.x,s.z); for(const c of [-1.4,1.4]){ const post=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,2.5,6),new THREE.MeshStandardMaterial({color:0x444,roughness:0.6}));
+        post.position.set(p.x+s.x*3.4+c*Math.cos(ang), p.y+1.35, p.z+s.z*3.4+c*Math.sin(ang)); scene.add(post); }
       const sign=make3DText('🚏 '+STN[si],2.4,{fs:44,color:'#ffffff',bg:'rgba(30,30,50,.9)',cw:512,ch:110}); sign.position.set(p.x+s.x*3.2,p.y+3.4,p.z+s.z*3.2); sign.scale.set(2.6,0.56,1); scene.add(sign);
-      // passageiros esperando
       const people=[]; for(let k=0;k<n;k++){ const px=p.x+s.x*(2.4+Math.random()*1.6)+(Math.random()-0.5), pz=p.z+s.z*(2.4+Math.random()*1.6)+(Math.random()-0.5);
-        people.push(this._person(px,p.y+0.3,pz,shirts[(si*3+k)%shirts.length])); }
+        people.push(this._person(px,p.y+0.3,pz,this._shirts[(si*3+k)%this._shirts.length])); }
       this.stations.push({ name:STN[si], f, dist, n, people, state:(n>0?'wait':'done'), bt:0 });
-    });
-    // ---- bonde ----
-    this.tram=this._buildTram();
-    // ---- cutscene overlay (letterbox + legenda) ----
+    }
+    this.tram=this._buildTram(cfg.term); this._term=cfg.term;
+    return totalPax;
+  },
+  // overlay de cutscene (tarjas de cinema + legenda)
+  _mkCine(){ if(this._cine) return;
     const cine=document.createElement('div'); cine.id='bondeCine';
     cine.style.cssText='position:fixed;inset:0;z-index:60;pointer-events:none;';
     cine.innerHTML='<div style="position:absolute;top:0;left:0;right:0;height:11vh;background:#000;transition:height .5s"></div>'
       +'<div style="position:absolute;bottom:0;left:0;right:0;height:11vh;background:#000;transition:height .5s"></div>'
       +'<div id="bondeCap" style="position:absolute;bottom:13vh;left:0;right:0;text-align:center;color:#fff;font:600 clamp(18px,3vw,30px)/1.4 \'Georgia\',serif;text-shadow:0 2px 12px #000;padding:0 8vw;opacity:0;transition:opacity .6s"></div>'
       +'<div style="position:absolute;bottom:2.5vh;right:3vw;color:#fff;font:500 14px system-ui;opacity:.7">ESPAÇO / clique — pular</div>';
-    document.body.appendChild(cine); this._cine=cine;
-    this.s={ phase:'cine', cutT:0, capIdx:-1, dist:0.4, v:0, boarded:0, totalPax, score:0, over:false, bellCool:0, sparkT:0, tram:this.tram };
-    // câmera inicial bem alta (aérea)
-    camera.position.set(40,60,60); camera.lookAt(0,4,0);
+    document.body.appendChild(cine); this._cine=cine; },
+  // ---------- ciclo de vida ----------
+  enter(){
+    this._farBak=camera.far; camera.far=900; camera.updateProjectionMatrix();
+    const cfg=this._levels[0]; const totalPax=this._build(cfg,0); this._mkCine();
+    this.s={ phase:'cine', cutT:0, capIdx:-1, caps:cfg.caps, cineDur:cfg.cineDur, dist:0.4, v:0, boarded:0, totalPax, score:0, level:0, maxV:cfg.maxV, over:false, bellCool:0, sparkT:0, clearT:0, clearShown:false };
+    this._placeTram(this.s.dist/this.curveLen);
+    camera.position.set(this.tram.position.x+26,this.tram.position.y+44,this.tram.position.z+40); camera.lookAt(this.tram.position.x,this.tram.position.y+2,this.tram.position.z);
+    this.hud();
+  },
+  _advance(){ const s=this.s; s.level++;
+    if(this._cine){ this._cine.remove(); this._cine=null; }
+    clearLevel();
+    const cfg=this._levels[s.level]; const totalPax=this._build(cfg,s.level);
+    s.dist=0.4; s.v=0; s.boarded=0; s.totalPax=totalPax; s.maxV=cfg.maxV; s.phase='cine'; s.cutT=0; s.capIdx=-1; s.caps=cfg.caps; s.cineDur=cfg.cineDur; s.clearShown=false;
+    this._mkCine(); this._placeTram(s.dist/this.curveLen);
+    camera.position.set(this.tram.position.x+26,this.tram.position.y+44,this.tram.position.z+40); camera.lookAt(this.tram.position.x,this.tram.position.y+2,this.tram.position.z);
     this.hud();
   },
   _capAt(i,txt){ const c=document.getElementById('bondeCap'); if(!c)return; if(this.s.capIdx===i)return; this.s.capIdx=i; c.textContent=txt; c.style.opacity='0'; setTimeout(()=>{c.style.opacity='1';},60); },
-  _endCine(){ const s=this.s; if(s.phase!=='cine')return; s.phase='play'; if(this._cine){ this._cine.remove(); this._cine=null; } showMsg('🚋 Toque o sino e leve todos ao topo!',3000); tone(1200,0.12,'triangle',0.14); setTimeout(()=>tone(1600,0.14,'triangle',0.12),130); },
+  _endCine(){ const s=this.s; if(s.phase!=='cine')return; s.phase='play'; if(this._cine){ this._cine.remove(); this._cine=null; } showMsg('🚋 Toque o sino e leve todos até '+this._term+'!',3000); tone(1200,0.12,'triangle',0.14); setTimeout(()=>tone(1600,0.14,'triangle',0.12),130); },
   _placeTram(t){ const p=this.curve.getPointAt(t%1), ahead=this.curve.getPointAt(Math.min(1,t+0.006)); this.tram.position.copy(p);
     this.tram.lookAt(ahead.x,ahead.y,ahead.z); this.tram.position.y+=0.42; return {p,ahead}; },
   update(dt){ const s=this.s; if(!s||s.over)return;
@@ -7857,17 +7908,26 @@ miniRegister('bonde',{
     // faísca do trole
     s.sparkT-=dt; if(this.tram.userData.spark){ if(s.sparkT<=0){ s.sparkT=0.1+Math.random()*0.5; this.tram.userData.spark.intensity=s.v>0.5?(0.4+Math.random()*0.9):0; } }
 
-    if(s.phase==='cine'){ s.cutT+=dt; const T=s.cutT;
-      // posiciona o bonde parado na 1ª estação
-      this._placeTram(0.4/this.curveLen);
-      // trilha de câmera cinematográfica (3 tomadas)
-      const lerp=(a,b,k)=>a+(b-a)*Math.min(1,Math.max(0,k));
-      const p0=this.curve.getPointAt(0.4/this.curveLen);
-      if(T<3.2){ const k=T/3.2; camera.position.set(lerp(46,18,k),lerp(58,14,k),lerp(64,34,k)); camera.lookAt(p0.x,p0.y+3,p0.z); this._capAt(0,'SANTA TEODORA — a última linha de bonde da cidade.'); }
-      else if(T<6.4){ const k=(T-3.2)/3.2; camera.position.set(lerp(18,10,k),lerp(14,7,k),lerp(34,20,k)); camera.lookAt(this.tram.position.x,this.tram.position.y+1.6,this.tram.position.z); this._capAt(1,'Há cem anos o bonde amarelo sobe a ladeira ao pôr do sol.'); }
-      else if(T<9.2){ const k=(T-6.4)/2.8; const back=this.curve.getTangentAt(0.4/this.curveLen); camera.position.set(lerp(10,this.tram.position.x-back.x*8,k),lerp(7,this.tram.position.y+3.4,k),lerp(20,this.tram.position.z-back.z*8,k)); camera.lookAt(this.tram.position.x,this.tram.position.y+1.6,this.tram.position.z); this._capAt(2,'Hoje o condutor é você. Toque o sino e leve todos ao topo.'); }
-      else { this._endCine(); }
-      camera.rotation.z=0; this.hud(); return; }
+    if(s.phase==='cine'){ s.cutT+=dt; const T=s.cutT, D=s.cineDur;
+      const stt=s.dist/this.curveLen; this._placeTram(stt);
+      const tp=this.tram.position, back=this.curve.getTangentAt(Math.min(0.999,stt));
+      const aerial=new THREE.Vector3(tp.x+26,tp.y+44,tp.z+40);
+      const chase=new THREE.Vector3(tp.x-back.x*8.5,tp.y+4.2,tp.z-back.z*8.5);
+      let k=Math.min(1,T/D); k=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;   // easeInOut: desce do alto até atrás do bonde
+      camera.position.lerpVectors(aerial,chase,k);
+      camera.up.set(0,1,0); camera.lookAt(tp.x,tp.y+1.6,tp.z); camera.rotation.z=0;
+      const idx=Math.min(s.caps.length-1,Math.floor(T/D*s.caps.length)); this._capAt(idx,s.caps[idx]);
+      if(T>=D) this._endCine();
+      this.hud(); return; }
+    // ---------- entre-níveis: linha concluída, celebra e avança ----------
+    if(s.phase==='clear'){ s.clearT+=dt;
+      if(!s.clearShown){ s.clearShown=true; const nx=this._levels[s.level+1];
+        showMsg('🎉 Linha '+(s.level+1)+' concluída! Próxima: <b>'+nx.name+'</b>',3000);
+        tone(660,0.12,'sine',0.12); setTimeout(()=>tone(990,0.14,'sine',0.12),150); setTimeout(()=>tone(1320,0.2,'sine',0.12),320); }
+      const tp=this.tram.position, ang=performance.now()*0.0006;
+      camera.position.set(tp.x+Math.cos(ang)*11,tp.y+5.5,tp.z+Math.sin(ang)*11); camera.up.set(0,1,0); camera.lookAt(tp.x,tp.y+1.5,tp.z); camera.rotation.z=0;
+      if(s.clearT>=3.2) this._advance();
+      this.hud(); return; }
 
     // ---------- física do bonde ----------
     if(s.bellCool>0) s.bellCool=Math.max(0,s.bellCool-dt);
@@ -7876,14 +7936,16 @@ miniRegister('bonde',{
     if(keys['ArrowDown']||keys['KeyS']) s.v-=11*dt;
     s.v-=tan.y*13*dt;            // gravidade: sobe freia, desce puxa
     s.v-=1.4*dt;                 // atrito de rolamento
-    s.v=Math.max(0,Math.min(15,s.v));
+    s.v=Math.max(0,Math.min(s.maxV||15,s.v));
     s.dist+=s.v*dt;
-    // chegou ao topo?
-    if(s.dist>=this.curveLen-0.4){ s.dist=this.curveLen-0.4; s.over=true;
-      const left=this.s.totalPax-this.s.boarded; const bonus=left===0?300:0;
-      const final=this.s.score+this.s.boarded*10+bonus;
-      tone(880,0.14,'sine',0.14); setTimeout(()=>tone(1320,0.2,'sine',0.12),150);
-      miniOver('🚋 Chegamos ao Alto da Colina!','Passageiros embarcados: <b>'+this.s.boarded+'/'+this.s.totalPax+'</b>'+(left===0?' 🎉 <b>Todos a bordo!</b> (+300)':'')+'<br>Pontuação final: <b>'+final+'</b>'); return; }
+    // chegou ao terminal da linha?
+    if(s.dist>=this.curveLen-0.4){ s.dist=this.curveLen-0.4;
+      const allAboard = s.totalPax>0 && s.boarded>=s.totalPax; if(allAboard) s.score+=150;
+      const last = s.level>=this._levels.length-1;
+      tone(880,0.14,'sine',0.14); setTimeout(()=>tone(1320,0.2,'sine',0.12),160);
+      if(!last){ s.phase='clear'; s.clearT=0; s.clearShown=false; this.hud(); return; }
+      s.over=true;
+      miniOver('🎉 Fim de linha! Todas as '+this._levels.length+' linhas concluídas!','Chegou ao <b>'+this._term+'</b>!'+(allAboard?' 🎉 <b>Todos a bordo!</b>':'')+'<br>Pontuação final: <b>'+s.score+'</b><br>🚋 Você conduziu o bonde por toda a cidade!'); return; }
 
     // ---------- estações ----------
     for(const st of this.stations){ if(st.state==='done'||st.state==='missed')continue;
@@ -7913,8 +7975,8 @@ miniRegister('bonde',{
     // próxima estação
     let nxt=null,nd=1e9; for(const st of this.stations){ if(st.state==='wait'){ const dd=st.dist-s.dist; if(dd>-4&&dd<nd){nd=dd;nxt=st;} } }
     const prog=Math.round((s.dist/this.curveLen)*100);
-    mStats('<span>🚋 '+kmh+' km/h</span><span>🧑‍🤝‍🧑 <b>'+s.boarded+'/'+s.totalPax+'</b></span>'+(nxt?'<span>🚏 '+nxt.name+' '+Math.max(0,Math.round(nd))+'m</span>':'<span>🏁 Alto da Colina</span>')+'<span>📍 '+prog+'%</span>');
-    mRule(s.phase==='cine'?'🎬 Cutscene — ESPAÇO/clique pula':'🚋 <b>↑/W</b> acelera · <b>↓/S</b> freia · <b>ESPAÇO</b> sino 🛎️ — pare quase parado em cima da 🚏 pra embarcar!'); },
+    mStats('<span>🚋 '+kmh+' km/h</span><span>🧑‍🤝‍🧑 <b>'+s.boarded+'/'+s.totalPax+'</b></span><span>🚩 Linha <b>'+(s.level+1)+'/'+this._levels.length+'</b></span>'+(nxt?'<span>🚏 '+nxt.name+' '+Math.max(0,Math.round(nd))+'m</span>':'<span>🏁 '+this._term+'</span>')+'<span>📍 '+prog+'%</span>');
+    mRule(s.phase==='cine'?('🎬 '+(this._levels[s.level]?this._levels[s.level].name:'')+' — ESPAÇO/clique pula'):(s.phase==='clear'?'🎉 Linha concluída!':'🚋 <b>↑/W</b> acelera · <b>↓/S</b> freia · <b>ESPAÇO</b> sino 🛎️ — pare quase parado em cima da 🚏 pra embarcar!')); },
   onClick(){ if(this.s&&this.s.phase==='cine') this._endCine(); },
   onKey(code){ const s=this.s; if(!s)return;
     if(code==='Space'){ if(s.phase==='cine'){ this._endCine(); return; }
