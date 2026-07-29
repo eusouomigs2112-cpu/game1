@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Basquete 6'7"</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body {
+    height:100%; overflow:hidden; background:#0a0713;
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif; color:#fff;
+    user-select:none; -webkit-user-select:none; touch-action:none;
+  }
+  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; background:#0a0713; touch-action:none; }
+
+  /* ---- Telas (overlays) ---- */
+  .overlay {
+    position:fixed; inset:0; z-index:10; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; gap:14px;
+    background:radial-gradient(ellipse at 50% 30%, rgba(40,20,80,.55), rgba(6,4,14,.92) 75%);
+    backdrop-filter:blur(4px); padding:24px;
+  }
+  .overlay.hidden { display:none; }
+  .title {
+    font-size:clamp(40px,10vw,88px); font-weight:900; line-height:.95; letter-spacing:-1px;
+    background:linear-gradient(180deg,#ffd25a,#ff8a3d 60%,#ff5b2e);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 6px 30px rgba(255,120,40,.35); filter:drop-shadow(0 3px 0 rgba(0,0,0,.25));
+  }
+  .sub { font-size:clamp(15px,3.4vw,20px); opacity:.85; font-weight:700; letter-spacing:3px; }
+  .sub b { color:#ffce54; }
+  .card {
+    background:rgba(18,12,32,.66); border:1px solid rgba(255,180,90,.25);
+    border-radius:16px; padding:16px 20px; max-width:440px; font-size:15px; line-height:1.7;
+  }
+  .card .k { display:inline-block; min-width:26px; padding:2px 8px; margin:0 2px;
+    background:rgba(255,190,90,.18); border:1px solid rgba(255,190,90,.4); border-radius:7px;
+    font-weight:800; color:#ffce54; }
+  button.play {
+    cursor:pointer; border:none; border-radius:40px; padding:16px 46px;
+    font-size:clamp(18px,4.5vw,24px); font-weight:900; letter-spacing:1px; color:#3a1500;
+    background:linear-gradient(180deg,#ffd25a,#ff8a3d); box-shadow:0 8px 0 #b84e15, 0 14px 26px rgba(255,120,40,.4);
+    transition:transform .08s, box-shadow .08s;
+  }
+  button.play:active { transform:translateY(6px); box-shadow:0 2px 0 #b84e15, 0 6px 12px rgba(255,120,40,.4); }
+  .best { font-size:16px; opacity:.9; }
+  .best b { color:#ffce54; font-size:20px; }
+  .goscore { font-size:clamp(48px,13vw,104px); font-weight:900; color:#ffce54; line-height:1;
+    text-shadow:0 4px 24px rgba(255,180,80,.4); }
+  .golabel { font-size:14px; letter-spacing:4px; opacity:.7; font-weight:700; }
+  .newrec { color:#7cff9b; font-weight:900; letter-spacing:2px; font-size:18px;
+    animation:pop .5s ease infinite alternate; }
+  @keyframes pop { from{transform:scale(1)} to{transform:scale(1.08)} }
+  .foot { position:fixed; bottom:10px; width:100%; text-align:center; font-size:12px; opacity:.35; z-index:11; letter-spacing:1px; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+
+<!-- Tela inicial -->
+<div id="start" class="overlay">
+  <div class="sub">🏀 <b>six</b> · <b>seven</b> 🔥</div>
+  <div class="title">BASQUETE 6'7"</div>
+  <div class="card">
+    Arraste na tela pra <b>mirar</b> e <b>soltar pra arremessar</b>. 🎯<br>
+    Acerte a cesta antes do tempo acabar. Sequências valem <b>combo</b> e <b>swish</b> (sem tocar no aro) dá bônus!<br>
+    <span style="opacity:.75;font-size:13px;">No PC: clique e arraste com o mouse. No celular: arraste com o dedo.</span>
+  </div>
+  <button class="play" id="btnStart">▶ JOGAR</button>
+  <div class="best">🏆 Recorde: <b id="bestStart">0</b></div>
+</div>
+
+<!-- Tela de fim -->
+<div id="over" class="overlay hidden">
+  <div class="golabel">FIM DE JOGO</div>
+  <div class="goscore" id="goScore">0</div>
+  <div id="goExtra" style="opacity:.85;font-size:15px;"></div>
+  <div class="newrec hidden" id="newRec">🎉 NOVO RECORDE! 🎉</div>
+  <div class="best">🏆 Recorde: <b id="bestOver">0</b></div>
+  <button class="play" id="btnAgain">🔁 JOGAR DE NOVO</button>
+</div>
+
+<div class="foot">arraste pra arremessar &nbsp;·&nbsp; 6 7 🏀</div>
+
+<script>
+"use strict";
+(function(){
+  // ======================= Setup do canvas =======================
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const W = 960, H = 600;                 // resolução interna (fixa)
+  let scale = 1, offX = 0, offY = 0, dpr = 1;
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const vw = window.innerWidth, vh = window.innerHeight;
+    scale = Math.min(vw / W, vh / H);
+    const cssW = W * scale, cssH = H * scale;
+    offX = (vw - cssW) / 2; offY = (vh - cssH) / 2;
+    cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0); // desenhar em coords W×H
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Converte coordenadas de tela -> internas (W×H)
+  function toInternal(clientX, clientY){
+    const r = cv.getBoundingClientRect();
+    return { x: (clientX - r.left) / scale, y: (clientY - r.top) / scale };
+  }
+
+  // ======================= Áudio (WebAudio) =======================
+  let actx = null;
+  function audio(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+  function beep(freq, dur, type, vol, slideTo){
+    const a = audio(); if(!a) return;
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    if(slideTo) o.frequency.linearRampToValueAtTime(slideTo, a.currentTime + dur);
+    g.gain.value = vol || 0.15;
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(); o.stop(a.currentTime + dur);
+  }
+  const sfx = {
+    shoot(){ beep(220, .12, 'triangle', .12, 380); },
+    score(){ beep(660, .10, 'square', .16, 880); setTimeout(()=>beep(990,.14,'square',.14,1200),90); }, // "doot doot" — six seven
+    swish(){ beep(880,.09,'sine',.14,1320); setTimeout(()=>beep(1320,.16,'sine',.13,1760),80); },
+    rim(){ beep(140,.06,'square',.10); },
+    board(){ beep(90,.05,'square',.10); },
+    miss(){ beep(180,.18,'sawtooth',.10,90); },
+    buzzer(){ beep(150,.7,'sawtooth',.2,120); },
+    tick(){ beep(1200,.04,'square',.08); }
+  };
+
+  // ======================= Estado do jogo =======================
+  const BEST_KEY = 'basquete67_best';
+  let best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0;
+
+  const GRAV = 1500;          // gravidade (px/s²)
+  const BALL_R = 20;
+  const LAUNCH = { x: 170, y: H - 140 };  // ponto de lançamento (jogador)
+  const MAX_DRAG = 240, VEL_SCALE = 7.2;  // mira/força (folga: arremesso médio já alcança)
+
+  let state = 'menu';         // 'menu' | 'play' | 'over'
+  let score, combo, bestCombo, made, attempts, timeLeft, lastTime;
+  let ball, hoop, aiming, aim, particles, floats, shake, celebrate, ballThisShotScored, rimTouched;
+  let hoopMoveT = 0;
+
+  const MEMES = ["6 7!", "SWISH!", "🔥", "CLUTCH!", "6 7 🏀", "SPLASH!", "ON FIRE", "DOOT DOOT"];
+  let memeIdx = 0;
+
+  function resetBall(){
+    ball = { x: LAUNCH.x, y: LAUNCH.y, vx: 0, vy: 0, resting: true, trail: [] };
+    ballThisShotScored = false; rimTouched = false;
+  }
+
+  function newHoop(){
+    hoop = {
+      x: 720, y: 250, baseX: 720, baseY: 250,
+      rimHalf: 46, rimR: 6,                 // aro: metade da largura + raio dos cantos
+      boardW: 16, boardH: 120,
+      netSway: 0,
+      moveX: false, moveY: false, spd: 60, range: 74, phase: 0
+    };
+  }
+
+  function startGame(){
+    audio(); if(actx && actx.state === 'suspended') actx.resume();
+    score = 0; combo = 0; bestCombo = 0; made = 0; attempts = 0;
+    timeLeft = 60; hoopMoveT = 0;
+    particles = []; floats = []; shake = 0; celebrate = 0;
+    aiming = false; aim = null;
+    newHoop(); resetBall();
+    state = 'play'; lastTime = performance.now();
+    document.getElementById('start').classList.add('hidden');
+    document.getElementById('over').classList.add('hidden');
+  }
+
+  function endGame(){
+    state = 'over';
+    sfx.buzzer();
+    const newRecord = score > best;
+    if(newRecord){ best = score; localStorage.setItem(BEST_KEY, String(best)); }
+    document.getElementById('goScore').textContent = score;
+    document.getElementById('goExtra').innerHTML =
+      '🎯 Cestas: <b>'+made+'</b>/'+attempts+' &nbsp;·&nbsp; 🔥 Maior combo: <b>'+bestCombo+'</b>';
+    document.getElementById('newRec').classList.toggle('hidden', !newRecord);
+    document.getElementById('bestOver').textContent = best;
+    document.getElementById('over').classList.remove('hidden');
+  }
+
+  // ======================= Input (mira por arrasto) =======================
+  function pointerDown(x, y){
+    if(state !== 'play') return;
+    if(!ball.resting) return;             // só mira com a bola parada
+    aiming = true;
+    aim = { sx: x, sy: y, cx: x, cy: y };
+  }
+  function pointerMove(x, y){
+    if(!aiming) return;
+    aim.cx = x; aim.cy = y;
+  }
+  function pointerUp(){
+    if(!aiming) return;
+    aiming = false;
+    // vetor de arrasto -> velocidade (direção = pra onde arrastou)
+    let dx = aim.cx - aim.sx, dy = aim.cy - aim.sy;
+    const len = Math.hypot(dx, dy);
+    if(len < 14){ aim = null; return; }   // toque curto: ignora
+    const clamped = Math.min(len, MAX_DRAG);
+    const ux = dx / len, uy = dy / len;
+    ball.vx = ux * clamped * VEL_SCALE;
+    ball.vy = uy * clamped * VEL_SCALE;
+    ball.resting = false;
+    ball.trail = [];
+    attempts++;
+    ballThisShotScored = false; rimTouched = false;
+    aim = null;
+    sfx.shoot();
+  }
+
+  // Eventos de ponteiro (mouse + toque unificados)
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); const p = toInternal(e.clientX, e.clientY); pointerDown(p.x, p.y); });
+  cv.addEventListener('pointermove', e => { const p = toInternal(e.clientX, e.clientY); pointerMove(p.x, p.y); });
+  window.addEventListener('pointerup', e => { pointerUp(); });
+  cv.addEventListener('pointercancel', e => { aiming = false; aim = null; });
+
+  // ======================= Física / update =======================
+  function update(dt){
+    if(state !== 'play') return;
+
+    // cronômetro
+    const prevT = timeLeft;
+    timeLeft -= dt;
+    if(Math.ceil(prevT) !== Math.ceil(timeLeft) && timeLeft <= 5 && timeLeft > 0) sfx.tick();
+    if(timeLeft <= 0){ timeLeft = 0; endGame(); return; }
+
+    // dificuldade progressiva: aro começa a se mexer conforme a pontuação
+    hoopMoveT += dt;
+    hoop.moveX = made >= 6;
+    hoop.moveY = made >= 12;
+    hoop.spd = 45 + Math.min(made, 24) * 4;
+    if(hoop.moveX){
+      hoop.phase += dt * (hoop.spd / hoop.range);
+      hoop.x = hoop.baseX + Math.sin(hoop.phase) * hoop.range;
+    } else hoop.x = hoop.baseX;
+    hoop.y = hoop.moveY ? hoop.baseY + Math.sin(hoop.phase * 1.6) * 38 : hoop.baseY;
+
+    hoop.netSway *= 0.9;
+
+    // efeitos
+    if(shake > 0) shake = Math.max(0, shake - dt * 60);
+    if(celebrate > 0) celebrate -= dt;
+    for(let i = particles.length - 1; i >= 0; i--){
+      const p = particles[i];
+      p.vy += GRAV * 0.5 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+      if(p.life <= 0) particles.splice(i, 1);
+    }
+    for(let i = floats.length - 1; i >= 0; i--){
+      const f = floats[i]; f.y -= 40 * dt; f.life -= dt; if(f.life <= 0) floats.splice(i, 1);
+    }
+
+    if(ball.resting) return;
+
+    // integra a bola
+    ball.vy += GRAV * dt;
+    ball.x += ball.vx * dt;
+    ball.y += ball.vy * dt;
+
+    // rastro
+    ball.trail.push({ x: ball.x, y: ball.y });
+    if(ball.trail.length > 14) ball.trail.shift();
+
+    const prevY = ball.y - ball.vy * dt;
+
+    // paredes laterais e teto (quica com amortecimento)
+    if(ball.x - BALL_R < 0){ ball.x = BALL_R; ball.vx = Math.abs(ball.vx) * 0.6; }
+    if(ball.x + BALL_R > W){ ball.x = W - BALL_R; ball.vx = -Math.abs(ball.vx) * 0.6; }
+    if(ball.y - BALL_R < 0){ ball.y = BALL_R; ball.vy = Math.abs(ball.vy) * 0.6; }
+
+    // ---- Tabela (backboard), fica logo atrás do aro, à direita ----
+    const boardX = hoop.x + hoop.rimHalf + hoop.boardW / 2 + 4;
+    const boardTop = hoop.y - hoop.boardH + 28, boardBot = hoop.y + 24;
+    if(ball.y > boardTop && ball.y < boardBot){
+      if(ball.x + BALL_R > boardX - hoop.boardW/2 && ball.x < boardX){
+        ball.x = boardX - hoop.boardW/2 - BALL_R;
+        ball.vx = -Math.abs(ball.vx) * 0.55;
+        sfx.board();
+      }
+    }
+
+    // ---- Cantos do aro (dois círculos): quica ----
+    const rimL = { x: hoop.x - hoop.rimHalf, y: hoop.y };
+    const rimR = { x: hoop.x + hoop.rimHalf, y: hoop.y };
+    for(const rim of [rimL, rimR]){
+      const ddx = ball.x - rim.x, ddy = ball.y - rim.y;
+      const dist = Math.hypot(ddx, ddy);
+      const min = BALL_R + hoop.rimR;
+      if(dist < min && dist > 0.001){
+        const nx = ddx / dist, ny = ddy / dist;
+        ball.x = rim.x + nx * min; ball.y = rim.y + ny * min;
+        const dot = ball.vx * nx + ball.vy * ny;
+        ball.vx = (ball.vx - 2 * dot * nx) * 0.62;
+        ball.vy = (ball.vy - 2 * dot * ny) * 0.62;
+        rimTouched = true; hoop.netSway = 0.6;
+        sfx.rim();
+      }
+    }
+
+    // ---- Detecção de cesta: cruza a linha do aro pra baixo, entre os aros ----
+    if(!ballThisShotScored && ball.vy > 0){
+      const rimY = hoop.y;
+      if(prevY <= rimY && ball.y >= rimY){
+        const innerL = hoop.x - hoop.rimHalf + hoop.rimR + 2;
+        const innerR = hoop.x + hoop.rimHalf - hoop.rimR - 2;
+        if(ball.x > innerL && ball.x < innerR){
+          scoreBasket();
+        }
+      }
+    }
+
+    // ---- Após cesta: deixa a bola passar pela rede e reseta rápido (sem tempo morto) ----
+    if(ballThisShotScored && ball.y > hoop.y + 150){ resetBall(); return; }
+
+    // ---- Fim do arremesso: caiu no chão ou saiu de cena ----
+    const floorY = H - 40;
+    if(ball.y - BALL_R > floorY + 60 || ball.x < -80 || ball.x > W + 80){
+      if(!ballThisShotScored){ combo = 0; sfx.miss(); }
+      resetBall();
+    } else if(ball.y + BALL_R > floorY){
+      // quica no chão perdendo energia; após parar, reseta
+      ball.y = floorY - BALL_R; ball.vy = -Math.abs(ball.vy) * 0.5; ball.vx *= 0.7;
+      if(Math.abs(ball.vy) < 60 && Math.abs(ball.vx) < 40){
+        if(!ballThisShotScored){ combo = 0; sfx.miss(); }
+        resetBall();
+      }
+    }
+  }
+
+  function scoreBasket(){
+    ballThisShotScored = true;
+    made++;
+    combo++;
+    if(combo > bestCombo) bestCombo = combo;
+    hoop.netSway = 1;
+
+    const swish = !rimTouched;
+    const mult = 1 + Math.floor((combo - 1) / 3);   // combo aumenta multiplicador
+    let pts = 2 * mult;                              // 2 pontos por cesta (basquete!)
+    if(swish){ pts += 1 * mult; sfx.swish(); } else { sfx.score(); }
+    score += pts;
+
+    // texto flutuante de pontos + meme
+    floats.push({ x: hoop.x, y: hoop.y + 40, life: 1.0, text: '+' + pts, big: true, color: swish ? '#7cff9b' : '#ffce54' });
+    const label = swish ? 'SWISH!' : (combo >= 3 ? MEMES[(memeIdx++) % MEMES.length] : '6 7!');
+    floats.push({ x: hoop.x, y: hoop.y - 10, life: 1.2, text: label, big: false, color: '#fff' });
+
+    // partículas (confete laranja/dourado)
+    for(let i = 0; i < 22; i++){
+      const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 260;
+      particles.push({
+        x: hoop.x, y: hoop.y + 8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60,
+        life: .6 + Math.random() * .5, col: ['#ffd25a','#ff8a3d','#ff5b2e','#7cff9b'][i % 4], r: 3 + Math.random() * 3
+      });
+    }
+    shake = swish ? 10 : 6;
+    celebrate = 0.7;
+  }
+
+  // ======================= Desenho =======================
+  function drawCourt(){
+    // fundo (arquibancada/ginásio)
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#241a4d'); g.addColorStop(.55, '#1a1130'); g.addColorStop(1, '#120b22');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    // "torcida" — pontinhos
+    ctx.save();
+    for(let i = 0; i < 90; i++){
+      const x = (i * 97) % W, y = 40 + ((i * 53) % 120);
+      ctx.globalAlpha = 0.25 + (i % 3) * 0.12;
+      ctx.fillStyle = ['#ff8a3d','#7c5cff','#4dd0e1','#ffd25a'][i % 4];
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill();
+    }
+    ctx.restore();
+
+    // quadra (piso)
+    const floorY = H - 40;
+    const fg = ctx.createLinearGradient(0, floorY - 40, 0, H);
+    fg.addColorStop(0, '#c47a3a'); fg.addColorStop(1, '#8a4f22');
+    ctx.fillStyle = fg; ctx.fillRect(0, floorY, W, H - floorY + 40);
+    ctx.strokeStyle = 'rgba(255,240,200,.5)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(W, floorY); ctx.stroke();
+    // linha de 3 pontos estilizada
+    ctx.strokeStyle = 'rgba(255,240,200,.25)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(LAUNCH.x, floorY, 120, -Math.PI * 0.5, Math.PI * 0.5); ctx.stroke();
+  }
+
+  function drawHoop(){
+    const poleX = hoop.x + hoop.rimHalf + hoop.boardW + 26;
+    // poste
+    ctx.strokeStyle = '#40506a'; ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.moveTo(poleX, hoop.y - 10); ctx.lineTo(poleX, H - 40); ctx.stroke();
+    // braço até a tabela
+    const boardX = hoop.x + hoop.rimHalf + hoop.boardW / 2 + 4;
+    ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(poleX, hoop.y - 40); ctx.lineTo(boardX, hoop.y - 40); ctx.stroke();
+
+    // tabela (vista lateral estilizada)
+    const boardTop = hoop.y - hoop.boardH + 28;
+    ctx.fillStyle = 'rgba(232,240,255,.92)';
+    roundRect(boardX - hoop.boardW/2, boardTop, hoop.boardW, hoop.boardH, 4); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,120,60,.9)'; ctx.lineWidth = 3;
+    roundRect(boardX - hoop.boardW/2, boardTop, hoop.boardW, hoop.boardH, 4); ctx.stroke();
+    // quadradinho de mira, logo acima do aro
+    ctx.strokeStyle = '#ff5b2e'; ctx.lineWidth = 3;
+    ctx.strokeRect(boardX - 11, hoop.y - 30, 22, 18);
+
+    // rede
+    const rimY = hoop.y, L = hoop.x - hoop.rimHalf, R = hoop.x + hoop.rimHalf;
+    const sway = hoop.netSway * 16;
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.6;
+    const seg = 6, netH = 46;
+    for(let i = 0; i <= seg; i++){
+      const t = i / seg;
+      const topx = L + (R - L) * t;
+      const botx = hoop.x + (topx - hoop.x) * 0.42 + sway * (t - .5);
+      ctx.beginPath(); ctx.moveTo(topx, rimY); ctx.lineTo(botx, rimY + netH); ctx.stroke();
+    }
+    for(let j = 1; j <= 3; j++){
+      const yy = rimY + (netH) * (j / 4);
+      const shrink = 1 - (j / 4) * 0.58;
+      ctx.beginPath();
+      ctx.moveTo(hoop.x - hoop.rimHalf * shrink + sway * .2, yy);
+      ctx.lineTo(hoop.x + hoop.rimHalf * shrink + sway * .2, yy);
+      ctx.stroke();
+    }
+
+    // aro (laranja)
+    ctx.strokeStyle = '#ff6b1f'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(L, rimY); ctx.lineTo(R, rimY); ctx.stroke();
+    // cantos do aro
+    ctx.fillStyle = '#ff8a3d';
+    ctx.beginPath(); ctx.arc(L, rimY, hoop.rimR, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(R, rimY, hoop.rimR, 0, 7); ctx.fill();
+    ctx.lineCap = 'butt';
+  }
+
+  function drawBall(bx, by, r){
+    ctx.save();
+    ctx.translate(bx, by);
+    // sombra de gradiente
+    const bg = ctx.createRadialGradient(-r*.3, -r*.3, r*.2, 0, 0, r);
+    bg.addColorStop(0, '#ff9a4d'); bg.addColorStop(1, '#d9631a');
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+    // linhas da bola
+    ctx.strokeStyle = 'rgba(40,15,0,.75)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(0, r); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-r*1.1, 0, r*1.2, -0.9, 0.9); ctx.stroke();
+    ctx.beginPath(); ctx.arc(r*1.1, 0, r*1.2, Math.PI-0.9, Math.PI+0.9); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawAimGuide(){
+    if(!aiming || !aim) return;
+    let dx = aim.cx - aim.sx, dy = aim.cy - aim.sy;
+    const len = Math.hypot(dx, dy);
+    if(len < 8) return;
+    const clamped = Math.min(len, MAX_DRAG);
+    const ux = dx / len, uy = dy / len;
+    let vx = ux * clamped * VEL_SCALE, vy = uy * clamped * VEL_SCALE;
+
+    // trajetória prevista (pontinhos)
+    let px = LAUNCH.x, py = LAUNCH.y, pvx = vx, pvy = vy;
+    const step = 1 / 60;
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    for(let i = 0; i < 60; i++){
+      pvy += GRAV * step; px += pvx * step; py += pvy * step;
+      if(py > H - 40 || px > W || px < 0) break;
+      if(i % 3 === 0){
+        const rr = 5 - i * 0.05;
+        ctx.beginPath(); ctx.arc(px, py, Math.max(1.5, rr), 0, 7); ctx.fill();
+      }
+    }
+    // barra de força
+    const pw = clamped / MAX_DRAG;
+    ctx.fillStyle = 'rgba(0,0,0,.4)';
+    roundRect(LAUNCH.x - 40, LAUNCH.y + 34, 80, 10, 5); ctx.fill();
+    ctx.fillStyle = pw > .8 ? '#ff5b2e' : (pw > .5 ? '#ffd25a' : '#7cff9b');
+    roundRect(LAUNCH.x - 40, LAUNCH.y + 34, 80 * pw, 10, 5); ctx.fill();
+  }
+
+  function drawHUD(){
+    // placar
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.font = '900 40px Segoe UI, system-ui, sans-serif';
+    ctx.fillStyle = '#ffce54';
+    ctx.fillText(String(score), 24, 20);
+    ctx.font = '700 13px Segoe UI, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.65)';
+    ctx.fillText('PONTOS', 26, 64);
+
+    // tempo (centro)
+    ctx.textAlign = 'center';
+    const t = Math.ceil(timeLeft);
+    ctx.font = '900 34px Segoe UI, system-ui, sans-serif';
+    ctx.fillStyle = timeLeft <= 5 ? '#ff5b5b' : '#fff';
+    ctx.fillText(t + 's', W / 2, 20);
+    ctx.font = '700 12px Segoe UI, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.fillText('TEMPO', W / 2, 58);
+
+    // combo (direita)
+    ctx.textAlign = 'right';
+    if(combo >= 2){
+      const mult = 1 + Math.floor((combo - 1) / 3);
+      ctx.font = '900 30px Segoe UI, system-ui, sans-serif';
+      ctx.fillStyle = '#ff8a3d';
+      ctx.fillText('🔥 x' + combo, W - 24, 22);
+      if(mult > 1){
+        ctx.font = '700 13px Segoe UI, system-ui, sans-serif';
+        ctx.fillStyle = '#ffd25a';
+        ctx.fillText('multiplicador ×' + mult, W - 24, 60);
+      }
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
+  function drawFloats(){
+    for(const f of floats){
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, f.life));
+      ctx.textAlign = 'center';
+      ctx.font = (f.big ? '900 38px' : '900 26px') + ' Segoe UI, system-ui, sans-serif';
+      ctx.fillStyle = f.color;
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.5)';
+      ctx.strokeText(f.text, f.x, f.y);
+      ctx.fillText(f.text, f.x, f.y);
+      ctx.restore();
+    }
+    ctx.textAlign = 'left';
+  }
+
+  function drawParticles(){
+    for(const p of particles){
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 1.6));
+      ctx.fillStyle = p.col;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawPlayer(){
+    // mascote simples "6 7" — mãozinhas que alternam quando comemora
+    const floorY = H - 40;
+    const bob = celebrate > 0 ? Math.sin(performance.now() * 0.02) * 6 : 0;
+    ctx.save();
+    ctx.font = '900 15px Segoe UI, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.textAlign = 'center';
+    ctx.fillText('6  7', LAUNCH.x, floorY + 30);
+    // mãos
+    ctx.font = '26px serif';
+    ctx.fillText(celebrate > 0 ? '🙌' : '👐', LAUNCH.x, LAUNCH.y - BALL_R - 14 + bob);
+    ctx.restore();
+    ctx.textAlign = 'left';
+  }
+
+  function roundRect(x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function render(){
+    ctx.save();
+    if(shake > 0){
+      ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+    }
+    drawCourt();
+    drawHoop();
+    drawParticles();
+    if(state === 'play'){
+      drawPlayer();
+      // rastro da bola
+      for(let i = 0; i < ball.trail.length; i++){
+        const tp = ball.trail[i];
+        ctx.globalAlpha = (i / ball.trail.length) * 0.35;
+        ctx.fillStyle = '#ff8a3d';
+        ctx.beginPath(); ctx.arc(tp.x, tp.y, BALL_R * (i / ball.trail.length) * 0.8, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      drawBall(ball.x, ball.y, BALL_R);
+      drawAimGuide();
+      drawFloats();
+      drawHUD();
+    } else {
+      // no menu/fim, mostra uma bola parada bonitinha
+      drawBall(LAUNCH.x, LAUNCH.y, BALL_R);
+      drawFloats();
+    }
+    ctx.restore();
+  }
+
+  // ======================= Loop =======================
+  function frame(now){
+    let dt = (now - lastTime) / 1000; lastTime = now;
+    if(dt > 0.05) dt = 0.05;             // trava física em quedas de FPS
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ======================= Botões =======================
+  document.getElementById('btnStart').addEventListener('click', startGame);
+  document.getElementById('btnAgain').addEventListener('click', startGame);
+  document.getElementById('bestStart').textContent = best;
+
+  // inicia loop (mostra bola parada no menu)
+  particles = []; floats = []; shake = 0; celebrate = 0; timeLeft = 60; score = 0; combo = 0;
+  resetBall(); newHoop(); lastTime = performance.now();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
