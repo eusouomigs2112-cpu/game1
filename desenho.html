@@ -244,8 +244,8 @@
         <input type="range" id="flow" min="1" max="100" value="100">
         <div class="row"><label>Dureza</label><span class="val" id="hardVal">85%</span></div>
         <input type="range" id="hard" min="0" max="100" value="85">
-        <div class="row"><label>Suavização</label><span class="val" id="smoothVal">30%</span></div>
-        <input type="range" id="smooth" min="0" max="95" value="30">
+        <div class="row"><label>Suavização</label><span class="val" id="smoothVal">12%</span></div>
+        <input type="range" id="smooth" min="0" max="95" value="12">
       </div>
 
       <div class="sec" id="presetSec">
@@ -485,11 +485,18 @@ const TOOLS=[
 const SWATCHES=['#000000','#ffffff','#7f7f7f','#c1c1c1','#ff0000','#ff7f00','#ffff00','#00ff00','#00ffff',
   '#0000ff','#7f00ff','#ff00ff','#a0522d','#ff6f91','#ffd166','#06d6a0','#118ab2','#073b4c'];
 const BRUSH_PRESETS=[
-  {id:'round', name:'Redondo', hard:88, flow:100, smooth:25},
-  {id:'soft',  name:'Suave',   hard:0,  flow:70,  smooth:35},
-  {id:'marker',name:'Marcador',hard:95, flow:100, smooth:20, sizeMul:1},
-  {id:'pen',   name:'Caneta',  hard:100,flow:100, smooth:45, forceTool:'pencil'},
-  {id:'ink',   name:'Nanquim', hard:100,flow:100, smooth:60},
+  {id:'round',  name:'Redondo',     hard:88, flow:100, smooth:10, size:14, opacity:100},
+  {id:'soft',   name:'Suave',       hard:0,  flow:70,  smooth:16, size:26, opacity:100},
+  {id:'marker', name:'Marcador',    hard:95, flow:100, smooth:8,  size:16, opacity:100},
+  {id:'pen',    name:'Caneta',      hard:100,flow:100, smooth:20, size:6,  opacity:100, forceTool:'pencil'},
+  {id:'ink',    name:'Nanquim',     hard:100,flow:100, smooth:28, size:10, opacity:100},
+  {id:'liner',  name:'Fineliner',   hard:100,flow:100, smooth:12, size:3,  opacity:100, forceTool:'pencil'},
+  {id:'pencilx',name:'Lápis',       hard:72, flow:82,  smooth:6,  size:5,  opacity:90,  forceTool:'pencil'},
+  {id:'water',  name:'Aquarela',    hard:0,  flow:20,  smooth:22, size:34, opacity:65},
+  {id:'gouache',name:'Guache',      hard:82, flow:100, smooth:12, size:28, opacity:100},
+  {id:'chalk',  name:'Giz',         hard:55, flow:58,  smooth:6,  size:18, opacity:95},
+  {id:'hl',     name:'Marca-texto', hard:100,flow:100, smooth:5,  size:24, opacity:36},
+  {id:'spray',  name:'Spray',       hard:0,  flow:55,  smooth:0,  size:30, opacity:100, forceTool:'airbrush'},
 ];
 
 // ================================================================
@@ -500,7 +507,7 @@ const S={
   tool:'brush', prevTool:'brush',
   layers:[], active:0, layerSeq:1,
   view:{zoom:1, panX:0, panY:0},
-  brush:{size:14, opacity:100, flow:100, hard:85, smooth:30, preset:'round'},
+  brush:{size:14, opacity:100, flow:100, hard:85, smooth:12, preset:'round'},
   tol:32, fillGlobal:false, shapeFill:false,
   sym:'none', radialN:6,
   showGrid:false,
@@ -941,6 +948,12 @@ function endStroke(e){
     if(strokeBefore){pushPixelChange(L,strokeBefore);strokeBefore=null;}
     moveStart=null;moveImg=null; render(); renderLayerThumb(); return;
   }
+  // catch the stabilized stroke up to the true cursor so it never stops short of where you released
+  if((S.tool==='brush'||S.tool==='pencil') && lastStamp && lastDoc.x>-9998){
+    const rgb=hsv2rgb(curCol().h,curCol().s,curCol().v);
+    paintSegment(lastStamp, lastDoc, rgb);
+    lastStamp={...lastDoc};
+  }
   // commit stroke buffer to active layer at stroke opacity
   if(['brush','pencil','line','rect','ellipse','airbrush'].includes(S.tool)){
     L.ctx.save();
@@ -1193,7 +1206,19 @@ function pointerMove(e){
     S.view.panY=S._panFrom.py+(e.clientY-S._panFrom.y);
     render(); renderOverlay(); return;
   }
-  if(S.drawing){ applyPressure(e); moveStroke(doc,e); }
+  if(S.drawing){
+    // process every sub-frame point the OS batched together, so fast strokes
+    // don't cut corners or trail behind the cursor
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
+    if(evs && evs.length){
+      for(const ev of evs){
+        const d=screenToDoc(ev.clientX,ev.clientY);
+        lastDoc=d; applyPressure(ev); moveStroke(d,ev);
+      }
+    } else {
+      applyPressure(e); moveStroke(doc,e);
+    }
+  }
   renderOverlay(); updateStatus();
 }
 function pointerUp(e){
@@ -1248,6 +1273,8 @@ function buildBrushPresets(){
     b.textContent=p.name;
     b.onclick=()=>{
       S.brush.preset=p.id; S.brush.hard=p.hard; S.brush.flow=p.flow; S.brush.smooth=p.smooth;
+      if(p.size!=null)S.brush.size=p.size;
+      if(p.opacity!=null)S.brush.opacity=p.opacity;
       if(p.forceTool)setTool(p.forceTool); else if(!['brush','pencil','airbrush'].includes(S.tool))setTool('brush');
       syncBrushInputs(); document.querySelectorAll('#brushPresets .chip').forEach(c=>c.classList.toggle('on',c.textContent===p.name));
       stampKey='';
