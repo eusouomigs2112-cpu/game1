@@ -114,6 +114,8 @@
   .sw:hover{transform:scale(1.12);z-index:2;border-color:#fff}
   #recentWrap{margin-top:10px}
   #recent{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;margin-top:6px;min-height:20px}
+  #customWrap{margin-top:10px}
+  #custom{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;margin-top:6px;min-height:20px}
 
   #layerspanel{flex:1;display:flex;flex-direction:column;min-height:0}
   .lhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px}
@@ -249,11 +251,39 @@
         <div class="row" style="margin-top:9px"><label>Pressão da caneta</label></div>
         <label class="toggle"><input type="checkbox" id="penSize" checked><span class="sw"></span>Tamanho</label>
         <label class="toggle" style="margin-top:4px"><input type="checkbox" id="penOpacity"><span class="sw"></span>Opacidade</label>
+        <div id="fxTip" style="display:none;margin-top:10px;font-size:11px;line-height:1.4;color:var(--mut);background:#1b1630;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></div>
       </div>
 
       <div class="sec" id="presetSec">
         <h4>Ponta</h4>
         <div class="chips" id="brushPresets"></div>
+      </div>
+
+      <div class="sec" id="gradSec" style="display:none">
+        <h4>Gradiente</h4>
+        <div class="chips" id="gradTypeChips">
+          <button class="chip on" data-gt="linear">Linear</button>
+          <button class="chip" data-gt="radial">Radial</button>
+        </div>
+        <div class="chips" style="margin-top:6px" id="gradModeChips">
+          <button class="chip on" data-gm="fg-bg">Cor 1 → Cor 2</button>
+          <button class="chip" data-gm="fg-transp">Cor 1 → transparente</button>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--mut);line-height:1.4">Arraste sobre a tela para definir a direção. Segure <b>Shift</b> para travar o ângulo.</div>
+      </div>
+
+      <div class="sec" id="layerOpsSec">
+        <h4>Camada &amp; Ajustes</h4>
+        <div class="chips">
+          <button class="chip" id="opAdjust">Ajustes…</button>
+          <button class="chip" id="opInvert">Inverter</button>
+          <button class="chip" id="opGray">Preto &amp; branco</button>
+          <button class="chip" id="opFlipH">Espelhar ⇋</button>
+          <button class="chip" id="opFlipV">Espelhar ⇅</button>
+          <button class="chip" id="opRotate">Girar 90°</button>
+          <button class="chip" id="opFill">Preencher</button>
+          <button class="chip" id="opClear">Limpar</button>
+        </div>
       </div>
 
       <div class="sec" id="shapeSec" style="display:none">
@@ -331,6 +361,10 @@
           <input id="hex" value="#7C5CFF" maxlength="7" spellcheck="false">
         </div>
         <div id="swatches"></div>
+        <div id="customWrap"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+            <h4 style="font-size:10px;color:var(--mut);letter-spacing:1px;text-transform:uppercase">Minha paleta</h4>
+            <button id="addSwatch" title="Salvar cor atual" style="width:20px;height:20px;border-radius:6px;border:1px solid var(--line);background:#1b1630;color:var(--txt);font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">+</button>
+          </div><div id="custom"></div></div>
         <div id="recentWrap"><h4 style="font-size:10px;color:var(--mut);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">Recentes</h4><div id="recent"></div></div>
       </div>
 
@@ -435,6 +469,11 @@
       <div><span>Retângulo</span><kbd>R</kbd></div>
       <div><span>Elipse</span><kbd>O</kbd></div>
       <div><span>Texto</span><kbd>T</kbd></div>
+      <div><span>Gradiente</span><kbd>F</kbd></div>
+      <div><span>Esfumar / borrar</span><kbd>U</kbd></div>
+      <div><span>Desfoque</span><kbd>J</kbd></div>
+      <div><span>Clarear (luz)</span><kbd>K</kbd></div>
+      <div><span>Escurecer (sombra)</span><kbd>M</kbd></div>
       <div><span>Mover camada</span><kbd>V</kbd></div>
       <div><span>Mão / arrastar</span><kbd>Espaço</kbd></div>
       <div><span>Desfazer / Refazer</span><kbd>Ctrl+Z</kbd></div>
@@ -446,6 +485,20 @@
       <div><span>Exportar</span><kbd>Ctrl+E</kbd></div>
     </div>
     <div class="cardbtns" style="margin-top:18px"><button class="btn primary" data-close>Entendi</button></div>
+  </div>
+</div>
+
+<div class="modal" id="modalAdjust">
+  <div class="card">
+    <h3>🎚️ Ajustes da camada</h3>
+    <p>Aplica na camada ativa. Pré-visualização ao vivo.</p>
+    <div class="row"><label>Brilho</label><span class="val" id="ajBrightVal">0</span></div>
+    <input type="range" id="ajBright" min="-100" max="100" value="0">
+    <div class="row" style="margin-top:8px"><label>Contraste</label><span class="val" id="ajContrastVal">0</span></div>
+    <input type="range" id="ajContrast" min="-100" max="100" value="0">
+    <div class="row" style="margin-top:8px"><label>Saturação</label><span class="val" id="ajSatVal">0</span></div>
+    <input type="range" id="ajSat" min="-100" max="100" value="0">
+    <div class="cardbtns" style="margin-top:16px"><button class="btn" id="ajCancel">Cancelar</button><button class="btn primary" id="ajApply">Aplicar</button></div>
   </div>
 </div>
 
@@ -469,7 +522,12 @@ const ICONS = {
   ellipse:'<ellipse cx="12" cy="12" rx="9" ry="6.5"/>',
   airbrush:'<circle cx="6" cy="7" r=".8"/><circle cx="9" cy="10" r=".8"/><circle cx="6" cy="13" r=".8"/><circle cx="10" cy="15" r=".8"/><path d="M13 12l7-7M14 8h5v5"/>',
   text:'<path d="M5 5h14M12 5v14M9 19h6"/>',
-  hand:'<path d="M18 11V6a1.5 1.5 0 0 0-3 0M15 6V4.5a1.5 1.5 0 0 0-3 0V6m0 0V5a1.5 1.5 0 0 0-3 0v7m0 0-1.5-2A1.7 1.7 0 0 0 4 12l3 6a5 5 0 0 0 4.5 3H15a4 4 0 0 0 4-4v-6a1.5 1.5 0 0 0-3 0"/>'
+  hand:'<path d="M18 11V6a1.5 1.5 0 0 0-3 0M15 6V4.5a1.5 1.5 0 0 0-3 0V6m0 0V5a1.5 1.5 0 0 0-3 0v7m0 0-1.5-2A1.7 1.7 0 0 0 4 12l3 6a5 5 0 0 0 4.5 3H15a4 4 0 0 0 4-4v-6a1.5 1.5 0 0 0-3 0"/>',
+  smudge:'<path d="M4 13c2-3 5-3 7 0M9 9c2-3 5-3 7 0M7 17c2-2 5-2 7 0"/><circle cx="19" cy="6" r="1.4"/>',
+  blur:'<circle cx="12" cy="12" r="8" stroke-dasharray="2.5 2.8"/><circle cx="12" cy="12" r="3.4"/>',
+  dodge:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>',
+  burn:'<path d="M20 14.5A8 8 0 1 1 10.2 4.3 6.2 6.2 0 0 0 20 14.5z"/>',
+  gradient:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7 19.5 20 6.5M11 19.5 20.5 10M15 19.5l5.5-5.5"/>'
 };
 const TOOLS=[
   {id:'move',name:'Mover camada',key:'v'},
@@ -482,6 +540,11 @@ const TOOLS=[
   {id:'rect',name:'Retângulo',key:'r'},
   {id:'ellipse',name:'Elipse',key:'o'},
   {id:'airbrush',name:'Spray',key:'a'},
+  {id:'gradient',name:'Gradiente',key:'f'},
+  {id:'smudge',name:'Esfumar / borrar',key:'u'},
+  {id:'blur',name:'Desfoque',key:'j'},
+  {id:'dodge',name:'Clarear (luz)',key:'k'},
+  {id:'burn',name:'Escurecer (sombra)',key:'m'},
   {id:'text',name:'Texto',key:'t'},
   {id:'hand',name:'Mão (arrastar)',key:'h'},
 ];
@@ -497,7 +560,9 @@ const BRUSH_PRESETS=[
   {id:'pencilx',name:'Lápis',       hard:72, flow:82,  smooth:6,  size:5,  opacity:90,  forceTool:'pencil'},
   {id:'water',  name:'Aquarela',    hard:0,  flow:20,  smooth:22, size:34, opacity:65},
   {id:'gouache',name:'Guache',      hard:82, flow:100, smooth:12, size:28, opacity:100},
-  {id:'chalk',  name:'Giz',         hard:55, flow:58,  smooth:6,  size:18, opacity:95},
+  {id:'chalk',  name:'Giz',         hard:70, flow:70,  smooth:6,  size:18, opacity:95, texture:0.5},
+  {id:'charcoal',name:'Carvão',     hard:80, flow:85,  smooth:6,  size:22, opacity:100,texture:0.75},
+  {id:'shade',  name:'Sombra',      hard:0,  flow:22,  smooth:30, size:60, opacity:45},
   {id:'hl',     name:'Marca-texto', hard:100,flow:100, smooth:5,  size:24, opacity:36},
   {id:'spray',  name:'Spray',       hard:0,  flow:55,  smooth:0,  size:30, opacity:100, forceTool:'airbrush'},
 ];
@@ -510,11 +575,13 @@ const S={
   tool:'brush', prevTool:'brush',
   layers:[], active:0, layerSeq:1,
   view:{zoom:1, panX:0, panY:0},
-  brush:{size:14, opacity:100, flow:100, hard:85, smooth:12, preset:'round'},
+  brush:{size:14, opacity:100, flow:100, hard:85, smooth:12, preset:'round', texture:0},
   pen:{size:true, opacity:false},   // caneta/stylus: pressão controla tamanho e/ou opacidade
   tol:32, fillGlobal:false, shapeFill:false,
   sym:'none', radialN:6,
   showGrid:false,
+  gradType:'linear', gradMode:'fg-bg', // gradiente
+  customSwatches:[],                    // paleta pessoal (localStorage)
   // color as HSVA
   colH:255, colS:64, colV:100, colA:100, // hsv (h 0-360 stored /? we'll keep h 0-360)
   primary:{h:255,s:64,v:100,a:100},
@@ -613,6 +680,7 @@ function pushHist(entry){
   if(HIST.stack.length>HIST.limit)HIST.stack.shift();
   HIST.idx=HIST.stack.length-1;
   updateUndoButtons();
+  if(typeof scheduleAutosave==='function')scheduleAutosave();
 }
 function undo(){
   if(HIST.idx<0)return;
@@ -652,8 +720,10 @@ let penScale=1, penAlpha=1;
 function effSize(){ return Math.max(0.5, S.brush.size*penScale); }
 
 let stampKey='';
-function buildStamp(size, hard, rgb, flow){
-  const key=size+'|'+hard+'|'+rgb.join(',')+'|'+flow;
+function buildStamp(size, hard, rgb, flow, texture){
+  texture=texture||0;
+  // texture varies grain per stamp -> vary the key so it rebuilds (natural grain)
+  const key=size+'|'+hard+'|'+rgb.join(',')+'|'+flow+'|'+(texture?'t'+Math.floor(Math.random()*9999):'0');
   if(key===stampKey)return stampCanvas;
   stampKey=key;
   const r=Math.max(1,size/2);
@@ -673,6 +743,14 @@ function buildStamp(size, hard, rgb, flow){
     g.addColorStop(1,`rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
     stampCtx.fillStyle=g;
     stampCtx.beginPath();stampCtx.arc(cx,cy,r,0,Math.PI*2);stampCtx.fill();
+  }
+  if(texture>0){
+    // knock out random speckles from the stamp alpha -> grainy chalk/charcoal look
+    const im=stampCtx.getImageData(0,0,d,d), px=im.data;
+    for(let i=0;i<px.length;i+=4){
+      if(px[i+3]>0 && Math.random()<texture*0.55) px[i+3]*=Math.random()*0.5;
+    }
+    stampCtx.putImageData(im,0,0);
   }
   return stampCanvas;
 }
@@ -720,7 +798,7 @@ function render(){
   vctx.restore();
   vctx.drawImage(checkerCanvas,0,0);
 
-  const usingStroke = S.drawing && ['brush','pencil','line','rect','ellipse','airbrush','text'].includes(S.tool);
+  const usingStroke = S.drawing && ['brush','pencil','line','rect','ellipse','airbrush','text','gradient'].includes(S.tool);
   for(let i=0;i<S.layers.length;i++){
     const L=S.layers[i];
     if(!L.visible)continue;
@@ -859,7 +937,7 @@ function symPoints(x,y){
 
 function stampAt(ctx,x,y,rgb){
   const size=effSize(), hard=S.brush.hard, flow=S.brush.flow*penAlpha;
-  const st=buildStamp(size,hard,rgb,flow);
+  const st=buildStamp(size,hard,rgb,flow,S.brush.texture);
   const r=st.width/2;
   ctx.drawImage(st,x-r,y-r);
 }
@@ -876,11 +954,110 @@ function paintSegment(from,to,rgb){
   }
 }
 
+// ================================================================
+//  FX BRUSHES (esfumar / desfoque / clarear / escurecer) — direto na camada
+// ================================================================
+const fxA=document.createElement('canvas'), fxAc=fxA.getContext('2d');
+const fxB=document.createElement('canvas'), fxBc=fxB.getContext('2d');
+const fxPick=document.createElement('canvas'), fxPickc=fxPick.getContext('2d');
+function fxRadius(){ return Math.max(1, effSize()/2); }
+function softMaskInto(ctx,d,hardPct){
+  const r=d/2, inner=clamp((hardPct==null?S.brush.hard:hardPct)/100,0,0.9);
+  const g=ctx.createRadialGradient(r,r,0,r,r,r);
+  g.addColorStop(0,'rgba(255,255,255,1)');
+  g.addColorStop(inner,'rgba(255,255,255,1)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(r,r,r,0,Math.PI*2); ctx.fill();
+}
+function fxBeginPick(p){
+  const r=fxRadius(), d=Math.ceil(r*2)+2;
+  fxPick.width=d; fxPick.height=d; fxPickc.clearRect(0,0,d,d);
+  fxPickc.drawImage(activeLayer().canvas, p.x-r, p.y-r, d, d, 0,0,d,d);
+}
+function smudgeDab(p, strength){
+  const L=activeLayer(), r=fxRadius(), d=Math.ceil(r*2)+2;
+  if(fxPick.width!==d){ fxBeginPick(p); return; }
+  fxA.width=d; fxA.height=d; fxAc.clearRect(0,0,d,d);
+  fxAc.globalCompositeOperation='source-over'; fxAc.globalAlpha=1;
+  fxAc.drawImage(fxPick,0,0);
+  fxAc.globalCompositeOperation='destination-in'; softMaskInto(fxAc,d);
+  fxAc.globalCompositeOperation='source-over';
+  L.ctx.save(); L.ctx.globalAlpha=strength; L.ctx.drawImage(fxA, p.x-r, p.y-r); L.ctx.restore();
+  // finger adopts some of the new underlying pixels -> drags color along
+  fxPickc.globalAlpha=strength*0.7;
+  fxPickc.drawImage(L.canvas, p.x-r, p.y-r, d, d, 0,0,d,d);
+  fxPickc.globalAlpha=1;
+}
+function blurDab(p, strength){
+  const L=activeLayer(), r=fxRadius(), d=Math.ceil(r*2)+2;
+  fxA.width=d; fxA.height=d; fxAc.clearRect(0,0,d,d);
+  fxAc.filter='none'; fxAc.globalAlpha=1; fxAc.globalCompositeOperation='source-over';
+  fxAc.drawImage(L.canvas, p.x-r, p.y-r, d, d, 0,0,d,d);
+  fxB.width=d; fxB.height=d; fxBc.clearRect(0,0,d,d);
+  fxBc.filter='blur('+Math.max(1,r*0.4)+'px)'; fxBc.drawImage(fxA,0,0); fxBc.filter='none';
+  fxBc.globalCompositeOperation='destination-in'; softMaskInto(fxBc,d,55); fxBc.globalCompositeOperation='source-over';
+  L.ctx.save(); L.ctx.globalAlpha=strength; L.ctx.drawImage(fxB, p.x-r, p.y-r); L.ctx.restore();
+}
+function dodgeBurnDab(p, strength, dodge){
+  const L=activeLayer(), r=fxRadius();
+  const x0=Math.max(0,Math.floor(p.x-r)), y0=Math.max(0,Math.floor(p.y-r));
+  const x1=Math.min(S.docW,Math.ceil(p.x+r)), y1=Math.min(S.docH,Math.ceil(p.y+r));
+  const w=x1-x0, h=y1-y0; if(w<=0||h<=0)return;
+  const im=L.ctx.getImageData(x0,y0,w,h), px=im.data, amt=strength*0.45;
+  for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){
+    const i=(yy*w+xx)*4; if(px[i+3]===0)continue;
+    const dx=(x0+xx)-p.x, dy=(y0+yy)-p.y, dist=Math.hypot(dx,dy); if(dist>r)continue;
+    const f=amt*(1-dist/r);
+    if(dodge){ px[i]+=(255-px[i])*f; px[i+1]+=(255-px[i+1])*f; px[i+2]+=(255-px[i+2])*f; }
+    else{ px[i]*=(1-f); px[i+1]*=(1-f); px[i+2]*=(1-f); }
+  }
+  L.ctx.putImageData(im,x0,y0);
+}
+function fxSeg(from,to){
+  const strength=clamp(S.brush.opacity/100,0.02,1), r=fxRadius();
+  const spacing=Math.max(1, r*0.22);
+  const dx=to.x-from.x,dy=to.y-from.y,dist=Math.hypot(dx,dy);
+  const steps=Math.max(1,Math.floor(dist/spacing));
+  for(let i=1;i<=steps;i++){
+    const t=i/steps, p={x:from.x+dx*t, y:from.y+dy*t};
+    if(S.tool==='smudge')smudgeDab(p,strength*0.9);
+    else if(S.tool==='blur')blurDab(p,strength);
+    else if(S.tool==='dodge')dodgeBurnDab(p,strength,true);
+    else if(S.tool==='burn')dodgeBurnDab(p,strength,false);
+  }
+}
+function isFxTool(t){ return t==='smudge'||t==='blur'||t==='dodge'||t==='burn'; }
+
+// ---- gradient ----
+function colRGBA(c){ const rgb=hsv2rgb(c.h,c.s,c.v); return [rgb[0],rgb[1],rgb[2],(c.a==null?100:c.a)/100]; }
+function drawGradientPreview(a,b,shift){
+  sctx.setTransform(1,0,0,1,0,0);
+  sctx.clearRect(0,0,S.docW,S.docH);
+  let bx=b.x,by=b.y;
+  if(shift){ const ang=Math.atan2(by-a.y,bx-a.x), q=Math.round(ang/(Math.PI/4))*(Math.PI/4), len=Math.hypot(bx-a.x,by-a.y); bx=a.x+Math.cos(q)*len; by=a.y+Math.sin(q)*len; }
+  const c1=colRGBA(S.primary);
+  const c2=(S.gradMode==='fg-transp')?[c1[0],c1[1],c1[2],0]:colRGBA(S.secondary);
+  let grad;
+  if(S.gradType==='radial'){ const rr=Math.max(1,Math.hypot(bx-a.x,by-a.y)); grad=sctx.createRadialGradient(a.x,a.y,0,a.x,a.y,rr); }
+  else grad=sctx.createLinearGradient(a.x,a.y,bx,by);
+  grad.addColorStop(0,`rgba(${c1[0]},${c1[1]},${c1[2]},${c1[3]})`);
+  grad.addColorStop(1,`rgba(${c2[0]},${c2[1]},${c2[2]},${c2[3]})`);
+  sctx.fillStyle=grad; sctx.fillRect(0,0,S.docW,S.docH);
+}
+
 function beginStroke(doc,e){
   const L=activeLayer();
   if(!L)return;
   const rgb=hsv2rgb(curCol().h,curCol().s,curCol().v);
   S.drawing=true;
+
+  if(isFxTool(S.tool)){
+    strokeBefore=snapshotLayer(L);
+    smoothPt={...doc};
+    if(S.tool==='smudge')fxBeginPick(doc);
+    fxSeg(doc,doc);
+    requestRender(); return;
+  }
 
   if(S.tool==='eraser'){
     strokeBefore=snapshotLayer(L);
@@ -899,7 +1076,7 @@ function beginStroke(doc,e){
   sctx.globalCompositeOperation='source-over';
   strokeBefore=snapshotLayer(L);
 
-  if(S.tool==='line'||S.tool==='rect'||S.tool==='ellipse'){
+  if(S.tool==='line'||S.tool==='rect'||S.tool==='ellipse'||S.tool==='gradient'){
     shapeStart={...doc};
     return;
   }
@@ -923,6 +1100,12 @@ function moveStroke(doc,e){
 
   if(S.tool==='eraser'){
     const from=smoothPt||doc; eraseSeg(from,doc); smoothPt={...doc}; requestRender(); return;
+  }
+  if(isFxTool(S.tool)){
+    const from=smoothPt||doc; fxSeg(from,doc); smoothPt={...doc}; requestRender(); return;
+  }
+  if(S.tool==='gradient'){
+    drawGradientPreview(shapeStart, doc, e.shiftKey); requestRender(); return;
   }
   if(S.tool==='move'){
     const off={x:doc.x-moveStart.x, y:doc.y-moveStart.y};
@@ -952,6 +1135,10 @@ function endStroke(e){
     if(strokeBefore){pushPixelChange(L,strokeBefore);strokeBefore=null;}
     S.drawing=false; addRecent(); render(); renderLayerThumb(); return;
   }
+  if(isFxTool(S.tool)){
+    if(strokeBefore){pushPixelChange(L,strokeBefore);strokeBefore=null;}
+    S.drawing=false; render(); renderLayerThumb(); return;
+  }
   if(S.tool==='move'){
     if(strokeBefore){pushPixelChange(L,strokeBefore);strokeBefore=null;}
     moveStart=null;moveImg=null; render(); renderLayerThumb(); return;
@@ -963,7 +1150,7 @@ function endStroke(e){
     lastStamp={...lastDoc};
   }
   // commit stroke buffer to active layer at stroke opacity
-  if(['brush','pencil','line','rect','ellipse','airbrush'].includes(S.tool)){
+  if(['brush','pencil','line','rect','ellipse','airbrush','gradient'].includes(S.tool)){
     L.ctx.save();
     L.ctx.globalAlpha=S.brush.opacity/100;
     L.ctx.globalCompositeOperation='source-over';
@@ -1237,7 +1424,7 @@ function pointerUp(e){
 function applyPressure(e){
   // pen/stylus pressure drives size and/or opacity, per S.pen toggles.
   // Only for painting tools and real pen/touch pressure — mouse stays at full.
-  const painting = (S.tool==='brush'||S.tool==='pencil'||S.tool==='airbrush'||S.tool==='eraser');
+  const painting = (S.tool==='brush'||S.tool==='pencil'||S.tool==='airbrush'||S.tool==='eraser'||isFxTool(S.tool));
   const isPen = !!e && (e.pointerType==='pen' ||
                 (e.pointerType==='touch' && e.pressure>0 && e.pressure<1));
   if(painting && isPen && (S.pen.size || S.pen.opacity)){
@@ -1269,11 +1456,18 @@ function setTool(id){
   S.tool=id;
   document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('active',b.dataset.tool===id));
   // show/hide option sections
-  document.getElementById('brushSec').style.display=['brush','pencil','eraser','airbrush','line','rect','ellipse','text'].includes(id)?'':'none';
+  document.getElementById('brushSec').style.display=['brush','pencil','eraser','airbrush','line','rect','ellipse','text','smudge','blur','dodge','burn'].includes(id)?'':'none';
   document.getElementById('presetSec').style.display=['brush','pencil','airbrush'].includes(id)?'':'none';
   document.getElementById('shapeSec').style.display=['rect','ellipse'].includes(id)?'':'none';
   document.getElementById('fillSec').style.display=id==='fill'?'':'none';
   document.getElementById('textSec').style.display=id==='text'?'':'none';
+  document.getElementById('gradSec').style.display=id==='gradient'?'':'none';
+  const fxTip=document.getElementById('fxTip');
+  if(fxTip){ fxTip.style.display=isFxTool(id)?'':'none';
+    fxTip.textContent = id==='smudge'?'Arraste para borrar/esfumar cores (ótimo p/ sombras).'
+      : id==='blur'?'Arraste para suavizar/desfocar a área.'
+      : id==='dodge'?'Arraste para clarear (luz/brilho).'
+      : 'Arraste para escurecer (sombra).'; }
   stage.classList.toggle('pan',id==='hand');
   overlay.style.cursor = id==='hand' ? 'grab' : 'crosshair';
   renderOverlay();
@@ -1287,6 +1481,7 @@ function buildBrushPresets(){
     b.textContent=p.name;
     b.onclick=()=>{
       S.brush.preset=p.id; S.brush.hard=p.hard; S.brush.flow=p.flow; S.brush.smooth=p.smooth;
+      S.brush.texture=p.texture||0;
       if(p.size!=null)S.brush.size=p.size;
       if(p.opacity!=null)S.brush.opacity=p.opacity;
       if(p.forceTool)setTool(p.forceTool); else if(!['brush','pencil','airbrush'].includes(S.tool))setTool('brush');
@@ -1518,6 +1713,146 @@ function flattenAll(){
 }
 
 // ================================================================
+//  AJUSTES / FILTROS / TRANSFORMAÇÕES DE CAMADA
+// ================================================================
+function layerPixelOp(fn, msg){
+  const L=activeLayer(); if(!L)return;
+  const before=snapshotLayer(L);
+  fn(L);
+  pushPixelChange(L,before);
+  render(); renderLayerThumb(); scheduleAutosave();
+  if(msg)toast(msg);
+}
+function invertLayer(){ layerPixelOp(L=>{
+  const im=L.ctx.getImageData(0,0,S.docW,S.docH),p=im.data;
+  for(let i=0;i<p.length;i+=4){ p[i]=255-p[i];p[i+1]=255-p[i+1];p[i+2]=255-p[i+2]; }
+  L.ctx.putImageData(im,0,0);
+},'Cores invertidas'); }
+function grayscaleLayer(){ layerPixelOp(L=>{
+  const im=L.ctx.getImageData(0,0,S.docW,S.docH),p=im.data;
+  for(let i=0;i<p.length;i+=4){ const g=(p[i]*0.299+p[i+1]*0.587+p[i+2]*0.114)|0; p[i]=p[i+1]=p[i+2]=g; }
+  L.ctx.putImageData(im,0,0);
+},'Preto e branco'); }
+function flipLayer(horiz){ layerPixelOp(L=>{
+  const tmp=document.createElement('canvas');tmp.width=S.docW;tmp.height=S.docH;
+  tmp.getContext('2d').drawImage(L.canvas,0,0);
+  L.ctx.save(); L.ctx.setTransform(1,0,0,1,0,0); L.ctx.clearRect(0,0,S.docW,S.docH);
+  if(horiz){ L.ctx.translate(S.docW,0); L.ctx.scale(-1,1); } else { L.ctx.translate(0,S.docH); L.ctx.scale(1,-1); }
+  L.ctx.drawImage(tmp,0,0); L.ctx.restore();
+}, horiz?'Espelhado ⇋':'Espelhado ⇅'); }
+function fillLayerFG(){ layerPixelOp(L=>{
+  const rgb=hsv2rgb(S.primary.h,S.primary.s,S.primary.v);
+  L.ctx.save(); L.ctx.setTransform(1,0,0,1,0,0);
+  L.ctx.globalCompositeOperation='source-over'; L.ctx.globalAlpha=(S.primary.a==null?100:S.primary.a)/100;
+  L.ctx.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`; L.ctx.fillRect(0,0,S.docW,S.docH); L.ctx.restore();
+},'Camada preenchida'); }
+function clearLayer(){ layerPixelOp(L=>{
+  L.ctx.save(); L.ctx.setTransform(1,0,0,1,0,0); L.ctx.clearRect(0,0,S.docW,S.docH); L.ctx.restore();
+},'Camada limpa'); }
+function rotateCanvas90(){
+  const ow=S.docW, oh=S.docH;
+  const before=S.layers.map(L=>L.canvas);
+  const rotated=S.layers.map(L=>{
+    const nc=document.createElement('canvas'); nc.width=oh; nc.height=ow;
+    const c=nc.getContext('2d'); c.translate(oh,0); c.rotate(Math.PI/2); c.drawImage(L.canvas,0,0);
+    return nc;
+  });
+  const apply=()=>{ S.docW=oh; S.docH=ow; stroke.width=oh; stroke.height=ow;
+    S.layers.forEach((L,i)=>{ L.canvas=rotated[i]; L.ctx=rotated[i].getContext('2d'); });
+    computeHistLimit(); fitView(); renderLayerList(); render(); };
+  const undo=()=>{ S.docW=ow; S.docH=oh; stroke.width=ow; stroke.height=oh;
+    S.layers.forEach((L,i)=>{ L.canvas=before[i]; L.ctx=before[i].getContext('2d'); });
+    computeHistLimit(); fitView(); renderLayerList(); render(); };
+  apply(); pushHist({undo,redo:apply}); scheduleAutosave(); toast('Tela girada 90°');
+}
+
+let ajOrig=null;
+function openAdjust(){
+  const L=activeLayer(); if(!L)return;
+  ajOrig=snapshotLayer(L);
+  document.getElementById('ajBright').value=0; document.getElementById('ajContrast').value=0; document.getElementById('ajSat').value=0;
+  document.getElementById('ajBrightVal').textContent='0'; document.getElementById('ajContrastVal').textContent='0'; document.getElementById('ajSatVal').textContent='0';
+  openModal('modalAdjust');
+}
+function applyAdjustPreview(){
+  const L=activeLayer(); if(!L||!ajOrig)return;
+  const b=(+document.getElementById('ajBright').value/100)*255;
+  const contrast=(+document.getElementById('ajContrast').value/100);
+  const sat=1+(+document.getElementById('ajSat').value/100);
+  const src=ajOrig.data;
+  const im=L.ctx.createImageData(ajOrig.width,ajOrig.height); const p=im.data;
+  for(let i=0;i<src.length;i+=4){
+    let r=src[i],g=src[i+1],bl=src[i+2];
+    r+=b; g+=b; bl+=b;
+    r=(r-128)*(1+contrast)+128; g=(g-128)*(1+contrast)+128; bl=(bl-128)*(1+contrast)+128;
+    const gray=r*0.299+g*0.587+bl*0.114;
+    r=gray+(r-gray)*sat; g=gray+(g-gray)*sat; bl=gray+(bl-gray)*sat;
+    p[i]=clamp(r,0,255); p[i+1]=clamp(g,0,255); p[i+2]=clamp(bl,0,255); p[i+3]=src[i+3];
+  }
+  L.ctx.putImageData(im,0,0); render();
+}
+function commitAdjust(){
+  const L=activeLayer();
+  if(L&&ajOrig){ applyAdjustPreview(); pushPixelChange(L,ajOrig); scheduleAutosave(); renderLayerThumb(); }
+  ajOrig=null; closeModals();
+}
+function cancelAdjust(){ const L=activeLayer(); if(L&&ajOrig)L.ctx.putImageData(ajOrig,0,0); ajOrig=null; render(); closeModals(); }
+
+// ================================================================
+//  PALETA PERSONALIZADA (localStorage)
+// ================================================================
+function loadCustomSwatches(){ try{ S.customSwatches=JSON.parse(localStorage.getItem('ed_palette')||'[]')||[]; }catch(e){ S.customSwatches=[]; } }
+function saveCustomSwatches(){ try{ localStorage.setItem('ed_palette',JSON.stringify(S.customSwatches.slice(0,40))); }catch(e){} }
+function renderCustom(){
+  const el=document.getElementById('custom'); if(!el)return; el.innerHTML='';
+  S.customSwatches.forEach((hex,idx)=>{
+    const d=document.createElement('div'); d.className='sw'; d.style.background=hex;
+    d.title=hex+' — clique usa, clique direito remove';
+    d.onclick=()=>{const c=hex2hsv(hex); if(c)setColor({...c,a:100});};
+    d.oncontextmenu=(ev)=>{ev.preventDefault(); S.customSwatches.splice(idx,1); saveCustomSwatches(); renderCustom();};
+    el.appendChild(d);
+  });
+}
+function addCurrentSwatch(){ const hex=hsv2hex(curCol()); if(!S.customSwatches.includes(hex)){ S.customSwatches.unshift(hex); saveCustomSwatches(); renderCustom(); toast('Cor salva na paleta'); } }
+
+// ================================================================
+//  AUTOSAVE (localStorage) — restaura a última sessão
+// ================================================================
+let autosaveTimer=null, autosaveOK=true;
+function scheduleAutosave(){ if(!autosaveOK)return; clearTimeout(autosaveTimer); autosaveTimer=setTimeout(doAutosave,1200); }
+function doAutosave(){
+  try{
+    const data={app:'estudio-desenho',v:1,w:S.docW,h:S.docH,active:S.active,
+      layers:S.layers.map(L=>({name:L.name,visible:L.visible,opacity:L.opacity,blend:L.blend,data:L.canvas.toDataURL()}))};
+    localStorage.setItem('ed_autosave', JSON.stringify(data));
+  }catch(e){ autosaveOK=false; }
+}
+function restoreAutosave(){
+  let data=null; try{ data=JSON.parse(localStorage.getItem('ed_autosave')||'null'); }catch(e){}
+  if(!data||!data.layers||!data.layers.length)return false;
+  return applyProjectData(data,'↩️ Sessão anterior restaurada (use Novo p/ recomeçar)');
+}
+function applyProjectData(data, msg){
+  if(!data||!data.layers)return false;
+  S.docW=data.w;S.docH=data.h;stroke.width=data.w;stroke.height=data.h;
+  const layers=data.layers; let loaded=0;
+  const built=new Array(layers.length);
+  S.layerSeq=1;
+  function finish(){S.active=clamp(data.active||0,0,Math.max(0,S.layers.length-1));HIST.stack=[];HIST.idx=-1;computeHistLimit();updateUndoButtons();renderLayerList();syncLayerControls();fitView();render();if(msg)toast(msg);}
+  layers.forEach((ld,i)=>{
+    const c=makeLayerCanvas(); const ctx=c.getContext('2d');
+    built[i]={id:S.layerSeq++,name:ld.name,canvas:c,ctx,visible:ld.visible,opacity:ld.opacity,blend:ld.blend};
+    const im=new Image();
+    im.onload=()=>{ctx.drawImage(im,0,0);loaded++;if(loaded===layers.length)finish();};
+    im.onerror=()=>{loaded++;if(loaded===layers.length)finish();};
+    im.src=ld.data;
+  });
+  S.layers=built;
+  if(layers.length===0)finish();
+  return true;
+}
+
+// ================================================================
 //  NEW / RESIZE / IMPORT / EXPORT / SAVE / OPEN
 // ================================================================
 function initDoc(w,h,bg){
@@ -1612,26 +1947,8 @@ function saveProject(){
 function loadProject(file){
   const rd=new FileReader();
   rd.onload=(e)=>{
-    try{
-      const data=JSON.parse(e.target.result);
-      if(!data.layers)throw 0;
-      S.docW=data.w;S.docH=data.h;stroke.width=data.w;stroke.height=data.h;
-      const layers=data.layers; let loaded=0;
-      const built=new Array(layers.length);
-      S.layers=[]; S.layerSeq=1;
-      layers.forEach((ld,i)=>{
-        const c=makeLayerCanvas(); const ctx=c.getContext('2d');
-        const L={id:S.layerSeq++,name:ld.name,canvas:c,ctx,visible:ld.visible,opacity:ld.opacity,blend:ld.blend};
-        built[i]=L;
-        const im=new Image();
-        im.onload=()=>{ctx.drawImage(im,0,0);loaded++;if(loaded===layers.length){finish();}};
-        im.onerror=()=>{loaded++;if(loaded===layers.length)finish();};
-        im.src=ld.data;
-      });
-      S.layers=built;
-      function finish(){S.active=clamp(data.active||0,0,S.layers.length-1);HIST.stack=[];HIST.idx=-1;computeHistLimit();updateUndoButtons();renderLayerList();syncLayerControls();fitView();toast('Projeto carregado');}
-      if(layers.length===0)finish();
-    }catch(err){toast('Arquivo inválido');}
+    try{ const data=JSON.parse(e.target.result); if(!applyProjectData(data,'Projeto carregado'))throw 0; }
+    catch(err){toast('Arquivo inválido');}
   };
   rd.readAsText(file);
 }
@@ -1692,6 +2009,25 @@ function wire(){
   document.getElementById('btnOpen').onclick=()=>document.getElementById('fileProj').click();
   document.getElementById('btnHelp').onclick=()=>openModal('modalHelp');
   document.getElementById('btnFlatten').onclick=flattenAll;
+
+  // layer ops & adjustments
+  document.getElementById('opAdjust').onclick=openAdjust;
+  document.getElementById('opInvert').onclick=invertLayer;
+  document.getElementById('opGray').onclick=grayscaleLayer;
+  document.getElementById('opFlipH').onclick=()=>flipLayer(true);
+  document.getElementById('opFlipV').onclick=()=>flipLayer(false);
+  document.getElementById('opRotate').onclick=rotateCanvas90;
+  document.getElementById('opFill').onclick=fillLayerFG;
+  document.getElementById('opClear').onclick=clearLayer;
+  const ajBind=(id,valId)=>{const el=document.getElementById(id);el.addEventListener('input',()=>{document.getElementById(valId).textContent=el.value;applyAdjustPreview();});};
+  ajBind('ajBright','ajBrightVal'); ajBind('ajContrast','ajContrastVal'); ajBind('ajSat','ajSatVal');
+  document.getElementById('ajApply').onclick=commitAdjust;
+  document.getElementById('ajCancel').onclick=cancelAdjust;
+  // gradient chips
+  document.querySelectorAll('#gradTypeChips .chip').forEach(c=>c.onclick=()=>{S.gradType=c.dataset.gt;document.querySelectorAll('#gradTypeChips .chip').forEach(x=>x.classList.toggle('on',x===c));});
+  document.querySelectorAll('#gradModeChips .chip').forEach(c=>c.onclick=()=>{S.gradMode=c.dataset.gm;document.querySelectorAll('#gradModeChips .chip').forEach(x=>x.classList.toggle('on',x===c));});
+  // custom palette
+  document.getElementById('addSwatch').onclick=addCurrentSwatch;
 
   document.getElementById('newCreate').onclick=doNew;
   document.getElementById('rsApply').onclick=doResize;
@@ -1784,11 +2120,13 @@ function boot(){
   wire();
   resizeViewCanvases();
   initDoc(1280,800,'white');
+  loadCustomSwatches(); renderCustom();
   updatePickerUI();
   syncBrushInputs();
   setTool('brush');
-  // welcome
-  setTimeout(()=>toast('Bem-vindo! Aperte ? para atalhos'),400);
+  // restore previous session if there is one, else welcome
+  const restored=restoreAutosave();
+  if(!restored) setTimeout(()=>toast('Bem-vindo! Aperte ? para atalhos'),400);
 }
 // wait for layout
 requestAnimationFrame(()=>requestAnimationFrame(boot));
