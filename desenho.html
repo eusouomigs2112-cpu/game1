@@ -246,6 +246,9 @@
         <input type="range" id="hard" min="0" max="100" value="85">
         <div class="row"><label>Suavização</label><span class="val" id="smoothVal">12%</span></div>
         <input type="range" id="smooth" min="0" max="95" value="12">
+        <div class="row" style="margin-top:9px"><label>Pressão da caneta</label></div>
+        <label class="toggle"><input type="checkbox" id="penSize" checked><span class="sw"></span>Tamanho</label>
+        <label class="toggle" style="margin-top:4px"><input type="checkbox" id="penOpacity"><span class="sw"></span>Opacidade</label>
       </div>
 
       <div class="sec" id="presetSec">
@@ -508,6 +511,7 @@ const S={
   layers:[], active:0, layerSeq:1,
   view:{zoom:1, panX:0, panY:0},
   brush:{size:14, opacity:100, flow:100, hard:85, smooth:12, preset:'round'},
+  pen:{size:true, opacity:false},   // caneta/stylus: pressão controla tamanho e/ou opacidade
   tol:32, fillGlobal:false, shapeFill:false,
   sym:'none', radialN:6,
   showGrid:false,
@@ -643,6 +647,10 @@ function pushPixelChange(layer, before){
 //  BRUSH STAMP
 // ================================================================
 let stampCanvas=document.createElement('canvas'), stampCtx=stampCanvas.getContext('2d');
+// --- pen pressure: live multipliers set per pointer event by applyPressure() ---
+let penScale=1, penAlpha=1;
+function effSize(){ return Math.max(0.5, S.brush.size*penScale); }
+
 let stampKey='';
 function buildStamp(size, hard, rgb, flow){
   const key=size+'|'+hard+'|'+rgb.join(',')+'|'+flow;
@@ -684,18 +692,16 @@ function screenToDoc(clientX, clientY){
 let rafPending=false;
 function requestRender(){ if(rafPending)return; rafPending=true; requestAnimationFrame(()=>{rafPending=false; render();}); }
 
-function drawCheckerboard(ctx){
-  // draw a subtle checker directly on doc rect using a pattern canvas
-  const t=16;
-  ctx.save();
-  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,S.docW,S.docH);
-  ctx.fillStyle='#e6e6ee';
-  for(let y=0;y<S.docH;y+=t){
-    for(let x=0;x<S.docW;x+=t){
-      if(((x/t)+(y/t))%2===0)ctx.fillRect(x,y,t,t);
-    }
-  }
-  ctx.restore();
+// checkerboard cached to an offscreen canvas — rebuilt only when the doc size changes,
+// instead of thousands of fillRect calls on every animation frame while drawing
+let checkerCanvas=document.createElement('canvas');
+function buildChecker(){
+  const w=S.docW,h=S.docH,t=16;
+  checkerCanvas.width=w; checkerCanvas.height=h;
+  const cx=checkerCanvas.getContext('2d');
+  cx.fillStyle='#ffffff'; cx.fillRect(0,0,w,h);
+  cx.fillStyle='#e6e6ee';
+  for(let y=0;y<h;y+=t){ for(let x=0;x<w;x+=t){ if(((x/t)+(y/t))%2===0)cx.fillRect(x,y,t,t); } }
 }
 
 function render(){
@@ -706,11 +712,13 @@ function render(){
   const z=S.view.zoom*DPR, px=S.view.panX*DPR, py=S.view.panY*DPR;
   vctx.setTransform(z,0,0,z,px,py);
   vctx.imageSmoothingEnabled = S.view.zoom<4; // crisp when zoomed in a lot
-  // checkerboard (transparency backdrop) + document shadow
+  // document drop shadow (one cheap shadowed rect) + cached checker backdrop
+  if(checkerCanvas.width!==S.docW||checkerCanvas.height!==S.docH) buildChecker();
   vctx.save();
-  vctx.shadowColor='rgba(0,0,0,.5)';vctx.shadowBlur=18/1; vctx.shadowOffsetY=6;
-  drawCheckerboard(vctx);
+  vctx.shadowColor='rgba(0,0,0,.5)'; vctx.shadowBlur=18; vctx.shadowOffsetY=6;
+  vctx.fillStyle='#ffffff'; vctx.fillRect(0,0,S.docW,S.docH);
   vctx.restore();
+  vctx.drawImage(checkerCanvas,0,0);
 
   const usingStroke = S.drawing && ['brush','pencil','line','rect','ellipse','airbrush','text'].includes(S.tool);
   for(let i=0;i<S.layers.length;i++){
@@ -850,13 +858,13 @@ function symPoints(x,y){
 }
 
 function stampAt(ctx,x,y,rgb){
-  const size=S.brush.size, hard=S.brush.hard, flow=S.brush.flow;
+  const size=effSize(), hard=S.brush.hard, flow=S.brush.flow*penAlpha;
   const st=buildStamp(size,hard,rgb,flow);
   const r=st.width/2;
   ctx.drawImage(st,x-r,y-r);
 }
 function paintSegment(from,to,rgb){
-  const size=S.brush.size;
+  const size=effSize();
   const spacing=Math.max(0.5, size*0.12);
   const dx=to.x-from.x, dy=to.y-from.y;
   const dist=Math.hypot(dx,dy);
@@ -971,7 +979,7 @@ function endStroke(e){
 
 function eraseSeg(from,to){
   const L=activeLayer();
-  const size=S.brush.size;
+  const size=effSize();
   L.ctx.save();
   L.ctx.globalCompositeOperation='destination-out';
   const spacing=Math.max(0.5,size*0.12);
@@ -996,9 +1004,9 @@ function eraseSeg(from,to){
 }
 
 function sprayAt(center,rgb){
-  const r=S.brush.size/2;
+  const r=effSize()/2;
   const density=Math.max(4,Math.floor(r*0.9));
-  const a=(S.brush.flow/100)*0.5;
+  const a=(S.brush.flow/100)*0.5*penAlpha;
   for(const c of symPoints(center.x,center.y)){
     for(let i=0;i<density;i++){
       const ang=Math.random()*Math.PI*2, rad=Math.sqrt(Math.random())*r;
@@ -1226,12 +1234,18 @@ function pointerUp(e){
   if(S.drawing||S.tool==='move')endStroke(e);
   activePointer=null;
 }
-let baseSizeForStroke=null;
 function applyPressure(e){
-  // only for pen input with real pressure
-  if(e.pointerType==='pen' && e.pressure>0 && e.pressure<1){
-    if(baseSizeForStroke==null)baseSizeForStroke=S.brush.size;
-    // don't permanently change slider; temporarily scale
+  // pen/stylus pressure drives size and/or opacity, per S.pen toggles.
+  // Only for painting tools and real pen/touch pressure — mouse stays at full.
+  const painting = (S.tool==='brush'||S.tool==='pencil'||S.tool==='airbrush'||S.tool==='eraser');
+  const isPen = !!e && (e.pointerType==='pen' ||
+                (e.pointerType==='touch' && e.pressure>0 && e.pressure<1));
+  if(painting && isPen && (S.pen.size || S.pen.opacity)){
+    const pr=Math.max(0,Math.min(1, e.pressure||0));
+    penScale = S.pen.size    ? (0.12 + 0.88*pr) : 1;  // 12%..100% of slider size
+    penAlpha = S.pen.opacity ? (0.12 + 0.88*pr) : 1;
+  } else {
+    penScale=1; penAlpha=1;
   }
 }
 
@@ -1647,6 +1661,8 @@ function wire(){
   bind('hard','hardVal',v=>v+'%',v=>{S.brush.hard=v;stampKey='';});
   bind('smooth','smoothVal',v=>v+'%',v=>S.brush.smooth=v);
   bind('tol','tolVal',null,v=>S.tol=v);
+  document.getElementById('penSize').onchange=e=>S.pen.size=e.target.checked;
+  document.getElementById('penOpacity').onchange=e=>S.pen.opacity=e.target.checked;
   document.getElementById('fillGlobal').onchange=e=>S.fillGlobal=e.target.checked;
   document.getElementById('shapeFill').onchange=e=>S.shapeFill=e.target.checked;
   document.getElementById('showGrid').onchange=e=>{S.showGrid=e.target.checked;render();};
