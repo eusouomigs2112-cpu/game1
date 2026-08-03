@@ -248,9 +248,15 @@
         <input type="range" id="hard" min="0" max="100" value="85">
         <div class="row"><label>Suavização</label><span class="val" id="smoothVal">12%</span></div>
         <input type="range" id="smooth" min="0" max="95" value="12">
-        <div class="row" style="margin-top:9px"><label>Pressão da caneta</label></div>
-        <label class="toggle"><input type="checkbox" id="penSize" checked><span class="sw"></span>Tamanho</label>
-        <label class="toggle" style="margin-top:4px"><input type="checkbox" id="penOpacity"><span class="sw"></span>Opacidade</label>
+        <div class="row" style="margin-top:9px"><label>Dinâmica do traço</label></div>
+        <div class="chips" id="dynModeChips">
+          <button class="chip" data-dm="off">Desligado</button>
+          <button class="chip on" data-dm="pen">Caneta</button>
+          <button class="chip" data-dm="speed">Velocidade</button>
+        </div>
+        <label class="toggle" style="margin-top:8px"><input type="checkbox" id="penSize" checked><span class="sw"></span>Afeta tamanho</label>
+        <label class="toggle" style="margin-top:4px"><input type="checkbox" id="penOpacity"><span class="sw"></span>Afeta opacidade</label>
+        <div style="margin-top:7px;font-size:10.5px;line-height:1.4;color:var(--mut)"><b>Caneta</b>: pressão real do stylus. <b>Velocidade</b>: funciona no mouse — rápido afina, devagar engrossa.</div>
         <div id="fxTip" style="display:none;margin-top:10px;font-size:11px;line-height:1.4;color:var(--mut);background:#1b1630;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></div>
       </div>
 
@@ -576,7 +582,7 @@ const S={
   layers:[], active:0, layerSeq:1,
   view:{zoom:1, panX:0, panY:0},
   brush:{size:14, opacity:100, flow:100, hard:85, smooth:12, preset:'round', texture:0},
-  pen:{size:true, opacity:false},   // caneta/stylus: pressão controla tamanho e/ou opacidade
+  pen:{mode:'pen', size:true, opacity:false},   // dinâmica do traço: 'off'|'pen'|'speed' controla tamanho e/ou opacidade
   tol:32, fillGlobal:false, shapeFill:false,
   sym:'none', radialN:6,
   showGrid:false,
@@ -1388,7 +1394,8 @@ function pointerDown(e){
   }
   // alt = temp eyedropper
   if(e.altKey && S.tool!=='eyedropper'){ pickColor(doc); return; }
-  // apply pressure to size for pen
+  // start stroke dynamics fresh, then apply pressure/speed to size
+  resetDynamics();
   applyPressure(e);
   beginStroke(doc,e);
   renderOverlay();
@@ -1421,19 +1428,40 @@ function pointerUp(e){
   if(S.drawing||S.tool==='move')endStroke(e);
   activePointer=null;
 }
-function applyPressure(e){
-  // pen/stylus pressure drives size and/or opacity, per S.pen toggles.
-  // Only for painting tools and real pen/touch pressure — mouse stays at full.
-  const painting = (S.tool==='brush'||S.tool==='pencil'||S.tool==='airbrush'||S.tool==='eraser'||isFxTool(S.tool));
-  const isPen = !!e && (e.pointerType==='pen' ||
-                (e.pointerType==='touch' && e.pressure>0 && e.pressure<1));
-  if(painting && isPen && (S.pen.size || S.pen.opacity)){
-    const pr=Math.max(0,Math.min(1, e.pressure||0));
-    penScale = S.pen.size    ? (0.12 + 0.88*pr) : 1;  // 12%..100% of slider size
-    penAlpha = S.pen.opacity ? (0.12 + 0.88*pr) : 1;
-  } else {
-    penScale=1; penAlpha=1;
+// stroke-dynamics: pressure source, one of 'off' | 'pen' | 'speed'
+let dynLastPt=null, dynLastT=0, dynPr=1;
+function resetDynamics(){ dynLastPt=null; dynPr=1; }
+function speedPr(e){
+  if(!e || e.clientX==null) return dynPr;
+  const now=(typeof performance!=='undefined'&&performance.now)?performance.now():0;
+  if(dynLastPt){
+    const dx=e.clientX-dynLastPt.x, dy=e.clientY-dynLastPt.y;
+    const dt=Math.max(1, now-dynLastT);
+    const speed=Math.hypot(dx,dy)/dt;             // screen px per ms
+    const target=clamp(1 - speed/1.5, 0.1, 1);    // fast -> thin, slow -> full
+    dynPr += (target-dynPr)*0.5;                  // smooth
   }
+  dynLastPt={x:e.clientX,y:e.clientY}; dynLastT=now;
+  return dynPr;
+}
+function applyPressure(e){
+  // Stroke dynamics drive size and/or opacity. Mode chosen in the UI:
+  //   'pen'   -> real stylus pressure (pointer 'pen'/'touch')
+  //   'speed' -> simulated from stroke speed (works with a mouse)
+  //   'off'   -> constant
+  const painting = (S.tool==='brush'||S.tool==='pencil'||S.tool==='airbrush'||S.tool==='eraser'||isFxTool(S.tool));
+  let pr=null;
+  if(painting && (S.pen.size || S.pen.opacity)){
+    if(S.pen.mode==='pen'){
+      if(e && (e.pointerType==='pen' || (e.pointerType==='touch' && e.pressure>0 && e.pressure<1)))
+        pr=clamp(e.pressure||0,0,1);
+    } else if(S.pen.mode==='speed'){
+      pr=speedPr(e);
+    }
+  }
+  if(pr==null){ penScale=1; penAlpha=1; return; }
+  penScale = S.pen.size    ? (0.12 + 0.88*pr) : 1;  // 12%..100% of slider size
+  penAlpha = S.pen.opacity ? (0.12 + 0.88*pr) : 1;
 }
 
 // ================================================================
@@ -1980,6 +2008,7 @@ function wire(){
   bind('tol','tolVal',null,v=>S.tol=v);
   document.getElementById('penSize').onchange=e=>S.pen.size=e.target.checked;
   document.getElementById('penOpacity').onchange=e=>S.pen.opacity=e.target.checked;
+  document.querySelectorAll('#dynModeChips .chip').forEach(c=>c.onclick=()=>{S.pen.mode=c.dataset.dm;document.querySelectorAll('#dynModeChips .chip').forEach(x=>x.classList.toggle('on',x===c));});
   document.getElementById('fillGlobal').onchange=e=>S.fillGlobal=e.target.checked;
   document.getElementById('shapeFill').onchange=e=>S.shapeFill=e.target.checked;
   document.getElementById('showGrid').onchange=e=>{S.showGrid=e.target.checked;render();};
