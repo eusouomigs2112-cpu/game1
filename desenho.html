@@ -265,6 +265,16 @@
         <div class="chips" id="brushPresets"></div>
       </div>
 
+      <div class="sec" id="selSec" style="display:none">
+        <h4>Laço (seleção)</h4>
+        <div style="font-size:11px;line-height:1.45;color:var(--mut);margin-bottom:8px">
+          <b>1.</b> Contorne uma parte do desenho segurando o botão.<br>
+          <b>2.</b> Solte para fechar a seleção.<br>
+          <b>3.</b> Clique <b>dentro</b> e arraste para <b>mover</b> a parte para outro lugar.
+        </div>
+        <button class="chip" id="selClear">Desmarcar (Esc)</button>
+      </div>
+
       <div class="sec" id="gradSec" style="display:none">
         <h4>Gradiente</h4>
         <div class="chips" id="gradTypeChips">
@@ -533,10 +543,12 @@ const ICONS = {
   blur:'<circle cx="12" cy="12" r="8" stroke-dasharray="2.5 2.8"/><circle cx="12" cy="12" r="3.4"/>',
   dodge:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>',
   burn:'<path d="M20 14.5A8 8 0 1 1 10.2 4.3 6.2 6.2 0 0 0 20 14.5z"/>',
-  gradient:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7 19.5 20 6.5M11 19.5 20.5 10M15 19.5l5.5-5.5"/>'
+  gradient:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7 19.5 20 6.5M11 19.5 20.5 10M15 19.5l5.5-5.5"/>',
+  lasso:'<path d="M4 12c0-4 4-6.5 8-6.5s8 2.5 8 6.5c0 3-2.6 4.7-5 5" stroke-dasharray="2.6 2.4"/><path d="M7 16.5c-1.2.6-2 1.6-1.4 2.8"/><circle cx="6" cy="20.5" r="1.6"/>'
 };
 const TOOLS=[
   {id:'move',name:'Mover camada',key:'v'},
+  {id:'lasso',name:'Laço (selecionar e mover)',key:'s'},
   {id:'brush',name:'Pincel',key:'b'},
   {id:'pencil',name:'Lápis',key:'n'},
   {id:'eraser',name:'Borracha',key:'e'},
@@ -588,6 +600,7 @@ const S={
   showGrid:false,
   gradType:'linear', gradMode:'fg-bg', // gradiente
   customSwatches:[],                    // paleta pessoal (localStorage)
+  sel:null,                             // laço: {path:[{x,y}], float:{canvas,ox,oy}|null, moveStart}
   // color as HSVA
   colH:255, colS:64, colV:100, colA:100, // hsv (h 0-360 stored /? we'll keep h 0-360)
   primary:{h:255,s:64,v:100,a:100},
@@ -818,6 +831,12 @@ function render(){
       if(S.tool==='eraser'){} // eraser handled directly
       vctx.drawImage(stroke,0,0);
     }
+    if(S.sel && S.sel.float && i===S.active){
+      // floating lasso selection being carried around
+      vctx.globalCompositeOperation='source-over';
+      vctx.globalAlpha=L.opacity/100;
+      vctx.drawImage(S.sel.float.canvas, Math.round(S.sel.float.ox), Math.round(S.sel.float.oy));
+    }
   }
   vctx.globalAlpha=1;vctx.globalCompositeOperation='source-over';
 
@@ -867,7 +886,7 @@ function renderOverlay(){
   }
 
   // brush cursor ring
-  const ringTools=['brush','pencil','eraser','airbrush'];
+  const ringTools=['brush','pencil','eraser','airbrush','smudge','blur','dodge','burn'];
   if(ringTools.includes(S.tool) && lastDoc.x>-9998){
     const r=Math.max(1,S.brush.size/2);
     octx.save();
@@ -876,6 +895,16 @@ function renderOverlay(){
     octx.beginPath();octx.arc(lastDoc.x,lastDoc.y,r,0,Math.PI*2);octx.stroke();
     octx.strokeStyle='rgba(0,0,0,.5)';octx.lineWidth=0.6/z*DPR;
     octx.beginPath();octx.arc(lastDoc.x,lastDoc.y,r,0,Math.PI*2);octx.stroke();
+    octx.restore();
+  }
+
+  // lasso selection outline (marching-ants style)
+  if(S.tool==='lasso' && S.sel && S.sel.path && S.sel.path.length>1){
+    const dx=S.sel.float?S.sel.float.ox:0, dy=S.sel.float?S.sel.float.oy:0;
+    octx.save();
+    tracePath(octx, S.sel.path, dx, dy);
+    octx.lineWidth=2/z*DPR; octx.strokeStyle='rgba(0,0,0,.8)'; octx.setLineDash([]); octx.stroke();
+    octx.lineWidth=1.4/z*DPR; octx.strokeStyle='rgba(255,255,255,.95)'; octx.setLineDash([6/z,5/z]); octx.stroke();
     octx.restore();
   }
 }
@@ -1051,11 +1080,63 @@ function drawGradientPreview(a,b,shift){
   sctx.fillStyle=grad; sctx.fillRect(0,0,S.docW,S.docH);
 }
 
+// ---- laço (seleção livre): contorna e arrasta a parte selecionada ----
+function tracePath(ctx, path, dx, dy){
+  ctx.beginPath();
+  ctx.moveTo(path[0].x+dx, path[0].y+dy);
+  for(let i=1;i<path.length;i++) ctx.lineTo(path[i].x+dx, path[i].y+dy);
+  ctx.closePath();
+}
+function pointInPoly(pt, poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;
+    if(((yi>pt.y)!==(yj>pt.y)) && (pt.x < (xj-xi)*(pt.y-yi)/((yj-yi)||1e-9)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function selLiftFloat(L){
+  const f=document.createElement('canvas'); f.width=S.docW; f.height=S.docH;
+  const fc=f.getContext('2d');
+  fc.save(); tracePath(fc,S.sel.path,0,0); fc.clip(); fc.drawImage(L.canvas,0,0); fc.restore();
+  L.ctx.save(); tracePath(L.ctx,S.sel.path,0,0); L.ctx.clip(); L.ctx.clearRect(0,0,S.docW,S.docH); L.ctx.restore();
+  return {canvas:f, ox:0, oy:0};
+}
+function selCommitFloat(){
+  if(!S.sel||!S.sel.float)return;
+  const L=activeLayer();
+  const {canvas,ox,oy}=S.sel.float;
+  L.ctx.drawImage(canvas, Math.round(ox), Math.round(oy));
+  if(selMoveBefore){ pushPixelChange(L,selMoveBefore); selMoveBefore=null; }
+  S.sel.path=S.sel.path.map(p=>({x:p.x+ox,y:p.y+oy}));
+  S.sel.float=null;
+  render(); renderLayerThumb(); scheduleAutosave();
+}
+function selDeselect(){
+  if(S.sel && S.sel.float) selCommitFloat();
+  if(S.sel){ S.sel=null; render(); renderOverlay(); }
+}
+let selMoveBefore=null;
+
 function beginStroke(doc,e){
   const L=activeLayer();
   if(!L)return;
   const rgb=hsv2rgb(curCol().h,curCol().s,curCol().v);
   S.drawing=true;
+
+  if(S.tool==='lasso'){
+    if(S.sel && S.sel.path && S.sel.path.length>2 && pointInPoly(doc,S.sel.path)){
+      // grab the selected pixels and move them
+      selMoveBefore=snapshotLayer(L);
+      S.sel.float=selLiftFloat(L);
+      S.sel.moveStart={...doc};
+      render(); return;
+    }
+    // start a new freehand selection
+    selDeselect();
+    S.sel={path:[{...doc}], float:null, moveStart:null};
+    renderOverlay(); return;
+  }
 
   if(isFxTool(S.tool)){
     strokeBefore=snapshotLayer(L);
@@ -1104,6 +1185,18 @@ function moveStroke(doc,e){
   const rgb=hsv2rgb(curCol().h,curCol().s,curCol().v);
   const L=activeLayer(); if(!L)return;
 
+  if(S.tool==='lasso'){
+    if(S.sel && S.sel.float){                 // moving the selection
+      S.sel.float.ox=doc.x-S.sel.moveStart.x; S.sel.float.oy=doc.y-S.sel.moveStart.y;
+      requestRender(); renderOverlay(); return;
+    }
+    if(S.sel && S.sel.path){                   // drawing the lasso outline
+      const last=S.sel.path[S.sel.path.length-1];
+      if(Math.hypot(doc.x-last.x,doc.y-last.y)>2) S.sel.path.push({...doc});
+      renderOverlay(); return;
+    }
+    return;
+  }
   if(S.tool==='eraser'){
     const from=smoothPt||doc; eraseSeg(from,doc); smoothPt={...doc}; requestRender(); return;
   }
@@ -1137,6 +1230,17 @@ function endStroke(e){
   const L=activeLayer();
   if(airTimer){clearInterval(airTimer);airTimer=null;}
 
+  if(S.tool==='lasso'){
+    S.drawing=false;
+    if(S.sel && S.sel.float){                 // dropped the moved selection here
+      selCommitFloat(); renderOverlay(); return;
+    }
+    if(S.sel && S.sel.path){                   // finished drawing the outline
+      if(S.sel.path.length<3){ S.sel=null; }   // just a click -> deselect
+      render(); renderOverlay();
+    }
+    return;
+  }
   if(S.tool==='eraser'){
     if(strokeBefore){pushPixelChange(L,strokeBefore);strokeBefore=null;}
     S.drawing=false; addRecent(); render(); renderLayerThumb(); return;
@@ -1481,9 +1585,11 @@ function buildToolbar(){
 }
 function setTool(id){
   commitText();
+  if(S.tool==='lasso' && id!=='lasso') selDeselect(); // drop any selection when leaving the lasso
   S.tool=id;
   document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('active',b.dataset.tool===id));
   // show/hide option sections
+  document.getElementById('selSec').style.display=id==='lasso'?'':'none';
   document.getElementById('brushSec').style.display=['brush','pencil','eraser','airbrush','line','rect','ellipse','text','smudge','blur','dodge','burn'].includes(id)?'':'none';
   document.getElementById('presetSec').style.display=['brush','pencil','airbrush'].includes(id)?'':'none';
   document.getElementById('shapeSec').style.display=['rect','ellipse'].includes(id)?'':'none';
@@ -2057,6 +2163,8 @@ function wire(){
   document.querySelectorAll('#gradModeChips .chip').forEach(c=>c.onclick=()=>{S.gradMode=c.dataset.gm;document.querySelectorAll('#gradModeChips .chip').forEach(x=>x.classList.toggle('on',x===c));});
   // custom palette
   document.getElementById('addSwatch').onclick=addCurrentSwatch;
+  // lasso
+  document.getElementById('selClear').onclick=selDeselect;
 
   document.getElementById('newCreate').onclick=doNew;
   document.getElementById('rsApply').onclick=doResize;
@@ -2132,6 +2240,7 @@ function onKey(e){
     if(k==='o'){e.preventDefault();document.getElementById('fileProj').click();return;}
     return;
   }
+  if(e.key==='Escape'){ if(S.sel){selDeselect();return;} }
   if(k===' '){S.spaceDown=true;stage.classList.add('pan');return;}
   if(k==='['){S.brush.size=clamp(S.brush.size-Math.max(1,Math.round(S.brush.size*0.1)),1,400);syncBrushInputs();stampKey='';renderOverlay();return;}
   if(k===']'){S.brush.size=clamp(S.brush.size+Math.max(1,Math.round(S.brush.size*0.1)),1,400);syncBrushInputs();stampKey='';renderOverlay();return;}
