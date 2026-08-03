@@ -93,6 +93,17 @@
     backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.35);transition:.12s}
   #cornerBtns button:hover{border-color:rgba(124,92,255,.6);background:rgba(36,29,61,.92);transform:translateY(-1px)}
 
+  /* drawing-lesson HUD */
+  #lessonHud{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:8;display:none;
+    align-items:center;gap:10px;background:rgba(20,16,32,.94);border:1px solid var(--line);border-radius:12px;
+    padding:8px 12px;backdrop-filter:blur(8px);box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:94vw}
+  #lessonHud .lh-color{width:24px;height:24px;border-radius:6px;border:2px solid #fff;flex:0 0 auto;box-shadow:0 0 8px rgba(0,0,0,.4)}
+  #lessonHud .lh-txt{font-size:12.5px;color:var(--txt);line-height:1.3}
+  #lessonHud .lh-txt b{color:#fff}
+  #lessonHud .lh-txt span{color:var(--mut);font-size:11px}
+  #lessonHud button{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#1b1630;color:var(--txt);font-size:12px;white-space:nowrap}
+  #lessonHud button.primary{background:linear-gradient(135deg,var(--accent),#5a3fd6);border-color:transparent}
+
   /* reference image (floating, draggable, resizable) */
   .refimg{position:absolute;z-index:6;border:2px solid var(--accent);border-radius:8px;overflow:hidden;
     box-shadow:0 8px 30px rgba(0,0,0,.5);background:#0d0a16;touch-action:none;min-width:80px;min-height:60px}
@@ -404,6 +415,13 @@
         <button id="btnFotos" title="Buscar fotos de referência">📷 Fotos</button>
         <button id="btnTutorial" title="Tutorial guiado">🎓 Tutorial</button>
       </div>
+      <div id="lessonHud">
+        <div class="lh-color" id="lhColor"></div>
+        <div class="lh-txt"><b id="lhTitle"></b><br><span id="lhStep"></span></div>
+        <button id="lhPrev" title="Passo anterior">◀</button>
+        <button class="primary" id="lhNext">Próximo ▶</button>
+        <button id="lhExit" title="Sair da aula">✕</button>
+      </div>
       <div id="statusbar">
         <span>Tela <b id="stDim">—</b></span>
         <span>Cursor <b id="stPos">—</b></span>
@@ -569,14 +587,27 @@
 <div class="modal" id="modalFotos">
   <div class="card" style="width:min(700px,95vw)">
     <h3>📷 Fotos de referência</h3>
-    <p>Pesquise entre milhões de fotos livres e clique em uma para colocá-la como referência no canto da folha.</p>
+    <p>Busque fotos livres e clique numa para usar como referência. Para algo específico (personagem, meme, desenho), <b>cole o link da imagem</b> no 2º campo.</p>
     <div style="display:flex;gap:8px;margin:10px 0 2px">
-      <input id="fotoSearch" placeholder="Ex.: gato, rosto, mão, paisagem, olho..." spellcheck="false" style="flex:1">
+      <input id="fotoSearch" placeholder="Buscar: gato, rosto, coroa, rei, paisagem..." spellcheck="false" style="flex:1">
       <button class="btn primary" id="fotoGo">Buscar</button>
+    </div>
+    <div style="display:flex;gap:8px;margin:6px 0 2px">
+      <input id="fotoUrl" placeholder="Ou cole aqui o link (URL) de qualquer imagem da web" spellcheck="false" style="flex:1">
+      <button class="btn" id="fotoUrlGo">Usar link</button>
     </div>
     <div id="fotoResults"></div>
     <div id="fotoStatus"></div>
     <div class="cardbtns" style="margin-top:12px"><button class="btn" data-close>Fechar</button></div>
+  </div>
+</div>
+
+<div class="modal" id="modalLesson">
+  <div class="card">
+    <h3>🎓 Aula de desenho</h3>
+    <p>Escolha um desenho. Eu mostro um <b>risco transparente</b> pra você cobrir por cima e já deixo a <b>cor certa selecionada</b> em cada passo. É só traçar!</p>
+    <div class="chips" id="lessonPick" style="margin-top:6px"></div>
+    <div class="cardbtns" style="margin-top:16px"><button class="btn" id="lessonTour">Conhecer a interface</button><button class="btn" data-close>Fechar</button></div>
   </div>
 </div>
 
@@ -678,6 +709,7 @@ const S={
   gradType:'linear', gradMode:'fg-bg', // gradiente
   customSwatches:[],                    // paleta pessoal (localStorage)
   sel:null,                             // laço: {path:[{x,y}], float:{canvas,ox,oy}|null, moveStart}
+  lesson:null,                          // aula de desenho: {id, i}
   // color as HSVA
   colH:255, colS:64, colV:100, colA:100, // hsv (h 0-360 stored /? we'll keep h 0-360)
   primary:{h:255,s:64,v:100,a:100},
@@ -984,6 +1016,9 @@ function renderOverlay(){
     octx.lineWidth=1.4/z*DPR; octx.strokeStyle='rgba(255,255,255,.95)'; octx.setLineDash([6/z,5/z]); octx.stroke();
     octx.restore();
   }
+
+  // drawing-lesson guide (transparent dashed outline to trace over)
+  if(S.lesson) drawLessonGuide(z);
 }
 
 function updateStatus(){
@@ -2210,40 +2245,59 @@ document.querySelectorAll('.modal').forEach(m=>m.addEventListener('pointerdown',
 // ================================================================
 function openFotos(){ openModal('modalFotos'); setTimeout(()=>document.getElementById('fotoSearch').focus(),60); }
 let fotoBusy=false;
+async function fetchOpenverse(q){
+  const url='https://api.openverse.org/v1/images/?q='+encodeURIComponent(q)+'&page_size=50&mature=false';
+  const r=await fetch(url,{headers:{'Accept':'application/json'}});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const data=await r.json();
+  return (data.results||[]).filter(x=>x.thumbnail||x.url)
+    .map(x=>({title:x.title||'Referência', thumbnail:x.thumbnail||x.url, url:x.url||x.thumbnail}));
+}
+async function fetchWikimedia(q){
+  const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*'
+    +'&generator=search&gsrsearch='+encodeURIComponent(q)+'&gsrnamespace=6&gsrlimit=40'
+    +'&prop=imageinfo&iiprop=url&iiurlwidth=640';
+  const r=await fetch(url);
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const data=await r.json();
+  return Object.values((data.query&&data.query.pages)||{})
+    .filter(pg=>pg.imageinfo&&pg.imageinfo[0]&&pg.imageinfo[0].thumburl)
+    .filter(pg=>/\.(jpe?g|png|gif)$/i.test(pg.title||''))
+    .map(pg=>({title:(pg.title||'').replace(/^File:/,'').replace(/\.\w+$/,''), thumbnail:pg.imageinfo[0].thumburl, url:pg.imageinfo[0].url}));
+}
 async function searchFotos(){
   const q=document.getElementById('fotoSearch').value.trim();
   const res=document.getElementById('fotoResults'), st=document.getElementById('fotoStatus');
   if(!q){ st.textContent='Digite algo para pesquisar.'; return; }
   if(fotoBusy)return; fotoBusy=true;
   res.innerHTML=''; st.textContent='Buscando…';
-  try{
-    // Wikimedia Commons: CORS anônimo de qualquer origem via origin=* (funciona em arquivo local)
-    const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*'
-      +'&generator=search&gsrsearch='+encodeURIComponent(q)+'&gsrnamespace=6&gsrlimit=40'
-      +'&prop=imageinfo&iiprop=url&iiurlwidth=640';
-    const r=await fetch(url);
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const data=await r.json();
-    const pages=Object.values((data.query&&data.query.pages)||{});
-    const items=pages
-      .filter(pg=>pg.imageinfo&&pg.imageinfo[0]&&pg.imageinfo[0].thumburl)
-      .filter(pg=>/\.(jpe?g|png|gif)$/i.test(pg.title||''))
-      .map(pg=>({title:(pg.title||'').replace(/^File:/,'').replace(/\.\w+$/,''), thumbnail:pg.imageinfo[0].thumburl, url:pg.imageinfo[0].url}));
-    if(!items.length){ st.textContent='Nada encontrado. Tente outra palavra (ex.: em inglês costuma trazer mais).'; fotoBusy=false; return; }
-    st.textContent=items.length+' resultados — clique em uma para usar como referência.';
-    for(const it of items){
-      const d=document.createElement('div'); d.className='fr';
-      const im=document.createElement('img'); im.loading='lazy'; im.referrerPolicy='no-referrer';
-      im.src=it.thumbnail; im.alt=it.title||'';
-      im.onerror=()=>d.remove();
-      d.appendChild(im);
-      d.onclick=()=>{ placeReference(it.thumbnail, it.url, it.title||'Referência'); closeModals(); };
-      res.appendChild(d);
+  let items=[], ovErr=null, wmErr=null;
+  try{ items=await fetchOpenverse(q); }catch(e){ ovErr=e; }
+  if(items.length<10){ try{ const wm=await fetchWikimedia(q); const seen=new Set(items.map(i=>i.url)); for(const it of wm){ if(!seen.has(it.url)){ items.push(it); seen.add(it.url); } } }catch(e){ wmErr=e; } }
+  if(!items.length){
+    if(ovErr && wmErr){
+      st.innerHTML='⚠️ Não consegui acessar as fotos on-line. Se você está vendo na <b>pré-visualização do Claude</b>, ela bloqueia a internet — <b>baixe o desenho.html e abra no seu navegador</b> (Chrome/Edge). A busca (e imagens coladas) só funcionam com internet, fora da pré-visualização.';
+    } else {
+      st.innerHTML='Não achei fotos livres com <b>"'+q+'"</b>. Coisas específicas (personagens, memes, ex.: <i>Double King</i>) não estão em acervos gratuitos — abra a imagem no navegador, copie o <b>endereço da imagem</b> e cole no campo de link acima. 👆';
     }
-  }catch(err){
-    st.textContent='Não consegui buscar agora — confira a conexão com a internet. ('+err.message+')';
+    fotoBusy=false; return;
+  }
+  st.textContent=items.length+' resultados — clique em uma para usar como referência.';
+  for(const it of items){
+    const d=document.createElement('div'); d.className='fr';
+    const im=document.createElement('img'); im.loading='lazy'; im.referrerPolicy='no-referrer';
+    im.src=it.thumbnail; im.alt=it.title||'';
+    im.onerror=()=>d.remove();
+    d.appendChild(im);
+    d.onclick=()=>{ placeReference(it.thumbnail, it.url, it.title||'Referência'); closeModals(); };
+    res.appendChild(d);
   }
   fotoBusy=false;
+}
+function useFotoUrl(){
+  const u=document.getElementById('fotoUrl').value.trim();
+  if(!/^https?:\/\//i.test(u)){ document.getElementById('fotoStatus').textContent='Cole um link que comece com http:// ou https://'; return; }
+  placeReference(u,u,'Referência'); document.getElementById('fotoUrl').value=''; closeModals();
 }
 function placeReference(src, srcHi, title){
   const stg=document.getElementById('stage');
@@ -2315,6 +2369,95 @@ function showTourStep(){
 }
 function tourNext(){ if(tourI>=TOUR.length-1){ endTour(); } else { tourI++; showTourStep(); } }
 function tourPrev(){ if(tourI>0){ tourI--; showTourStep(); } }
+
+// ================================================================
+//  AULA DE DESENHO (desenhe junto): risco transparente + cor pronta
+// ================================================================
+// shapes em coordenadas 0..1 (mapeadas para um quadrado central da tela)
+const C=(x,y,r)=>({t:'circle',x,y,r});
+const P=(pts,close)=>({t:'poly',pts,close:close!==false});
+const LN=(pts)=>({t:'line',pts});
+const LESSONS={
+  casa:{emoji:'🏠',name:'Casa',steps:[
+    {label:'Telhado (vermelho)',color:[214,69,65],size:12,shapes:[P([[0.18,0.46],[0.5,0.2],[0.82,0.46]])]},
+    {label:'Parede (amarelo)',color:[244,193,88],size:12,shapes:[P([[0.26,0.46],[0.74,0.46],[0.74,0.84],[0.26,0.84]])]},
+    {label:'Porta (marrom)',color:[150,92,52],size:9,shapes:[P([[0.44,0.84],[0.44,0.62],[0.57,0.62],[0.57,0.84]],false)]},
+    {label:'Janela (azul)',color:[86,167,231],size:7,shapes:[P([[0.30,0.55],[0.40,0.55],[0.40,0.66],[0.30,0.66]]),LN([[0.35,0.55],[0.35,0.66]]),LN([[0.30,0.605],[0.40,0.605]])]},
+    {label:'Sol (amarelo)',color:[250,201,45],size:9,shapes:[C(0.84,0.16,0.07)]},
+  ]},
+  gato:{emoji:'🐱',name:'Gato',steps:[
+    {label:'Cabeça (laranja)',color:[240,150,70],size:11,shapes:[C(0.5,0.52,0.27)]},
+    {label:'Orelhas (laranja)',color:[240,150,70],size:10,shapes:[P([[0.33,0.34],[0.29,0.13],[0.47,0.28]]),P([[0.67,0.34],[0.71,0.13],[0.53,0.28]])]},
+    {label:'Olhos (verde)',color:[95,185,95],size:8,shapes:[C(0.41,0.5,0.045),C(0.59,0.5,0.045)]},
+    {label:'Focinho (rosa)',color:[232,120,150],size:7,shapes:[P([[0.47,0.6],[0.53,0.6],[0.5,0.65]])]},
+    {label:'Bigodes (cinza)',color:[130,130,140],size:5,shapes:[LN([[0.5,0.63],[0.28,0.58]]),LN([[0.5,0.64],[0.27,0.65]]),LN([[0.5,0.63],[0.72,0.58]]),LN([[0.5,0.64],[0.73,0.65]])]},
+  ]},
+  flor:{emoji:'🌸',name:'Flor',steps:[
+    {label:'Pétalas (rosa)',color:[233,110,170],size:10,shapes:(()=>{const a=[];for(let i=0;i<6;i++){const t=i/6*Math.PI*2;a.push(C(0.5+Math.cos(t)*0.16,0.38+Math.sin(t)*0.16,0.085));}return a;})()},
+    {label:'Miolo (amarelo)',color:[250,201,45],size:10,shapes:[C(0.5,0.38,0.09)]},
+    {label:'Caule (verde)',color:[80,170,95],size:9,shapes:[LN([[0.5,0.47],[0.5,0.86]])]},
+    {label:'Folhas (verde)',color:[80,170,95],size:8,shapes:[P([[0.5,0.66],[0.36,0.6],[0.5,0.72]]),P([[0.5,0.74],[0.64,0.68],[0.5,0.8]])]},
+  ]},
+  sol:{emoji:'☀️',name:'Sol',steps:[
+    {label:'Círculo (amarelo)',color:[250,190,40],size:12,shapes:[C(0.5,0.5,0.2)]},
+    {label:'Raios (laranja)',color:[245,140,40],size:9,shapes:(()=>{const a=[];for(let i=0;i<8;i++){const t=i/8*Math.PI*2;a.push(LN([[0.5+Math.cos(t)*0.26,0.5+Math.sin(t)*0.26],[0.5+Math.cos(t)*0.4,0.5+Math.sin(t)*0.4]]));}return a;})()},
+    {label:'Sorriso (marrom)',color:[120,80,50],size:7,shapes:[LN([[0.42,0.54],[0.46,0.6],[0.54,0.6],[0.58,0.54]])]},
+  ]},
+};
+function lessonMap(){ const s0=Math.min(S.docW,S.docH)*0.82, ox=(S.docW-s0)/2, oy=(S.docH-s0)/2; return {X:n=>ox+n*s0, Y:n=>oy+n*s0, U:n=>n*s0}; }
+function strokeShapes(ctx,shapes,map){
+  for(const s of shapes){
+    ctx.beginPath();
+    if(s.t==='circle') ctx.arc(map.X(s.x),map.Y(s.y),map.U(s.r),0,Math.PI*2);
+    else s.pts.forEach((p,i)=> i?ctx.lineTo(map.X(p[0]),map.Y(p[1])):ctx.moveTo(map.X(p[0]),map.Y(p[1])));
+    if(s.t==='poly'&&s.close)ctx.closePath();
+    ctx.stroke();
+  }
+}
+function drawLessonGuide(z){
+  if(!S.lesson)return;
+  const L=LESSONS[S.lesson.id], map=lessonMap();
+  octx.save(); octx.lineJoin='round'; octx.lineCap='round';
+  L.steps.forEach((st,idx)=>{
+    if(idx===S.lesson.i){
+      octx.setLineDash([9/z,7/z]); octx.lineWidth=3.4/z*DPR;
+      octx.strokeStyle=`rgba(${st.color[0]},${st.color[1]},${st.color[2]},.75)`;
+    } else {
+      octx.setLineDash([]); octx.lineWidth=1.8/z*DPR;
+      octx.strokeStyle= idx<S.lesson.i ? 'rgba(150,150,160,.16)' : 'rgba(160,160,170,.30)';
+    }
+    strokeShapes(octx, st.shapes, map);
+  });
+  octx.restore();
+}
+function setColorRGB(rgb){ const h=rgb2hsv(rgb[0],rgb[1],rgb[2]); S.editSlot='primary'; setColor({h:h[0],s:h[1],v:h[2],a:100}); }
+function buildLessonPicker(){
+  const el=document.getElementById('lessonPick'); if(!el)return; el.innerHTML='';
+  for(const id of Object.keys(LESSONS)){ const L=LESSONS[id];
+    const b=document.createElement('button'); b.className='chip'; b.textContent=L.emoji+' '+L.name;
+    b.onclick=()=>startLesson(id); el.appendChild(b); }
+}
+function startLesson(id){ closeModals(); S.lesson={id, i:0}; document.getElementById('lessonHud').style.display='flex'; applyLessonStep(); }
+function applyLessonStep(){
+  const L=LESSONS[S.lesson.id], st=L.steps[S.lesson.i];
+  setColorRGB(st.color);
+  if(S.tool!=='brush'&&S.tool!=='pencil')setTool('brush');
+  S.brush.size=st.size||10; if(S.brush.smooth<15)S.brush.smooth=15; syncBrushInputs(); stampKey='';
+  document.getElementById('lhTitle').textContent=st.label;
+  document.getElementById('lhStep').textContent='Passo '+(S.lesson.i+1)+'/'+L.steps.length+' · cor já selecionada — cubra o risco pontilhado';
+  document.getElementById('lhColor').style.background=`rgb(${st.color[0]},${st.color[1]},${st.color[2]})`;
+  document.getElementById('lhPrev').style.visibility=S.lesson.i===0?'hidden':'visible';
+  document.getElementById('lhNext').textContent=(S.lesson.i===L.steps.length-1)?'Concluir ✓':'Próximo ▶';
+  render(); renderOverlay();
+}
+function lessonStep(dir){
+  if(!S.lesson)return;
+  const L=LESSONS[S.lesson.id];
+  if(dir>0 && S.lesson.i===L.steps.length-1){ endLesson(true); return; }
+  S.lesson.i=clamp(S.lesson.i+dir,0,L.steps.length-1);
+  applyLessonStep();
+}
+function endLesson(done){ S.lesson=null; document.getElementById('lessonHud').style.display='none'; renderOverlay(); if(done)toast('🎉 Desenho concluído! Mandou bem!'); }
 
 // ================================================================
 //  EVENT WIRING
@@ -2393,7 +2536,14 @@ function wire(){
   document.getElementById('btnFotos').onclick=openFotos;
   document.getElementById('fotoGo').onclick=searchFotos;
   document.getElementById('fotoSearch').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();searchFotos();} });
-  document.getElementById('btnTutorial').onclick=startTour;
+  document.getElementById('fotoUrlGo').onclick=useFotoUrl;
+  document.getElementById('fotoUrl').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();useFotoUrl();} });
+  buildLessonPicker();
+  document.getElementById('btnTutorial').onclick=()=>openModal('modalLesson');
+  document.getElementById('lessonTour').onclick=()=>{ closeModals(); startTour(); };
+  document.getElementById('lhPrev').onclick=()=>lessonStep(-1);
+  document.getElementById('lhNext').onclick=()=>lessonStep(1);
+  document.getElementById('lhExit').onclick=()=>endLesson(false);
   document.getElementById('tourNext').onclick=tourNext;
   document.getElementById('tourPrev').onclick=tourPrev;
   document.getElementById('tourMask').addEventListener('pointerdown',()=>{});
@@ -2465,6 +2615,11 @@ function onKey(e){
     if(e.key==='Escape'){endTour();return;}
     if(e.key==='ArrowRight'||e.key==='Enter'){tourNext();return;}
     if(e.key==='ArrowLeft'){tourPrev();return;}
+  }
+  if(S.lesson){
+    if(e.key==='Escape'){endLesson(false);return;}
+    if(e.key==='ArrowRight'){lessonStep(1);return;}
+    if(e.key==='ArrowLeft'){lessonStep(-1);return;}
   }
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
   const k=e.key.toLowerCase();
