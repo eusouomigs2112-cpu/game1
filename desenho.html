@@ -299,8 +299,10 @@
           <button class="chip" id="opAdjust">Ajustes…</button>
           <button class="chip" id="opInvert">Inverter</button>
           <button class="chip" id="opGray">Preto &amp; branco</button>
-          <button class="chip" id="opFlipH">Espelhar ⇋</button>
-          <button class="chip" id="opFlipV">Espelhar ⇅</button>
+          <button class="chip" id="opFlipCanvasH">Virar tela ⇋</button>
+          <button class="chip" id="opFlipCanvasV">Virar tela ⇅</button>
+          <button class="chip" id="opFlipH">Esp. camada ⇋</button>
+          <button class="chip" id="opFlipV">Esp. camada ⇅</button>
           <button class="chip" id="opRotate">Girar 90°</button>
           <button class="chip" id="opFill">Preencher</button>
           <button class="chip" id="opClear">Limpar</button>
@@ -1923,6 +1925,20 @@ function rotateCanvas90(){
     computeHistLimit(); fitView(); renderLayerList(); render(); };
   apply(); pushHist({undo,redo:apply}); scheduleAutosave(); toast('Tela girada 90°');
 }
+function flipCanvas(horiz){
+  // vira a TELA inteira (todas as camadas), sem mudar as dimensões
+  const before=S.layers.map(L=>L.canvas);
+  const flipped=S.layers.map(L=>{
+    const nc=document.createElement('canvas'); nc.width=S.docW; nc.height=S.docH;
+    const c=nc.getContext('2d');
+    if(horiz){ c.translate(S.docW,0); c.scale(-1,1); } else { c.translate(0,S.docH); c.scale(1,-1); }
+    c.drawImage(L.canvas,0,0);
+    return nc;
+  });
+  const apply=()=>{ S.layers.forEach((L,i)=>{ L.canvas=flipped[i]; L.ctx=flipped[i].getContext('2d'); }); renderLayerList(); render(); };
+  const undo=()=>{ S.layers.forEach((L,i)=>{ L.canvas=before[i]; L.ctx=before[i].getContext('2d'); }); renderLayerList(); render(); };
+  apply(); pushHist({undo,redo:apply}); scheduleAutosave(); toast(horiz?'Tela espelhada ⇋':'Tela espelhada ⇅');
+}
 
 let ajOrig=null;
 function openAdjust(){
@@ -2175,6 +2191,8 @@ function wire(){
   document.getElementById('opGray').onclick=grayscaleLayer;
   document.getElementById('opFlipH').onclick=()=>flipLayer(true);
   document.getElementById('opFlipV').onclick=()=>flipLayer(false);
+  document.getElementById('opFlipCanvasH').onclick=()=>flipCanvas(true);
+  document.getElementById('opFlipCanvasV').onclick=()=>flipCanvas(false);
   document.getElementById('opRotate').onclick=rotateCanvas90;
   document.getElementById('opFill').onclick=fillLayerFG;
   document.getElementById('opClear').onclick=clearLayer;
