@@ -270,9 +270,14 @@
         <div style="font-size:11px;line-height:1.45;color:var(--mut);margin-bottom:8px">
           <b>1.</b> Contorne uma parte do desenho segurando o botão.<br>
           <b>2.</b> Solte para fechar a seleção.<br>
-          <b>3.</b> Clique <b>dentro</b> e arraste para <b>mover</b> a parte para outro lugar.
+          <b>3.</b> Clique <b>dentro</b> e arraste para <b>mover</b>, ou<br>
+          <b>4.</b> Use o <b>balde</b> / botão abaixo para <b>pintar</b> só o contorno.
         </div>
-        <button class="chip" id="selClear">Desmarcar (Esc)</button>
+        <div class="chips">
+          <button class="chip" id="selFill">Pintar seleção</button>
+          <button class="chip" id="selClear">Desmarcar (Esc)</button>
+        </div>
+        <div style="margin-top:7px;font-size:10.5px;color:var(--mut);line-height:1.4">Com a seleção ativa, o pincel, a borracha e o balde só agem <b>dentro</b> dela.</div>
       </div>
 
       <div class="sec" id="gradSec" style="display:none">
@@ -898,8 +903,8 @@ function renderOverlay(){
     octx.restore();
   }
 
-  // lasso selection outline (marching-ants style)
-  if(S.tool==='lasso' && S.sel && S.sel.path && S.sel.path.length>1){
+  // lasso selection outline (marching-ants style) — shown for any tool while a selection exists
+  if(S.sel && S.sel.path && S.sel.path.length>1 && S.tool!=='hand'){
     const dx=S.sel.float?S.sel.float.ox:0, dy=S.sel.float?S.sel.float.oy:0;
     octx.save();
     tracePath(octx, S.sel.path, dx, dy);
@@ -1116,6 +1121,23 @@ function selDeselect(){
   if(S.sel && S.sel.float) selCommitFloat();
   if(S.sel){ S.sel=null; render(); renderOverlay(); }
 }
+function hasSelection(){ return !!(S.sel && S.sel.path && S.sel.path.length>2 && !S.sel.float); }
+function fillSelection(rgb){
+  if(!hasSelection()){ toast('Faça uma seleção com o laço primeiro'); return; }
+  const L=activeLayer(); if(!L)return;
+  rgb=rgb||hsv2rgb(curCol().h,curCol().s,curCol().v);
+  const before=snapshotLayer(L);
+  L.ctx.save();
+  tracePath(L.ctx,S.sel.path,0,0); L.ctx.clip();
+  L.ctx.globalCompositeOperation='source-over';
+  L.ctx.globalAlpha=(curCol().a==null?100:curCol().a)/100;
+  L.ctx.fillStyle=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  L.ctx.fillRect(0,0,S.docW,S.docH);
+  L.ctx.restore();
+  pushPixelChange(L,before);
+  addRecent(); render(); renderOverlay(); renderLayerThumb(); scheduleAutosave();
+  toast('Seleção pintada');
+}
 let selMoveBefore=null;
 
 function beginStroke(doc,e){
@@ -1152,7 +1174,7 @@ function beginStroke(doc,e){
     smoothPt={...doc};
     return;
   }
-  if(S.tool==='fill'){ doFill(doc,rgb); S.drawing=false; return; }
+  if(S.tool==='fill'){ if(hasSelection())fillSelection(rgb); else doFill(doc,rgb); S.drawing=false; return; }
   if(S.tool==='eyedropper'){ pickColor(doc); S.drawing=false; return; }
   if(S.tool==='move'){ moveStart={...doc}; moveImg=snapshotLayer(L); strokeBefore=moveImg; return; }
   if(S.tool==='text'){ startText(doc); S.drawing=false; return; }
@@ -1264,6 +1286,7 @@ function endStroke(e){
     L.ctx.save();
     L.ctx.globalAlpha=S.brush.opacity/100;
     L.ctx.globalCompositeOperation='source-over';
+    if(hasSelection()){ tracePath(L.ctx,S.sel.path,0,0); L.ctx.clip(); } // keep paint inside the selection
     L.ctx.drawImage(stroke,0,0);
     L.ctx.restore();
     sctx.clearRect(0,0,S.docW,S.docH);
@@ -1278,6 +1301,7 @@ function eraseSeg(from,to){
   const L=activeLayer();
   const size=effSize();
   L.ctx.save();
+  if(hasSelection()){ tracePath(L.ctx,S.sel.path,0,0); L.ctx.clip(); } // erase only inside the selection
   L.ctx.globalCompositeOperation='destination-out';
   const spacing=Math.max(0.5,size*0.12);
   const dx=to.x-from.x,dy=to.y-from.y,dist=Math.hypot(dx,dy);
@@ -1585,7 +1609,7 @@ function buildToolbar(){
 }
 function setTool(id){
   commitText();
-  if(S.tool==='lasso' && id!=='lasso') selDeselect(); // drop any selection when leaving the lasso
+  if(S.tool==='lasso' && id!=='lasso' && S.sel && S.sel.float) selCommitFloat(); // keep the selection, just drop a floating piece
   S.tool=id;
   document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('active',b.dataset.tool===id));
   // show/hide option sections
@@ -2165,6 +2189,7 @@ function wire(){
   document.getElementById('addSwatch').onclick=addCurrentSwatch;
   // lasso
   document.getElementById('selClear').onclick=selDeselect;
+  document.getElementById('selFill').onclick=()=>fillSelection();
 
   document.getElementById('newCreate').onclick=doNew;
   document.getElementById('rsApply').onclick=doResize;
