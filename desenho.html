@@ -2245,6 +2245,21 @@ document.querySelectorAll('.modal').forEach(m=>m.addEventListener('pointerdown',
 // ================================================================
 function openFotos(){ openModal('modalFotos'); setTimeout(()=>document.getElementById('fotoSearch').focus(),60); }
 let fotoBusy=false;
+// proxy CORS para alcançar a busca geral da web a partir de arquivo local
+const FOTO_PROXY='https://api.allorigins.win/raw?url=';
+async function fetchWebImages(q){
+  // DuckDuckGo image search (busca geral: memes, personagens, qualquer coisa)
+  const tok=await fetch(FOTO_PROXY+encodeURIComponent('https://duckduckgo.com/?q='+encodeURIComponent(q)+'&iax=images&ia=images'));
+  const html=await tok.text();
+  const m=html.match(/vqd=["']?([\w-]{6,})["']?/);
+  if(!m)throw new Error('sem token');
+  const api='https://duckduckgo.com/i.js?l=us-en&o=json&q='+encodeURIComponent(q)+'&vqd='+m[1]+'&f=,,,&p=1';
+  const r=await fetch(FOTO_PROXY+encodeURIComponent(api));
+  const data=await r.json();
+  return (data.results||[])
+    .map(x=>({title:x.title||'Referência', thumbnail:x.thumbnail||x.image, url:x.image||x.thumbnail}))
+    .filter(x=>x.thumbnail);
+}
 async function fetchOpenverse(q){
   const url='https://api.openverse.org/v1/images/?q='+encodeURIComponent(q)+'&page_size=50&mature=false';
   const r=await fetch(url,{headers:{'Accept':'application/json'}});
@@ -2271,14 +2286,17 @@ async function searchFotos(){
   if(!q){ st.textContent='Digite algo para pesquisar.'; return; }
   if(fotoBusy)return; fotoBusy=true;
   res.innerHTML=''; st.textContent='Buscando…';
-  let items=[], ovErr=null, wmErr=null;
-  try{ items=await fetchOpenverse(q); }catch(e){ ovErr=e; }
-  if(items.length<10){ try{ const wm=await fetchWikimedia(q); const seen=new Set(items.map(i=>i.url)); for(const it of wm){ if(!seen.has(it.url)){ items.push(it); seen.add(it.url); } } }catch(e){ wmErr=e; } }
+  let items=[], tried=0, failed=0;
+  const seen=new Set();
+  const add=async(fn)=>{ tried++; try{ const r=await fn(q); for(const it of r){ if(it.thumbnail && !seen.has(it.url)){ items.push(it); seen.add(it.url); } } }catch(e){ failed++; } };
+  await add(fetchWebImages);                       // busca geral da web (qualquer coisa)
+  if(items.length<12) await add(fetchOpenverse);   // acervos livres (complementa)
+  if(items.length<12) await add(fetchWikimedia);
   if(!items.length){
-    if(ovErr && wmErr){
-      st.innerHTML='⚠️ Não consegui acessar as fotos on-line. Se você está vendo na <b>pré-visualização do Claude</b>, ela bloqueia a internet — <b>baixe o desenho.html e abra no seu navegador</b> (Chrome/Edge). A busca (e imagens coladas) só funcionam com internet, fora da pré-visualização.';
+    if(failed===tried){
+      st.innerHTML='⚠️ Não consegui acessar a internet para buscar. Se estiver na <b>pré-visualização do Claude</b>, ela bloqueia a rede — <b>baixe o desenho.html e abra no navegador</b>. Também pode <b>colar o link</b> de uma imagem no 2º campo.';
     } else {
-      st.innerHTML='Não achei fotos livres com <b>"'+q+'"</b>. Coisas específicas (personagens, memes, ex.: <i>Double King</i>) não estão em acervos gratuitos — abra a imagem no navegador, copie o <b>endereço da imagem</b> e cole no campo de link acima. 👆';
+      st.innerHTML='Nada encontrado para <b>"'+q+'"</b>. Tente em inglês, ou copie o <b>endereço de uma imagem</b> no navegador e cole no campo de link acima. 👆';
     }
     fotoBusy=false; return;
   }
