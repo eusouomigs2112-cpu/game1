@@ -86,6 +86,43 @@
     background:rgba(10,7,18,.7);padding:5px 12px;border-radius:20px;border:1px solid var(--line);backdrop-filter:blur(6px);z-index:3;pointer-events:none}
   #statusbar b{color:var(--txt);font-weight:600}
 
+  /* corner floating buttons (Fotos / Tutorial) */
+  #cornerBtns{position:absolute;top:12px;right:12px;display:flex;gap:8px;z-index:7}
+  #cornerBtns button{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;
+    border:1px solid var(--line);background:rgba(20,16,32,.82);color:var(--txt);font-size:13px;font-weight:600;
+    backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.35);transition:.12s}
+  #cornerBtns button:hover{border-color:rgba(124,92,255,.6);background:rgba(36,29,61,.92);transform:translateY(-1px)}
+
+  /* reference image (floating, draggable, resizable) */
+  .refimg{position:absolute;z-index:6;border:2px solid var(--accent);border-radius:8px;overflow:hidden;
+    box-shadow:0 8px 30px rgba(0,0,0,.5);background:#0d0a16;touch-action:none;min-width:80px;min-height:60px}
+  .refimg .rhead{display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(124,92,255,.9);cursor:move;font-size:11px;color:#fff}
+  .refimg .rhead .rt{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .refimg .rhead button{border:none;background:rgba(255,255,255,.2);color:#fff;width:18px;height:18px;border-radius:5px;font-size:12px;line-height:1;cursor:pointer}
+  .refimg img{display:block;width:100%;height:calc(100% - 26px);object-fit:contain;pointer-events:none;background:#0d0a16}
+  .refimg input[type=range]{position:absolute;left:6px;right:22px;bottom:5px;width:auto}
+  .refimg .rgrip{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;
+    background:linear-gradient(135deg,transparent 50%,var(--accent) 50%)}
+
+  /* photo search results grid */
+  #fotoResults{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:52vh;overflow-y:auto;margin-top:4px}
+  #fotoResults .fr{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--line);cursor:pointer;background:#1b1630}
+  #fotoResults .fr img{width:100%;height:100%;object-fit:cover;display:block;transition:.12s}
+  #fotoResults .fr:hover img{transform:scale(1.08)}
+  #fotoStatus{font-size:12px;color:var(--mut);margin-top:8px;min-height:16px}
+
+  /* tutorial coach-marks */
+  #tourMask{position:fixed;inset:0;z-index:120;display:none}
+  #tourHole{position:absolute;border-radius:10px;box-shadow:0 0 0 9999px rgba(4,3,10,.72);border:2px solid var(--accent);transition:.2s;pointer-events:none}
+  #tourPop{position:absolute;z-index:121;max-width:300px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+  #tourPop h4{font-size:14px;margin-bottom:6px;color:#fff}
+  #tourPop p{font-size:12.5px;line-height:1.5;color:#d6d0e6}
+  #tourPop .trow{display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:8px}
+  #tourPop .tstep{font-size:11px;color:var(--mut)}
+  #tourPop .btn{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:#1b1630;color:var(--txt);font-size:12px}
+  #tourPop .btn.primary{background:linear-gradient(135deg,var(--accent),#5a3fd6);border-color:transparent}
+
   /* ---------- Right: color + layers ---------- */
   #right{width:250px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;z-index:10}
   #colorpanel{padding:14px 14px 12px;border-bottom:1px solid var(--line)}
@@ -363,6 +400,10 @@
       <canvas id="view"></canvas>
       <canvas id="overlay"></canvas>
       <textarea id="textedit" spellcheck="false" wrap="off"></textarea>
+      <div id="cornerBtns">
+        <button id="btnFotos" title="Buscar fotos de referência">📷 Fotos</button>
+        <button id="btnTutorial" title="Tutorial guiado">🎓 Tutorial</button>
+      </div>
       <div id="statusbar">
         <span>Tela <b id="stDim">—</b></span>
         <span>Cursor <b id="stPos">—</b></span>
@@ -522,6 +563,35 @@
     <div class="row" style="margin-top:8px"><label>Saturação</label><span class="val" id="ajSatVal">0</span></div>
     <input type="range" id="ajSat" min="-100" max="100" value="0">
     <div class="cardbtns" style="margin-top:16px"><button class="btn" id="ajCancel">Cancelar</button><button class="btn primary" id="ajApply">Aplicar</button></div>
+  </div>
+</div>
+
+<div class="modal" id="modalFotos">
+  <div class="card" style="width:min(700px,95vw)">
+    <h3>📷 Fotos de referência</h3>
+    <p>Pesquise entre milhões de fotos livres e clique em uma para colocá-la como referência no canto da folha.</p>
+    <div style="display:flex;gap:8px;margin:10px 0 2px">
+      <input id="fotoSearch" placeholder="Ex.: gato, rosto, mão, paisagem, olho..." spellcheck="false" style="flex:1">
+      <button class="btn primary" id="fotoGo">Buscar</button>
+    </div>
+    <div id="fotoResults"></div>
+    <div id="fotoStatus"></div>
+    <div class="cardbtns" style="margin-top:12px"><button class="btn" data-close>Fechar</button></div>
+  </div>
+</div>
+
+<div id="tourMask">
+  <div id="tourHole"></div>
+</div>
+<div id="tourPop" style="display:none">
+  <h4 id="tourTitle"></h4>
+  <p id="tourText"></p>
+  <div class="trow">
+    <span class="tstep" id="tourStep"></span>
+    <span>
+      <button class="btn" id="tourPrev">Anterior</button>
+      <button class="btn primary" id="tourNext">Próximo</button>
+    </span>
   </div>
 </div>
 
@@ -2136,6 +2206,117 @@ document.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeModals);
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('pointerdown',(e)=>{if(e.target===m)closeModals();}));
 
 // ================================================================
+//  FOTOS DE REFERÊNCIA (busca on-line) + REFERÊNCIA FLUTUANTE
+// ================================================================
+function openFotos(){ openModal('modalFotos'); setTimeout(()=>document.getElementById('fotoSearch').focus(),60); }
+let fotoBusy=false;
+async function searchFotos(){
+  const q=document.getElementById('fotoSearch').value.trim();
+  const res=document.getElementById('fotoResults'), st=document.getElementById('fotoStatus');
+  if(!q){ st.textContent='Digite algo para pesquisar.'; return; }
+  if(fotoBusy)return; fotoBusy=true;
+  res.innerHTML=''; st.textContent='Buscando…';
+  try{
+    // Wikimedia Commons: CORS anônimo de qualquer origem via origin=* (funciona em arquivo local)
+    const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*'
+      +'&generator=search&gsrsearch='+encodeURIComponent(q)+'&gsrnamespace=6&gsrlimit=40'
+      +'&prop=imageinfo&iiprop=url&iiurlwidth=640';
+    const r=await fetch(url);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    const pages=Object.values((data.query&&data.query.pages)||{});
+    const items=pages
+      .filter(pg=>pg.imageinfo&&pg.imageinfo[0]&&pg.imageinfo[0].thumburl)
+      .filter(pg=>/\.(jpe?g|png|gif)$/i.test(pg.title||''))
+      .map(pg=>({title:(pg.title||'').replace(/^File:/,'').replace(/\.\w+$/,''), thumbnail:pg.imageinfo[0].thumburl, url:pg.imageinfo[0].url}));
+    if(!items.length){ st.textContent='Nada encontrado. Tente outra palavra (ex.: em inglês costuma trazer mais).'; fotoBusy=false; return; }
+    st.textContent=items.length+' resultados — clique em uma para usar como referência.';
+    for(const it of items){
+      const d=document.createElement('div'); d.className='fr';
+      const im=document.createElement('img'); im.loading='lazy'; im.referrerPolicy='no-referrer';
+      im.src=it.thumbnail; im.alt=it.title||'';
+      im.onerror=()=>d.remove();
+      d.appendChild(im);
+      d.onclick=()=>{ placeReference(it.thumbnail, it.url, it.title||'Referência'); closeModals(); };
+      res.appendChild(d);
+    }
+  }catch(err){
+    st.textContent='Não consegui buscar agora — confira a conexão com a internet. ('+err.message+')';
+  }
+  fotoBusy=false;
+}
+function placeReference(src, srcHi, title){
+  const stg=document.getElementById('stage');
+  const box=document.createElement('div'); box.className='refimg';
+  const w=Math.min(280, Math.max(140, stg.clientWidth*0.34));
+  box.style.width=w+'px'; box.style.height=Math.round(w*0.78+26)+'px';
+  box.style.top='58px'; box.style.right='16px';
+  box.innerHTML='<div class="rhead"><span class="rt"></span>'
+    +'<button class="ropac" title="Opacidade">◑</button>'
+    +'<button class="rdel" title="Remover">✕</button></div>'
+    +'<img alt="ref" referrerpolicy="no-referrer">'
+    +'<input type="range" min="15" max="100" value="100" title="Opacidade" style="display:none">'
+    +'<div class="rgrip"></div>';
+  box.querySelector('.rt').textContent=title;
+  const img=box.querySelector('img'); let triedHi=false;
+  img.onerror=()=>{ if(!triedHi && srcHi && img.src!==srcHi){ triedHi=true; img.src=srcHi; } else { toast('Não deu para carregar essa imagem'); box.remove(); } };
+  img.src=src;
+  const slider=box.querySelector('input');
+  slider.oninput=()=>{ img.style.opacity=slider.value/100; };
+  box.querySelector('.ropac').onclick=(e)=>{ e.stopPropagation(); slider.style.display=slider.style.display==='none'?'block':'none'; };
+  box.querySelector('.rdel').onclick=(e)=>{ e.stopPropagation(); box.remove(); };
+  const head=box.querySelector('.rhead'); let drag=null;
+  head.addEventListener('pointerdown',(e)=>{ drag={x:e.clientX,y:e.clientY,l:box.offsetLeft,t:box.offsetTop}; head.setPointerCapture(e.pointerId); box.style.right='auto'; e.stopPropagation(); });
+  head.addEventListener('pointermove',(e)=>{ if(!drag)return; box.style.left=(drag.l+e.clientX-drag.x)+'px'; box.style.top=(drag.t+e.clientY-drag.y)+'px'; });
+  head.addEventListener('pointerup',()=>{ drag=null; });
+  const grip=box.querySelector('.rgrip'); let rz=null;
+  grip.addEventListener('pointerdown',(e)=>{ rz={x:e.clientX,y:e.clientY,w:box.offsetWidth,h:box.offsetHeight}; grip.setPointerCapture(e.pointerId); e.stopPropagation(); });
+  grip.addEventListener('pointermove',(e)=>{ if(!rz)return; box.style.width=Math.max(90,rz.w+e.clientX-rz.x)+'px'; box.style.height=Math.max(70,rz.h+e.clientY-rz.y)+'px'; });
+  grip.addEventListener('pointerup',()=>{ rz=null; });
+  stg.appendChild(box);
+  toast('Referência no canto — arraste pelo topo roxo, ✕ remove');
+}
+
+// ================================================================
+//  TUTORIAL GUIADO (coach marks)
+// ================================================================
+const TOUR=[
+  {sel:'#tools', title:'🧰 Ferramentas', text:'Todas as ferramentas ficam aqui: pincel, lápis, borracha, balde, formas, laço, esfumar, clarear/escurecer e mais. Passe o mouse para ver o nome e a tecla de atalho.'},
+  {sel:'#brushSec', title:'✏️ Ajuste o traço', text:'Tamanho, opacidade, dureza e suavização. Em "Pressão / dinâmica" escolha "Velocidade" para o traço afinar sozinho conforme você move — funciona até no mouse.'},
+  {sel:'#presetSec', title:'🖌️ Pontas de pincel', text:'Pincéis prontos: caneta, aquarela, guache, carvão, giz, marca-texto… clique para trocar o estilo.'},
+  {sel:'#colorpanel', title:'🎨 Cores', text:'Escolha a cor no quadro grande e na barra de matiz. Salve as favoritas no botão + de "Minha paleta".'},
+  {sel:'#layerspanel', title:'📚 Camadas', text:'Desenhe em camadas separadas para organizar (contorno, pintura, sombra…). Dá para esconder, mudar opacidade e misturar.'},
+  {sel:'#layerOpsSec', title:'⚙️ Ajustes & virar a tela', text:'Brilho/contraste, inverter, preto & branco, girar e "Virar tela" para espelhar o desenho inteiro.'},
+  {sel:'#btnFotos', title:'📷 Fotos de referência', text:'Clique em "Fotos", pesquise (ex.: rosto, mão, gato) e escolha uma imagem: ela fica flutuando no canto para você copiar enquanto desenha.'},
+  {sel:'#btnExport', title:'⬇️ Salvar e exportar', text:'"Exportar" gera PNG/JPG do desenho. "Projeto" salva com as camadas para continuar depois. E tem autosave: seu trabalho volta ao reabrir.'},
+];
+let tourI=0;
+function startTour(){ tourI=0; document.getElementById('tourMask').style.display='block'; document.getElementById('tourPop').style.display='block'; showTourStep(); }
+function endTour(){ document.getElementById('tourMask').style.display='none'; document.getElementById('tourPop').style.display='none'; }
+function showTourStep(){
+  const step=TOUR[tourI], el=document.querySelector(step.sel);
+  const hole=document.getElementById('tourHole'), pop=document.getElementById('tourPop');
+  let r = el ? el.getBoundingClientRect() : {left:innerWidth/2-100,top:innerHeight/2-40,width:200,height:80,right:innerWidth/2+100,bottom:innerHeight/2+40};
+  const pad=6;
+  hole.style.left=(r.left-pad)+'px'; hole.style.top=(r.top-pad)+'px';
+  hole.style.width=(r.width+pad*2)+'px'; hole.style.height=(r.height+pad*2)+'px';
+  document.getElementById('tourTitle').textContent=step.title;
+  document.getElementById('tourText').textContent=step.text;
+  document.getElementById('tourStep').textContent=(tourI+1)+' / '+TOUR.length;
+  document.getElementById('tourNext').textContent = tourI===TOUR.length-1?'Concluir':'Próximo';
+  document.getElementById('tourPrev').style.visibility = tourI===0?'hidden':'visible';
+  pop.style.visibility='hidden';
+  const pw=Math.min(300,innerWidth-24), ph=pop.offsetHeight||170;
+  let px=r.right+14, py=r.top;
+  if(px+pw>innerWidth-12) px=r.left-pw-14;
+  if(px<12){ px=Math.min(Math.max(12,r.left),innerWidth-pw-12); py=r.bottom+14; }
+  if(py+ph>innerHeight-12) py=Math.max(12,innerHeight-ph-12);
+  pop.style.left=px+'px'; pop.style.top=py+'px'; pop.style.visibility='visible';
+}
+function tourNext(){ if(tourI>=TOUR.length-1){ endTour(); } else { tourI++; showTourStep(); } }
+function tourPrev(){ if(tourI>0){ tourI--; showTourStep(); } }
+
+// ================================================================
 //  EVENT WIRING
 // ================================================================
 function wire(){
@@ -2208,6 +2389,14 @@ function wire(){
   // lasso
   document.getElementById('selClear').onclick=selDeselect;
   document.getElementById('selFill').onclick=()=>fillSelection();
+  // fotos + tutorial
+  document.getElementById('btnFotos').onclick=openFotos;
+  document.getElementById('fotoGo').onclick=searchFotos;
+  document.getElementById('fotoSearch').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();searchFotos();} });
+  document.getElementById('btnTutorial').onclick=startTour;
+  document.getElementById('tourNext').onclick=tourNext;
+  document.getElementById('tourPrev').onclick=tourPrev;
+  document.getElementById('tourMask').addEventListener('pointerdown',()=>{});
 
   document.getElementById('newCreate').onclick=doNew;
   document.getElementById('rsApply').onclick=doResize;
@@ -2272,6 +2461,11 @@ function buildSizePresets(){
   }
 }
 function onKey(e){
+  if(document.getElementById('tourMask').style.display==='block'){
+    if(e.key==='Escape'){endTour();return;}
+    if(e.key==='ArrowRight'||e.key==='Enter'){tourNext();return;}
+    if(e.key==='ArrowLeft'){tourPrev();return;}
+  }
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
   const k=e.key.toLowerCase();
   if((e.ctrlKey||e.metaKey)){
