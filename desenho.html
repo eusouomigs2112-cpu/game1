@@ -452,6 +452,7 @@
           <button id="anAdd" title="Novo quadro em branco">+ Quadro</button>
           <button id="anDup" title="Duplicar quadro atual">⧉ Duplicar</button>
           <button id="anDel" title="Excluir quadro">🗑</button>
+          <button id="anGuide" title="Animações prontas para treinar">✨ Guiada</button>
           <label>FPS <input type="range" id="anFps" min="1" max="24" value="8"><b id="anFpsV" style="color:var(--accent2)">8</b></label>
           <label class="toggle"><input type="checkbox" id="anOnion" checked><span class="sw"></span>Sombra do anterior</label>
           <button id="anExport" title="Salvar como vídeo">⬇ Salvar vídeo</button>
@@ -634,6 +635,15 @@
   </div>
 </div>
 
+<div class="modal" id="modalAnimLesson">
+  <div class="card">
+    <h3>✨ Animação guiada</h3>
+    <p>Escolha uma animação pronta. Eu crio todos os quadros e mostro um <b>risco pontilhado</b> em cada um pra você cobrir. No fim, é só dar <b>Play</b>!</p>
+    <div class="chips" id="animLessonPick" style="margin-top:6px"></div>
+    <div class="cardbtns" style="margin-top:14px"><button class="btn" data-close>Fechar</button></div>
+  </div>
+</div>
+
 <div class="modal" id="modalLesson">
   <div class="card">
     <h3>🎓 Aula de desenho</h3>
@@ -743,6 +753,7 @@ const S={
   sel:null,                             // laço: {path:[{x,y}], float:{canvas,ox,oy}|null, moveStart}
   lesson:null,                          // aula de desenho: {id, i}
   anim:{on:false, frames:null, i:0, fps:8, playing:false, onion:true, timer:null, onionImg:null}, // animação quadro a quadro
+  animGuide:null,                       // animação guiada: {id, color, size}
   // color as HSVA
   colH:255, colS:64, colV:100, colA:100, // hsv (h 0-360 stored /? we'll keep h 0-360)
   primary:{h:255,s:64,v:100,a:100},
@@ -1057,6 +1068,8 @@ function renderOverlay(){
 
   // drawing-lesson guide (transparent dashed outline to trace over)
   if(S.lesson) drawLessonGuide(z);
+  // guided-animation frame guide
+  if(S.anim.on && S.animGuide && !S.anim.playing) drawAnimGuide(z);
 }
 
 function updateStatus(){
@@ -2435,6 +2448,7 @@ function tourPrev(){ if(tourI>0){ tourI--; showTourStep(); } }
 // ================================================================
 // shapes em coordenadas 0..1 (mapeadas para um quadrado central da tela)
 const C=(x,y,r)=>({t:'circle',x,y,r});
+const E=(x,y,rx,ry)=>({t:'ellipse',x,y,rx,ry});
 const P=(pts,close)=>({t:'poly',pts,close:close!==false});
 const LN=(pts)=>({t:'line',pts});
 const LESSONS={
@@ -2469,6 +2483,7 @@ function strokeShapes(ctx,shapes,map){
   for(const s of shapes){
     ctx.beginPath();
     if(s.t==='circle') ctx.arc(map.X(s.x),map.Y(s.y),map.U(s.r),0,Math.PI*2);
+    else if(s.t==='ellipse') ctx.ellipse(map.X(s.x),map.Y(s.y),map.U(s.rx),map.U(s.ry),0,0,Math.PI*2);
     else s.pts.forEach((p,i)=> i?ctx.lineTo(map.X(p[0]),map.Y(p[1])):ctx.moveTo(map.X(p[0]),map.Y(p[1])));
     if(s.t==='poly'&&s.close)ctx.closePath();
     ctx.stroke();
@@ -2530,12 +2545,12 @@ function flattenLayers(layers){
 function cloneLayer(L){ const c=makeLayerCanvas(), x=c.getContext('2d'); x.drawImage(L.canvas,0,0);
   return {id:S.layerSeq++, name:L.name, canvas:c, ctx:x, visible:L.visible, opacity:L.opacity, blend:L.blend}; }
 function resetAnim(){ const A=S.anim; if(A.timer)clearInterval(A.timer);
-  A.on=false; A.frames=null; A.i=0; A.playing=false; A.timer=null; A.onionImg=null;
+  A.on=false; A.frames=null; A.i=0; A.playing=false; A.timer=null; A.onionImg=null; S.animGuide=null;
   const bar=document.getElementById('animBar'); if(bar)bar.style.display='none';
   const btn=document.getElementById('btnAnim'); if(btn)btn.classList.remove('act'); }
 function toggleAnim(){
   const A=S.anim;
-  if(A.on){ stopAnim(); A.on=false; document.getElementById('animBar').style.display='none'; document.getElementById('btnAnim').classList.remove('act'); render(); return; }
+  if(A.on){ stopAnim(); A.on=false; S.animGuide=null; document.getElementById('animBar').style.display='none'; document.getElementById('btnAnim').classList.remove('act'); render(); renderOverlay(); return; }
   if(!A.frames){ A.frames=[{layers:S.layers, active:S.active}]; A.i=0; A.onionImg=null; }
   A.on=true; document.getElementById('animBar').style.display='flex'; document.getElementById('btnAnim').classList.add('act');
   renderFrames(); render(); toast('🎬 Modo animação — crie quadros e dê Play');
@@ -2621,6 +2636,74 @@ function exportAnim(){
   const drawFrame=()=>{ x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(flattenLayers(A.frames[k%A.frames.length].layers),0,0); };
   toast('Gravando animação…'); rec.start(); drawFrame();
   const iv=setInterval(()=>{ k++; if(k>=total){ clearInterval(iv); setTimeout(()=>{ try{rec.stop();}catch(e){} }, 1000/A.fps); return; } drawFrame(); }, 1000/A.fps);
+}
+
+// ---- animações guiadas: cria os quadros e mostra um risco em cada um ----
+function ballFrames(){
+  const cys=[0.33,0.54,0.70,0.80,0.70,0.54,0.33,0.54];
+  return cys.map((cy,i)=>{ const cx=0.16+i*0.093; return i===3?[E(cx,0.80,0.11,0.055)]:[C(cx,cy,0.08)]; });
+}
+function blinkFrames(){
+  return [
+    [E(0.5,0.5,0.17,0.13), C(0.5,0.5,0.06)],
+    [E(0.5,0.5,0.17,0.08), C(0.5,0.5,0.05)],
+    [LN([[0.33,0.5],[0.5,0.545],[0.67,0.5]])],
+    [E(0.5,0.5,0.17,0.09), C(0.5,0.5,0.05)],
+  ];
+}
+function walkFrames(){
+  const N=6, out=[];
+  for(let i=0;i<N;i++){ const ph=i/N*Math.PI*2, sw=0.12;
+    out.push([
+      C(0.5,0.2,0.06),
+      LN([[0.5,0.26],[0.5,0.56]]),
+      LN([[0.5,0.33],[0.5-sw*Math.cos(ph),0.46+0.04*Math.sin(ph)]]),
+      LN([[0.5,0.33],[0.5+sw*Math.cos(ph),0.46-0.04*Math.sin(ph)]]),
+      LN([[0.5,0.56],[0.5-sw*Math.sin(ph),0.82]]),
+      LN([[0.5,0.56],[0.5+sw*Math.sin(ph),0.82]]),
+    ]);
+  }
+  return out;
+}
+function starSpinFrames(){
+  const out=[]; const pts5=(rot)=>{const a=[];for(let k=0;k<10;k++){const rr=(k%2?0.09:0.2),an=rot+k*Math.PI/5-Math.PI/2;a.push([0.5+Math.cos(an)*rr,0.5+Math.sin(an)*rr]);}return a;};
+  for(let i=0;i<6;i++) out.push([P(pts5(i/6*Math.PI*2))]);
+  return out;
+}
+const ANIM_LESSONS={
+  bola:{emoji:'⚽',name:'Bola pulando',color:[233,110,60],size:9,fps:8,frames:ballFrames()},
+  boneco:{emoji:'🚶',name:'Boneco andando',color:[60,60,72],size:6,fps:8,frames:walkFrames()},
+  piscar:{emoji:'👁️',name:'Olho piscando',color:[86,120,205],size:7,fps:6,frames:blinkFrames()},
+  estrela:{emoji:'⭐',name:'Estrela girando',color:[240,190,50],size:8,fps:8,frames:starSpinFrames()},
+};
+function buildAnimLessonPicker(){
+  const el=document.getElementById('animLessonPick'); if(!el)return; el.innerHTML='';
+  for(const id of Object.keys(ANIM_LESSONS)){ const L=ANIM_LESSONS[id];
+    const b=document.createElement('button'); b.className='chip'; b.textContent=L.emoji+' '+L.name+' ('+L.frames.length+' quadros)';
+    b.onclick=()=>startAnimLesson(id); el.appendChild(b); }
+}
+function startAnimLesson(id){
+  const AL=ANIM_LESSONS[id]; if(!AL)return;
+  closeModals(); resetAnim();
+  const frames=AL.frames.map(()=>({layers:[ newLayer('Camada 1', null) ], active:0}));
+  const A=S.anim; A.frames=frames; A.on=true; A.i=0; A.fps=AL.fps||8; A.onion=true; A.onionImg=null;
+  S.animGuide={id, color:AL.color, size:AL.size};
+  S.layers=frames[0].layers; S.active=0;
+  document.getElementById('animBar').style.display='flex'; document.getElementById('btnAnim').classList.add('act');
+  document.getElementById('anFps').value=A.fps; document.getElementById('anFpsV').textContent=A.fps;
+  setColorRGB(AL.color); if(S.tool!=='brush'&&S.tool!=='pencil')setTool('brush'); S.brush.size=AL.size; if(S.brush.smooth<15)S.brush.smooth=15; syncBrushInputs(); stampKey='';
+  renderFrames(); renderLayerList(); syncLayerControls(); render(); renderOverlay();
+  toast('✏️ Cubra o risco de cada quadro. Use ◀ ▶ p/ trocar e dê ▶ Play no fim!');
+}
+function drawAnimGuide(z){
+  const AL=ANIM_LESSONS[S.animGuide.id]; if(!AL)return;
+  const shapes=AL.frames[S.anim.i]; if(!shapes)return;
+  const c=S.animGuide.color, map=lessonMap();
+  octx.save(); octx.lineJoin='round'; octx.lineCap='round';
+  octx.setLineDash([9/z,7/z]); octx.lineWidth=3.2/z*DPR;
+  octx.strokeStyle='rgba('+c[0]+','+c[1]+','+c[2]+',.7)';
+  strokeShapes(octx, shapes, map);
+  octx.restore();
 }
 
 // ================================================================
@@ -2713,6 +2796,8 @@ function wire(){
   document.getElementById('anFps').addEventListener('input',e=>{ S.anim.fps=+e.target.value; document.getElementById('anFpsV').textContent=e.target.value; if(S.anim.playing){ stopAnim(); playAnim(); } });
   document.getElementById('anOnion').onchange=e=>{ S.anim.onion=e.target.checked; S.anim.onionImg=(S.anim.onion&&S.anim.i>0&&S.anim.frames)?flattenLayers(S.anim.frames[S.anim.i-1].layers):null; render(); };
   document.getElementById('anExport').onclick=exportAnim;
+  buildAnimLessonPicker();
+  document.getElementById('anGuide').onclick=()=>openModal('modalAnimLesson');
   document.getElementById('lessonTour').onclick=()=>{ closeModals(); startTour(); };
   document.getElementById('lhPrev').onclick=()=>lessonStep(-1);
   document.getElementById('lhNext').onclick=()=>lessonStep(1);
