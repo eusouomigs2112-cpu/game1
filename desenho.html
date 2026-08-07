@@ -93,6 +93,22 @@
     backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.35);transition:.12s}
   #cornerBtns button:hover{border-color:rgba(124,92,255,.6);background:rgba(36,29,61,.92);transform:translateY(-1px)}
 
+  /* animation timeline */
+  #animBar{position:absolute;left:0;right:0;bottom:0;z-index:7;display:none;flex-direction:column;gap:6px;
+    background:rgba(14,10,22,.95);border-top:1px solid var(--line);padding:8px 10px;backdrop-filter:blur(8px)}
+  #animBar .ab-ctrls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--mut)}
+  #animBar .ab-ctrls button{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#1b1630;color:var(--txt);font-size:12px;white-space:nowrap}
+  #animBar .ab-ctrls button.primary{background:linear-gradient(135deg,var(--accent),#5a3fd6);border-color:transparent}
+  #animBar .ab-ctrls label{display:inline-flex;align-items:center;gap:5px}
+  #animBar .ab-ctrls input[type=range]{width:90px}
+  #animFrames{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;min-height:66px}
+  #animFrames .afr{position:relative;flex:0 0 auto;width:80px;height:58px;border-radius:7px;border:2px solid var(--line);
+    overflow:hidden;background:#fff;cursor:pointer}
+  #animFrames .afr.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(124,92,255,.35)}
+  #animFrames .afr canvas{width:100%;height:100%;object-fit:contain;display:block}
+  #animFrames .afr .afn{position:absolute;left:2px;top:1px;font-size:9px;color:#111;background:rgba(255,255,255,.7);padding:0 3px;border-radius:3px}
+  #btnAnim.act{background:linear-gradient(135deg,var(--accent),#5a3fd6);border-color:transparent;color:#fff}
+
   /* drawing-lesson HUD */
   #lessonHud{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:8;display:none;
     align-items:center;gap:10px;background:rgba(20,16,32,.94);border:1px solid var(--line);border-radius:12px;
@@ -271,6 +287,9 @@
       <button class="tb" id="btnOpen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Abrir</button>
     </div>
     <div class="grp">
+      <button class="tb" id="btnAnim" title="Modo animação (quadro a quadro)">🎬 Animação</button>
+    </div>
+    <div class="grp">
       <button class="tb" id="btnExport" style="background:linear-gradient(135deg,var(--accent),#5a3fd6);border-color:transparent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Exportar</button>
     </div>
     <button class="tb ghost" id="btnHelp" title="Ajuda / atalhos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7M12 17h.01"/></svg></button>
@@ -426,6 +445,19 @@
         <span>Tela <b id="stDim">—</b></span>
         <span>Cursor <b id="stPos">—</b></span>
         <span>Zoom <b id="stZoom">100%</b></span>
+      </div>
+      <div id="animBar">
+        <div class="ab-ctrls">
+          <button class="primary" id="anPlay" title="Play/Pause">▶ Play</button>
+          <button id="anAdd" title="Novo quadro em branco">+ Quadro</button>
+          <button id="anDup" title="Duplicar quadro atual">⧉ Duplicar</button>
+          <button id="anDel" title="Excluir quadro">🗑</button>
+          <label>FPS <input type="range" id="anFps" min="1" max="24" value="8"><b id="anFpsV" style="color:var(--accent2)">8</b></label>
+          <label class="toggle"><input type="checkbox" id="anOnion" checked><span class="sw"></span>Sombra do anterior</label>
+          <button id="anExport" title="Salvar como vídeo">⬇ Salvar vídeo</button>
+          <span id="anInfo"></span>
+        </div>
+        <div id="animFrames"></div>
       </div>
     </div>
 
@@ -710,6 +742,7 @@ const S={
   customSwatches:[],                    // paleta pessoal (localStorage)
   sel:null,                             // laço: {path:[{x,y}], float:{canvas,ox,oy}|null, moveStart}
   lesson:null,                          // aula de desenho: {id, i}
+  anim:{on:false, frames:null, i:0, fps:8, playing:false, onion:true, timer:null, onionImg:null}, // animação quadro a quadro
   // color as HSVA
   colH:255, colS:64, colV:100, colA:100, // hsv (h 0-360 stored /? we'll keep h 0-360)
   primary:{h:255,s:64,v:100,a:100},
@@ -925,6 +958,11 @@ function render(){
   vctx.fillStyle='#ffffff'; vctx.fillRect(0,0,S.docW,S.docH);
   vctx.restore();
   vctx.drawImage(checkerCanvas,0,0);
+
+  // onion skin: quadro anterior por transparência (só no modo animação, parado)
+  if(S.anim.on && S.anim.onion && !S.anim.playing && S.anim.onionImg){
+    vctx.globalAlpha=0.3; vctx.drawImage(S.anim.onionImg,0,0); vctx.globalAlpha=1;
+  }
 
   const usingStroke = S.drawing && ['brush','pencil','line','rect','ellipse','airbrush','text','gradient'].includes(S.tool);
   for(let i=0;i<S.layers.length;i++){
@@ -1617,6 +1655,7 @@ textedit.addEventListener('blur',()=>commitText());
 // ================================================================
 let activePointer=null;
 function pointerDown(e){
+  if(S.anim.playing){ stopAnim(); return; }   // clicar na tela durante o play pausa
   overlay.setPointerCapture&&overlay.setPointerCapture(e.pointerId);
   activePointer=e.pointerId;
   const doc=screenToDoc(e.clientX,e.clientY);
@@ -1882,6 +1921,7 @@ function renderLayerThumb(){
   // update only active layer thumbnail cheaply
   const el=document.querySelector(`.layer[data-i="${S.active}"] .thumb img`);
   if(el){try{el.src=activeLayer().canvas.toDataURL();}catch(e){}}
+  if(S.anim.on && S.anim.frames) updateFrameThumb(S.anim.i); // keep the current animation frame thumb fresh
 }
 function syncLayerControls(){
   const L=activeLayer(); if(!L)return;
@@ -2113,6 +2153,7 @@ function restoreAutosave(){
 }
 function applyProjectData(data, msg){
   if(!data||!data.layers)return false;
+  resetAnim();
   S.docW=data.w;S.docH=data.h;stroke.width=data.w;stroke.height=data.h;
   const layers=data.layers; let loaded=0;
   const built=new Array(layers.length);
@@ -2135,6 +2176,7 @@ function applyProjectData(data, msg){
 //  NEW / RESIZE / IMPORT / EXPORT / SAVE / OPEN
 // ================================================================
 function initDoc(w,h,bg){
+  resetAnim();
   S.docW=w;S.docH=h;
   stroke.width=w;stroke.height=h;
   S.layers=[]; S.layerSeq=1;
@@ -2156,7 +2198,7 @@ function doResize(){
   const w=clamp(parseInt(document.getElementById('rsW').value)||S.docW,1,8000);
   const h=clamp(parseInt(document.getElementById('rsH').value)||S.docH,1,8000);
   const scale=document.getElementById('rsScale').checked;
-  closeModals();
+  closeModals(); resetAnim();
   const ow=S.docW, oh=S.docH;
   const prev=S.layers.map(L=>L.canvas.getContext('2d').getImageData(0,0,ow,oh));
   S.docW=w;S.docH=h; stroke.width=w;stroke.height=h;
@@ -2478,6 +2520,110 @@ function lessonStep(dir){
 function endLesson(done){ S.lesson=null; document.getElementById('lessonHud').style.display='none'; renderOverlay(); if(done)toast('🎉 Desenho concluído! Mandou bem!'); }
 
 // ================================================================
+//  ANIMAÇÃO (quadro a quadro / flipbook)
+// ================================================================
+function flattenLayers(layers){
+  const c=makeLayerCanvas(), x=c.getContext('2d');
+  for(const L of layers){ if(!L.visible)continue; x.globalAlpha=L.opacity/100; x.globalCompositeOperation=L.blend; x.drawImage(L.canvas,0,0); }
+  x.globalAlpha=1; x.globalCompositeOperation='source-over'; return c;
+}
+function cloneLayer(L){ const c=makeLayerCanvas(), x=c.getContext('2d'); x.drawImage(L.canvas,0,0);
+  return {id:S.layerSeq++, name:L.name, canvas:c, ctx:x, visible:L.visible, opacity:L.opacity, blend:L.blend}; }
+function resetAnim(){ const A=S.anim; if(A.timer)clearInterval(A.timer);
+  A.on=false; A.frames=null; A.i=0; A.playing=false; A.timer=null; A.onionImg=null;
+  const bar=document.getElementById('animBar'); if(bar)bar.style.display='none';
+  const btn=document.getElementById('btnAnim'); if(btn)btn.classList.remove('act'); }
+function toggleAnim(){
+  const A=S.anim;
+  if(A.on){ stopAnim(); A.on=false; document.getElementById('animBar').style.display='none'; document.getElementById('btnAnim').classList.remove('act'); render(); return; }
+  if(!A.frames){ A.frames=[{layers:S.layers, active:S.active}]; A.i=0; A.onionImg=null; }
+  A.on=true; document.getElementById('animBar').style.display='flex'; document.getElementById('btnAnim').classList.add('act');
+  renderFrames(); render(); toast('🎬 Modo animação — crie quadros e dê Play');
+}
+function gotoFrame(n, light){
+  const A=S.anim; if(!A.frames)return;
+  A.frames[A.i].active=S.active;
+  A.i=clamp(n,0,A.frames.length-1);
+  const f=A.frames[A.i]; S.layers=f.layers; S.active=clamp(f.active,0,f.layers.length-1);
+  A.onionImg=(!A.playing && A.onion && A.i>0)?flattenLayers(A.frames[A.i-1].layers):null;
+  if(!light){ renderLayerList(); syncLayerControls(); }
+  updateFramesUI(); render(); renderOverlay();
+}
+function addFrame(dup){
+  const A=S.anim; if(!A.frames)return;
+  A.frames[A.i].active=S.active;
+  const layers = dup ? A.frames[A.i].layers.map(cloneLayer) : [ newLayer('Camada 1', null) ];
+  A.frames.splice(A.i+1,0,{layers, active:0});
+  renderFrames(); gotoFrame(A.i+1); scheduleAutosave();
+  toast(dup?'Quadro duplicado':'Quadro em branco criado');
+}
+function delFrame(){
+  const A=S.anim; if(!A.frames)return;
+  if(A.frames.length<=1){ toast('Precisa de pelo menos 1 quadro'); return; }
+  A.frames.splice(A.i,1);
+  if(A.i>=A.frames.length)A.i=A.frames.length-1;
+  const f=A.frames[A.i]; S.layers=f.layers; S.active=clamp(f.active,0,f.layers.length-1);
+  A.onionImg=(A.onion && A.i>0)?flattenLayers(A.frames[A.i-1].layers):null;
+  renderFrames(); renderLayerList(); syncLayerControls(); render(); renderOverlay(); scheduleAutosave();
+}
+function playAnim(){
+  const A=S.anim;
+  if(A.playing){ stopAnim(); return; }
+  if(!A.frames||A.frames.length<2){ toast('Adicione mais quadros para animar'); return; }
+  A.playing=true; A.onionImg=null;
+  const btn=document.getElementById('anPlay'); if(btn)btn.textContent='⏸ Pausar';
+  A.timer=setInterval(()=>gotoFrame((A.i+1)%A.frames.length, true), 1000/A.fps);
+  render();
+}
+function stopAnim(){
+  const A=S.anim; A.playing=false;
+  if(A.timer){ clearInterval(A.timer); A.timer=null; }
+  const btn=document.getElementById('anPlay'); if(btn)btn.textContent='▶ Play';
+  if(A.on){ A.onionImg=(A.onion && A.i>0)?flattenLayers(A.frames[A.i-1].layers):null; renderLayerList(); syncLayerControls(); render(); renderOverlay(); }
+}
+function updateFramesInfo(){ const el=document.getElementById('anInfo'); if(el&&S.anim.frames)el.textContent='Quadro '+(S.anim.i+1)+'/'+S.anim.frames.length; }
+function updateFramesUI(){
+  document.querySelectorAll('#animFrames .afr').forEach(d=>d.classList.toggle('on', +d.dataset.i===S.anim.i));
+  updateFramesInfo();
+  const cur=document.querySelector('#animFrames .afr[data-i="'+S.anim.i+'"]'); if(cur&&cur.scrollIntoView)cur.scrollIntoView({inline:'nearest',block:'nearest'});
+}
+function updateFrameThumb(n){
+  const A=S.anim; if(!A.frames||!A.frames[n])return;
+  const cv=document.querySelector('#animFrames .afr[data-i="'+n+'"] canvas'); if(!cv)return;
+  const fl=flattenLayers(A.frames[n].layers), ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height); ctx.fillStyle='#fff'; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.drawImage(fl,0,0,S.docW,S.docH,0,0,cv.width,cv.height);
+}
+function renderFrames(){
+  const el=document.getElementById('animFrames'); if(!el)return; el.innerHTML='';
+  const A=S.anim; if(!A.frames)return;
+  const tw=80, th=Math.max(30,Math.round(tw*S.docH/S.docW));
+  A.frames.forEach((f,i)=>{
+    const d=document.createElement('div'); d.className='afr'+(i===A.i?' on':''); d.dataset.i=i;
+    const cv=document.createElement('canvas'); cv.width=tw; cv.height=th; d.appendChild(cv);
+    const tag=document.createElement('div'); tag.className='afn'; tag.textContent=(i+1); d.appendChild(tag);
+    d.onclick=()=>{ if(!A.playing) gotoFrame(i); };
+    el.appendChild(d); updateFrameThumb(i);
+  });
+  updateFramesInfo();
+}
+function exportAnim(){
+  const A=S.anim; if(!A.frames||!A.frames.length){ toast('Sem quadros'); return; }
+  if(typeof MediaRecorder==='undefined'){ toast('Seu navegador não suporta salvar vídeo'); return; }
+  stopAnim();
+  const c=makeLayerCanvas(), x=c.getContext('2d');
+  let stream; try{ stream=c.captureStream(A.fps); }catch(e){ toast('Exportar vídeo indisponível aqui'); return; }
+  let rec; try{ rec=new MediaRecorder(stream,{mimeType:'video/webm'}); }catch(e){ try{ rec=new MediaRecorder(stream); }catch(e2){ toast('Vídeo indisponível'); return; } }
+  const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size)chunks.push(e.data); };
+  rec.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'}); const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='animacao.webm'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),5000); toast('🎬 Vídeo salvo (animacao.webm)'); };
+  const loops=3, total=A.frames.length*loops; let k=0;
+  const drawFrame=()=>{ x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(flattenLayers(A.frames[k%A.frames.length].layers),0,0); };
+  toast('Gravando animação…'); rec.start(); drawFrame();
+  const iv=setInterval(()=>{ k++; if(k>=total){ clearInterval(iv); setTimeout(()=>{ try{rec.stop();}catch(e){} }, 1000/A.fps); return; } drawFrame(); }, 1000/A.fps);
+}
+
+// ================================================================
 //  EVENT WIRING
 // ================================================================
 function wire(){
@@ -2558,6 +2704,15 @@ function wire(){
   document.getElementById('fotoUrl').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();useFotoUrl();} });
   buildLessonPicker();
   document.getElementById('btnTutorial').onclick=()=>openModal('modalLesson');
+  // animação
+  document.getElementById('btnAnim').onclick=toggleAnim;
+  document.getElementById('anPlay').onclick=playAnim;
+  document.getElementById('anAdd').onclick=()=>addFrame(false);
+  document.getElementById('anDup').onclick=()=>addFrame(true);
+  document.getElementById('anDel').onclick=delFrame;
+  document.getElementById('anFps').addEventListener('input',e=>{ S.anim.fps=+e.target.value; document.getElementById('anFpsV').textContent=e.target.value; if(S.anim.playing){ stopAnim(); playAnim(); } });
+  document.getElementById('anOnion').onchange=e=>{ S.anim.onion=e.target.checked; S.anim.onionImg=(S.anim.onion&&S.anim.i>0&&S.anim.frames)?flattenLayers(S.anim.frames[S.anim.i-1].layers):null; render(); };
+  document.getElementById('anExport').onclick=exportAnim;
   document.getElementById('lessonTour').onclick=()=>{ closeModals(); startTour(); };
   document.getElementById('lhPrev').onclick=()=>lessonStep(-1);
   document.getElementById('lhNext').onclick=()=>lessonStep(1);
