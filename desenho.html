@@ -2477,6 +2477,22 @@ const LESSONS={
     {label:'Raios (laranja)',color:[245,140,40],size:9,shapes:(()=>{const a=[];for(let i=0;i<8;i++){const t=i/8*Math.PI*2;a.push(LN([[0.5+Math.cos(t)*0.26,0.5+Math.sin(t)*0.26],[0.5+Math.cos(t)*0.4,0.5+Math.sin(t)*0.4]]));}return a;})()},
     {label:'Sorriso (marrom)',color:[120,80,50],size:7,shapes:[LN([[0.42,0.54],[0.46,0.6],[0.54,0.6],[0.58,0.54]])]},
   ]},
+  // --- estilo fofo/cartoon (personagens genéricos) para treinar proporções ---
+  rostofofo:{emoji:'😊',name:'Rosto fofo',steps:[
+    {label:'Cabeça (contorno) — bem redonda',color:[60,60,72],size:7,shapes:[C(0.5,0.47,0.33)]},
+    {label:'Olhos grandes (preto)',color:[40,40,50],size:8,shapes:[E(0.4,0.5,0.06,0.09),E(0.6,0.5,0.06,0.09)]},
+    {label:'Boca (sorriso)',color:[60,60,72],size:6,shapes:[LN([[0.43,0.64],[0.5,0.69],[0.57,0.64]])]},
+    {label:'Bochechas (rosa)',color:[242,150,175],size:9,shapes:[C(0.32,0.59,0.035),C(0.68,0.59,0.035)]},
+    {label:'Cabelo/franja (marrom)',color:[120,80,50],size:8,shapes:[P([[0.19,0.42],[0.3,0.19],[0.41,0.34],[0.5,0.16],[0.59,0.34],[0.7,0.19],[0.81,0.42]],false)]},
+  ]},
+  chibi:{emoji:'🧒',name:'Boneco chibi',steps:[
+    {label:'Cabeça grande',color:[60,60,72],size:7,shapes:[C(0.5,0.3,0.2)]},
+    {label:'Olhos grandes',color:[40,40,50],size:7,shapes:[E(0.43,0.32,0.045,0.065),E(0.57,0.32,0.045,0.065)]},
+    {label:'Sorriso',color:[60,60,72],size:5,shapes:[LN([[0.45,0.4],[0.5,0.435],[0.55,0.4]])]},
+    {label:'Corpo (pequeno)',color:[90,150,220],size:8,shapes:[P([[0.41,0.5],[0.59,0.5],[0.61,0.74],[0.39,0.74]])]},
+    {label:'Braços',color:[90,150,220],size:7,shapes:[LN([[0.41,0.54],[0.31,0.66]]),LN([[0.59,0.54],[0.69,0.66]])]},
+    {label:'Pernas',color:[70,70,90],size:8,shapes:[LN([[0.45,0.74],[0.45,0.88]]),LN([[0.55,0.74],[0.55,0.88]])]},
+  ]},
 };
 function lessonMap(){ const s0=Math.min(S.docW,S.docH)*0.82, ox=(S.docW-s0)/2, oy=(S.docH-s0)/2; return {X:n=>ox+n*s0, Y:n=>oy+n*s0, U:n=>n*s0}; }
 function strokeShapes(ctx,shapes,map){
