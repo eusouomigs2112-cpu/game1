@@ -110,6 +110,12 @@
   #profInput{display:flex;gap:6px;padding:9px;border-top:1px solid var(--line)}
   #profInput input{flex:1;background:#0d0a16;border:1px solid var(--line);border-radius:9px;color:#fff;padding:8px 10px;font-size:12.5px;outline:none}
   #profInput button{background:linear-gradient(135deg,var(--accent),#5a3fd6);border:none;color:#fff;border-radius:9px;padding:0 14px;font-size:13px;cursor:pointer}
+  #profSettings{display:none;flex-direction:column;gap:7px;padding:10px;border-bottom:1px solid var(--line);background:#171225}
+  #profSettings input{background:#0d0a16;border:1px solid var(--line);border-radius:8px;color:#fff;padding:7px 9px;font-size:12px;outline:none}
+  #profSettings .ai-note{font-size:10.5px;color:var(--mut);line-height:1.4}
+  #profSettings .btn{align-self:flex-start;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:#1b1630;color:#fff;font-size:12px;cursor:pointer}
+  #profSettings .btn.primary{background:linear-gradient(135deg,var(--accent),#5a3fd6);border-color:transparent}
+  #profMode.on{color:var(--accent2)}
   /* balão de dica proativa do Prof. Pix */
   #profTip{position:absolute;right:12px;top:54px;z-index:9;max-width:250px;display:none;gap:8px;
     background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:9px 11px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
@@ -470,8 +476,18 @@
       <div id="profPanel">
         <div class="ph">
           <span id="profAvatar"></span>
-          <div><b>Prof. Pix</b><span>seu ajudante de desenho</span></div>
+          <div><b>Prof. Pix</b><span id="profMode">modo offline</span></div>
+          <button class="x" id="profGear" title="Ligar IA online">⚙️</button>
           <button class="x" id="profClose" title="Fechar">✕</button>
+        </div>
+        <div id="profSettings">
+          <label class="toggle"><input type="checkbox" id="aiOn"><span class="sw"></span>Usar IA de verdade (Claude, online)</label>
+          <input id="aiKey" type="password" placeholder="Cole sua chave da API Anthropic (sk-ant-...)" spellcheck="false" autocomplete="off">
+          <input id="aiModel" placeholder="Modelo (ex.: claude-3-5-haiku-latest)" spellcheck="false">
+          <label class="toggle"><input type="checkbox" id="aiVision" checked><span class="sw"></span>Deixar ele ver meu desenho 👁️</label>
+          <label class="toggle"><input type="checkbox" id="aiAuto" checked><span class="sw"></span>Ajudar sozinho (sem eu pedir)</label>
+          <div class="ai-note">🔒 A chave fica só no SEU navegador. Precisa de internet e usa créditos da sua conta Anthropic. Abra o app no navegador (não na pré-visualização).</div>
+          <button class="btn primary" id="aiSave">Salvar</button>
         </div>
         <div id="profMsgs"></div>
         <div id="profSugs"></div>
@@ -909,6 +925,7 @@ function pushHist(entry){
   HIST.idx=HIST.stack.length-1;
   updateUndoButtons();
   if(typeof scheduleAutosave==='function')scheduleAutosave();
+  if(typeof scheduleAiReview==='function')scheduleAiReview();
 }
 function undo(){
   if(HIST.idx<0)return;
@@ -2888,7 +2905,48 @@ const FAQ=[
 function normp(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 let profGreeted=false;
 function addProfMsg(txt,who){ const m=document.createElement('div'); m.className='pm '+(who||'bot'); m.textContent=txt;
-  const box=document.getElementById('profMsgs'); box.appendChild(m); box.scrollTop=box.scrollHeight; }
+  const box=document.getElementById('profMsgs'); box.appendChild(m); box.scrollTop=box.scrollHeight; return m; }
+// ---- IA online (Claude) — usa a chave do próprio usuário, guardada só no navegador ----
+let aiOn=false, aiVision=true, aiAuto=true, aiHist=[];
+try{ aiOn=localStorage.getItem('ed_ai_on')==='1'; aiVision=localStorage.getItem('ed_ai_vision')!=='0'; aiAuto=localStorage.getItem('ed_ai_auto')!=='0'; }catch(e){}
+const AI_SYS='Você é o Prof. Pix, um mascote-professor simpático dentro de um app de desenho casual. Responda SEMPRE em português do Brasil, curto (máx ~4 frases), amigável e encorajador. Ajude com desenho, animação e como usar o app (pincel, camadas, laço, balde, pipeta, cores, quadros de animação e som). Quando receber a imagem do desenho, dê dicas específicas e gentis sobre ela. NUNCA reproduza nem ensine a copiar personagens/obras registradas; incentive versões próprias. Emojis com moderação.';
+function aiKey(){ try{ return (localStorage.getItem('ed_ai_key')||'').trim(); }catch(e){ return ''; } }
+function aiModel(){ try{ return (localStorage.getItem('ed_ai_model')||'').trim()||'claude-3-5-haiku-latest'; }catch(e){ return 'claude-3-5-haiku-latest'; } }
+function aiEnabled(){ return aiOn && !!aiKey(); }
+function flattenForAI(){
+  try{ const src=flattenLayers(S.layers); const maxD=768, sc=Math.min(1,maxD/Math.max(S.docW,S.docH));
+    const w=Math.max(1,Math.round(S.docW*sc)), h=Math.max(1,Math.round(S.docH*sc));
+    const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d');
+    x.fillStyle='#fff'; x.fillRect(0,0,w,h); x.drawImage(src,0,0,w,h);
+    return c.toDataURL('image/png').split(',')[1];
+  }catch(e){ return null; }
+}
+async function aiReply(q, withImage){
+  const key=aiKey(); if(!key)throw new Error('sem chave');
+  const content=[{type:'text',text:q}];
+  if(withImage && aiVision){ const img=flattenForAI(); if(img)content.unshift({type:'image',source:{type:'base64',media_type:'image/png',data:img}}); }
+  const msgs=aiHist.slice(-6).concat([{role:'user',content}]);
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:aiModel(),max_tokens:400,system:AI_SYS,messages:msgs})});
+  if(!r.ok){ let t=''; try{ t=((await r.json()).error||{}).message||''; }catch(e){} throw new Error('HTTP '+r.status+(t?' — '+t:'')); }
+  const d=await r.json(); const text=(d.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('').trim();
+  aiHist.push({role:'user',content:q}); aiHist.push({role:'assistant',content:text}); if(aiHist.length>12)aiHist=aiHist.slice(-12);
+  return text||'(sem resposta)';
+}
+let aiReviewTimer=null, aiLastReview=0, aiReviewing=false;
+function scheduleAiReview(){ if(!(aiEnabled()&&aiAuto))return; clearTimeout(aiReviewTimer); aiReviewTimer=setTimeout(runAiReview,22000); }
+async function runAiReview(){
+  if(!(aiEnabled()&&aiAuto)||aiReviewing)return;
+  if(Date.now()-aiLastReview<60000)return;
+  if(S.drawing||(S.anim&&S.anim.playing))return;
+  aiReviewing=true;
+  try{ const tip=await aiReply('Olhe meu desenho e me dê UMA dica curta, gentil e específica pra melhorar (1–2 frases). Só a dica.',true); aiLastReview=Date.now(); if(tip)showProfTip('🟣 '+tip); }
+  catch(e){}
+  aiReviewing=false;
+}
+function updateProfMode(){ const el=document.getElementById('profMode'); if(!el)return; const on=aiEnabled(); el.textContent=on?'IA online (Claude) 🌐':'modo offline'; el.classList.toggle('on',on);
+  const btn=document.getElementById('btnProf'); if(btn)btn.title=on?'Prof. Pix (IA online)':'Prof. Pix — tire dúvidas'; }
 const IP_NAMES=['double king','doubleking','pikachu','pukasi','pokemon','beast brother','beast broter','mario','sonic','naruto','goku','dragon ball','disney','minecraft','fortnite','among us','hello kitty','bob esponja','spongebob','homem aranha','batman'];
 let profRot=0;
 function tryMath(n){
@@ -2941,10 +2999,16 @@ function profReply(q){
   // 4) fallback amigável
   return 'Ainda não manjo desse assunto 😅, mas eu ajudo com DESENHO e o app! Tente: "como eu pinto?", "como faço camadas?", "como animo?", "como uso o laço?", "como salvo?".';
 }
-function profAsk(q){ q=(q||'').trim(); if(!q)return; addProfMsg(q,'me');
+async function profAsk(q){ q=(q||'').trim(); if(!q)return; addProfMsg(q,'me');
   const n=normp(q);
   if(/(desativ|desliga|parar|tira|sem|nao quero).{0,12}(dica|dicas)/.test(n)){ tipsOff(); setTimeout(()=>addProfMsg('Ok, desliguei as dicas automáticas. Peça "ativar dicas" quando quiser de volta. 👍','bot'),140); return; }
   if(/((^|[^s])ativ|ligar|liga|voltar|quero).{0,12}(dica|dicas)|dicas? (on|de novo|ligad)/.test(n)){ profTipsOn=true; try{localStorage.setItem('ed_tips','1');}catch(e){} startIdleTips(); setTimeout(()=>addProfMsg('Prontinho, dicas ligadas! 💜 Vou te dar dicas conforme você usa as ferramentas.','bot'),140); return; }
+  if(aiEnabled()){
+    const ph=addProfMsg('… pensando 💭','bot');
+    try{ ph.textContent=await aiReply(q, true); }
+    catch(e){ ph.textContent='(IA indisponível: '+(e.message||'erro')+')\n'+profReply(q); }
+    const box=document.getElementById('profMsgs'); box.scrollTop=box.scrollHeight; return;
+  }
   setTimeout(()=>addProfMsg(profReply(q),'bot'),140);
 }
 // ---- dicas proativas (ajuda sem você pedir) ----
@@ -2990,6 +3054,7 @@ function startIdleTips(){ if(tipTimer)clearInterval(tipTimer); tipTimer=setInter
 function openProf(){
   const pan=document.getElementById('profPanel'); pan.style.display='flex';
   document.getElementById('profAvatar').innerHTML=MASCOT_SVG;
+  updateProfMode();
   if(!profGreeted){ profGreeted=true;
     addProfMsg('Oi! 👋 Eu sou o Prof. Pix, seu ajudante de desenho. Me pergunte qualquer coisa sobre o app — ou toque numa sugestão abaixo!','bot');
     const sugs=['Como eu pinto?','Como faço camadas?','Como animo?','Como uso o laço?','Como salvo?'];
@@ -3088,6 +3153,19 @@ function wire(){
   document.getElementById('profQ').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); profAsk(e.target.value); e.target.value=''; } });
   document.getElementById('profTipX').onclick=()=>{ document.getElementById('profTip').style.display='none'; };
   document.getElementById('profTipOff').onclick=tipsOff;
+  // IA online (configurações)
+  document.getElementById('profGear').onclick=()=>{ const s=document.getElementById('profSettings'); const show=s.style.display!=='flex';
+    if(show){ document.getElementById('aiOn').checked=aiOn; document.getElementById('aiVision').checked=aiVision; document.getElementById('aiAuto').checked=aiAuto;
+      try{ document.getElementById('aiKey').value=localStorage.getItem('ed_ai_key')||''; document.getElementById('aiModel').value=localStorage.getItem('ed_ai_model')||''; }catch(e){} }
+    s.style.display=show?'flex':'none'; };
+  document.getElementById('aiSave').onclick=()=>{
+    aiOn=document.getElementById('aiOn').checked; aiVision=document.getElementById('aiVision').checked; aiAuto=document.getElementById('aiAuto').checked;
+    try{ localStorage.setItem('ed_ai_on',aiOn?'1':'0'); localStorage.setItem('ed_ai_vision',aiVision?'1':'0'); localStorage.setItem('ed_ai_auto',aiAuto?'1':'0');
+      localStorage.setItem('ed_ai_key',document.getElementById('aiKey').value.trim()); localStorage.setItem('ed_ai_model',document.getElementById('aiModel').value.trim()); }catch(e){}
+    document.getElementById('profSettings').style.display='none'; updateProfMode();
+    toast(aiEnabled()?'🌐 IA online ligada! Agora o Prof. Pix consulta o Claude.':(aiOn?'Ligue a IA e cole sua chave pra usar online':'IA online desligada'));
+    if(aiEnabled()) addProfMsg('Modo online ligado! Agora eu consulto uma IA de verdade e consigo ver seu desenho pra ajudar. 🌐👁️','bot');
+  };
   // animação
   document.getElementById('btnAnim').onclick=toggleAnim;
   document.getElementById('anPlay').onclick=playAnim;
