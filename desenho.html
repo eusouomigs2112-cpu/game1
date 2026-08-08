@@ -2877,6 +2877,13 @@ const FAQ=[
   {k:['copiar','colar','duplicar parte'],a:'✂️ Pra reaproveitar um pedaço: use o Laço, contorne e arraste pra mover. Pra repetir, é só desenhar de novo — ou duplicar a camada inteira no painel de camadas.'},
   {k:['piada','conta uma piada','engracado','me faz rir'],a:'😆 Por que o lápis foi ao médico? Porque estava se sentindo meio "sem ponta"! Agora bora desenhar 😄'},
   {k:['voce e legal','voce e bom','gostei de voce','voce e otimo','muito bom'],a:'Aaah, obrigado! 🥰 Você é quem tá mandando bem. Bora desenhar mais!'},
+  {k:['como vai','tudo bem','como voce esta','como vc ta','como voce ta','beleza'],a:'Tô ótimo, obrigado! 😄 E pronto pra te ajudar a desenhar. E você, bora criar o quê hoje?'},
+  {k:['voce e real','voce e uma ia','voce e robo','voce e um robo','voce pensa','voce dorme','voce e humano'],a:'Sou um ajudante que mora dentro deste app 🤖 (funciono offline, sem internet). Não sou tão esperto quanto uma IA da internet, mas mando muito bem em desenho e no app!'},
+  {k:['seu nome','como voce se chama'],a:'Meu nome é Prof. Pix! 🟣 Seu ajudante de desenho.'},
+  {k:['quantos anos','sua idade','idade'],a:'Ah, eu nasci quando você abriu o app 😄. Idade não conta pra quem gosta de desenhar!'},
+  {k:['bom dia'],a:'Bom dia! ☀️ Que tal começar o dia desenhando algo?'},
+  {k:['boa noite'],a:'Boa noite! 🌙 Ótima hora pra desenhar algo tranquilo.'},
+  {k:['tchau','ate mais','flw','adeus'],a:'Até mais! 👋 Volte quando quiser. Bom desenho!'},
 ];
 function normp(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 let profGreeted=false;
@@ -2884,8 +2891,27 @@ function addProfMsg(txt,who){ const m=document.createElement('div'); m.className
   const box=document.getElementById('profMsgs'); box.appendChild(m); box.scrollTop=box.scrollHeight; }
 const IP_NAMES=['double king','doubleking','pikachu','pukasi','pokemon','beast brother','beast broter','mario','sonic','naruto','goku','dragon ball','disney','minecraft','fortnite','among us','hello kitty','bob esponja','spongebob','homem aranha','batman'];
 let profRot=0;
+function tryMath(n){
+  // raiz de N
+  let m=n.match(/raiz (?:quadrada )?(?:de )?(\d+(?:\.\d+)?)/);
+  if(m){ const v=Math.sqrt(parseFloat(m[1])); return 'A raiz de '+m[1]+' é '+(Math.round(v*1000)/1000)+' 🧮'; }
+  // N% de M
+  let pm=n.match(/(\d+(?:\.\d+)?)\s*(?:%|por cento)\s*(?:de|do|da)\s*(\d+(?:\.\d+)?)/);
+  if(pm){ const v=parseFloat(pm[1])/100*parseFloat(pm[2]); return pm[1]+'% de '+pm[2]+' é '+(Math.round(v*10000)/10000)+' 🧮'; }
+  // aritmética simples
+  let s=n.replace(/vezes|×/g,'*').replace(/dividido por|÷/g,'/').replace(/mais/g,'+').replace(/menos/g,'-').replace(/\bx\b/g,'*').replace(/,/g,'.');
+  const expr=(s.match(/[-+*/().\d ]+/g)||[]).join(' ').trim();
+  if(/\d/.test(expr) && /[-+*/]/.test(expr) && /^[-+*/(). \d]+$/.test(expr) && expr.length<40){
+    try{ const r=Function('"use strict";return ('+expr+')')(); if(typeof r==='number'&&isFinite(r)) return 'Dá '+(Math.round(r*10000)/10000)+'! 🧮'; }catch(e){}
+  }
+  return null;
+}
 function profReply(q){
   const n=normp(q);
+  // matemática / hora / data (respostas "espertas" offline)
+  if(/(quanto|calcul|resultado|raiz|por cento|\d\s*[-+*/x×÷]\s*\d|%\s*de)/.test(n)){ const mm=tryMath(n); if(mm)return mm; }
+  if(/(que horas|hora agora|horario|que hora)/.test(n)){ try{return '🕐 Agora são '+new Date().toLocaleTimeString('pt-BR');}catch(e){} }
+  if(/(que dia (e|eh|é)|data de hoje|dia de hoje|hoje (e|eh|é) que dia)/.test(n)){ try{return '📅 Hoje é '+new Date().toLocaleDateString('pt-BR');}catch(e){} }
   const anim=/(anima|quadro|gif|video|movimen|mexer|flipbook)/.test(n);
   // 0) conversa: o que você faz / sugestão / dica
   if(/(o que|oque|q).*(voce faz|vc faz|voce pode|vc pode|voce sabe|vc sabe)|pra que (voce |vc |)serve|suas funcoes|o que da pra fazer/.test(n))
