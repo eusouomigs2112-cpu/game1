@@ -118,6 +118,8 @@
   #animBar .ab-ctrls button{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#1b1630;color:var(--txt);font-size:12px;white-space:nowrap}
   #animBar .ab-ctrls button.primary{background:linear-gradient(135deg,var(--accent),#5a3fd6);border-color:transparent}
   #animBar .ab-ctrls label{display:inline-flex;align-items:center;gap:5px}
+  #animBar .ab-ctrls select{background:#1b1630;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 6px;font-size:12px}
+  #animBar .ab-sep{opacity:.3}
   #animBar .ab-ctrls input[type=range]{width:90px}
   #animFrames{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;min-height:66px}
   #animFrames .afr{position:relative;flex:0 0 auto;width:80px;height:58px;border-radius:7px;border:2px solid var(--line);
@@ -484,6 +486,19 @@
           <button id="anGuide" title="Animações prontas para treinar">✨ Guiada</button>
           <label>FPS <input type="range" id="anFps" min="1" max="24" value="8"><b id="anFpsV" style="color:var(--accent2)">8</b></label>
           <label class="toggle"><input type="checkbox" id="anOnion" checked><span class="sw"></span>Sombra do anterior</label>
+          <span class="ab-sep">•</span>
+          <button id="anMic" title="Gravar som do microfone">🎤 Gravar</button>
+          <select id="anSfx" title="Sons prontos">
+            <option value="">🔇 Sem som</option>
+            <option value="pop">🔊 Pop</option>
+            <option value="boing">🔊 Boing</option>
+            <option value="whoosh">🔊 Whoosh</option>
+            <option value="ding">🔊 Ding</option>
+            <option value="laser">🔊 Laser</option>
+            <option value="batida">🔊 Batida</option>
+          </select>
+          <button id="anSoundTest" title="Testar o som">🔈</button>
+          <span id="anSoundLbl" style="font-size:11px;color:var(--accent2)"></span>
           <button id="anExport" title="Salvar como vídeo">⬇ Salvar vídeo</button>
           <span id="anInfo"></span>
         </div>
@@ -2589,8 +2604,8 @@ function flattenLayers(layers){
 }
 function cloneLayer(L){ const c=makeLayerCanvas(), x=c.getContext('2d'); x.drawImage(L.canvas,0,0);
   return {id:S.layerSeq++, name:L.name, canvas:c, ctx:x, visible:L.visible, opacity:L.opacity, blend:L.blend}; }
-function resetAnim(){ const A=S.anim; if(A.timer)clearInterval(A.timer);
-  A.on=false; A.frames=null; A.i=0; A.playing=false; A.timer=null; A.onionImg=null; S.animGuide=null;
+function resetAnim(){ const A=S.anim; if(A.timer)clearInterval(A.timer); try{stopSound&&stopSound();}catch(e){}
+  A.on=false; A.frames=null; A.i=0; A.playing=false; A.timer=null; A.onionImg=null; A.sound=null; S.animGuide=null;
   const bar=document.getElementById('animBar'); if(bar)bar.style.display='none';
   const btn=document.getElementById('btnAnim'); if(btn)btn.classList.remove('act'); }
 function toggleAnim(){
@@ -2632,11 +2647,13 @@ function playAnim(){
   if(!A.frames||A.frames.length<2){ toast('Adicione mais quadros para animar'); return; }
   A.playing=true; A.onionImg=null;
   const btn=document.getElementById('anPlay'); if(btn)btn.textContent='⏸ Pausar';
-  A.timer=setInterval(()=>gotoFrame((A.i+1)%A.frames.length, true), 1000/A.fps);
+  startSound();
+  A.timer=setInterval(()=>{ const nx=(A.i+1)%A.frames.length; gotoFrame(nx, true); if(nx===0) loopSound(); }, 1000/A.fps);
   render();
 }
 function stopAnim(){
   const A=S.anim; A.playing=false;
+  stopSound();
   if(A.timer){ clearInterval(A.timer); A.timer=null; }
   const btn=document.getElementById('anPlay'); if(btn)btn.textContent='▶ Play';
   if(A.on){ A.onionImg=(A.onion && A.i>0)?flattenLayers(A.frames[A.i-1].layers):null; renderLayerList(); syncLayerControls(); render(); renderOverlay(); }
@@ -2673,14 +2690,59 @@ function exportAnim(){
   stopAnim();
   const c=makeLayerCanvas(), x=c.getContext('2d');
   let stream; try{ stream=c.captureStream(A.fps); }catch(e){ toast('Exportar vídeo indisponível aqui'); return; }
+  // inclui o áudio (som escolhido) na trilha do vídeo
+  let audioEl=null, sfxLoop=false, adest=null;
+  try{ if(A.sound){ const cx=ac(); if(cx){ adest=cx.createMediaStreamDestination();
+      if(A.sound.kind==='mic'&&A.sound.url){ audioEl=new Audio(A.sound.url); audioEl.loop=true; cx.createMediaElementSource(audioEl).connect(adest); }
+      else if(A.sound.kind==='sfx'){ sfxLoop=true; }
+      adest.stream.getAudioTracks().forEach(tr=>stream.addTrack(tr));
+    } } }catch(e){}
   let rec; try{ rec=new MediaRecorder(stream,{mimeType:'video/webm'}); }catch(e){ try{ rec=new MediaRecorder(stream); }catch(e2){ toast('Vídeo indisponível'); return; } }
   const chunks=[]; rec.ondataavailable=e=>{ if(e.data&&e.data.size)chunks.push(e.data); };
   rec.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'}); const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download='animacao.webm'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),5000); toast('🎬 Vídeo salvo (animacao.webm)'); };
+    const a=document.createElement('a'); a.href=url; a.download='animacao.webm'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),5000);
+    if(audioEl){try{audioEl.pause();}catch(e){}} toast('🎬 Vídeo salvo (animacao.webm)'); };
   const loops=3, total=A.frames.length*loops; let k=0;
   const drawFrame=()=>{ x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(flattenLayers(A.frames[k%A.frames.length].layers),0,0); };
   toast('Gravando animação…'); rec.start(); drawFrame();
-  const iv=setInterval(()=>{ k++; if(k>=total){ clearInterval(iv); setTimeout(()=>{ try{rec.stop();}catch(e){} }, 1000/A.fps); return; } drawFrame(); }, 1000/A.fps);
+  if(audioEl){ try{ audioEl.currentTime=0; audioEl.play(); }catch(e){} }
+  if(sfxLoop&&adest) playSfx(A.sound.id,adest);
+  const iv=setInterval(()=>{ k++; if(k>=total){ clearInterval(iv); setTimeout(()=>{ try{rec.stop();}catch(e){} }, 1000/A.fps); return; } drawFrame(); if(sfxLoop&&adest&&k%A.frames.length===0)playSfx(A.sound.id,adest); }, 1000/A.fps);
+}
+// ---- som da animação: microfone ou sons prontos (sintetizados) ----
+let audioCtx=null;
+function ac(){ try{ if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended')audioCtx.resume(); }catch(e){} return audioCtx; }
+function playSfx(id, dest){
+  const c=ac(); if(!c)return; const t=c.currentTime, out=dest||c.destination;
+  const tone=(type,f0,f1,dur,gain)=>{ const o=c.createOscillator(),g=c.createGain(); o.type=type; o.frequency.setValueAtTime(f0,t); if(f1!=null)o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t+dur); g.gain.setValueAtTime(gain,t); g.gain.exponentialRampToValueAtTime(0.0008,t+dur); o.connect(g); g.connect(out); o.start(t); o.stop(t+dur+0.03); };
+  const noise=(dur,gain,lp)=>{ const n=c.createBufferSource(),b=c.createBuffer(1,Math.max(1,Math.floor(c.sampleRate*dur)),c.sampleRate),d=b.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; n.buffer=b; const g=c.createGain(); g.gain.setValueAtTime(gain,t); g.gain.exponentialRampToValueAtTime(0.0008,t+dur); if(lp){const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=lp;n.connect(f);f.connect(g);}else n.connect(g); g.connect(out); n.start(t); n.stop(t+dur+0.02); };
+  if(id==='pop') tone('sine',700,180,0.13,0.35);
+  else if(id==='boing') tone('triangle',160,480,0.22,0.35);
+  else if(id==='whoosh') noise(0.4,0.28,1400);
+  else if(id==='ding'){ tone('sine',880,null,0.5,0.3); tone('sine',1320,null,0.5,0.12); }
+  else if(id==='laser') tone('sawtooth',1400,120,0.28,0.25);
+  else if(id==='batida'){ tone('sine',150,45,0.2,0.5); noise(0.07,0.25,500); }
+}
+function startSound(){ const s=S.anim.sound; if(!s)return; if(s.kind==='mic'&&s.audio){ try{ s.audio.loop=true; s.audio.currentTime=0; s.audio.play(); }catch(e){} } else if(s.kind==='sfx') playSfx(s.id); }
+function loopSound(){ const s=S.anim.sound; if(s&&s.kind==='sfx') playSfx(s.id); }
+function stopSound(){ const s=S.anim.sound; if(s&&s.kind==='mic'&&s.audio){ try{ s.audio.pause(); }catch(e){} } }
+function testSound(){ const s=S.anim.sound; if(!s){ toast('Escolha um som ou grave do microfone 🎤'); return; }
+  if(s.kind==='mic'&&s.audio){ try{ s.audio.loop=false; s.audio.currentTime=0; s.audio.play(); }catch(e){} } else playSfx(s.id); }
+function updateSoundLbl(){ const el=document.getElementById('anSoundLbl'); if(!el)return; const s=S.anim.sound; el.textContent=!s?'':(s.kind==='mic'?'🎤 seu áudio':''); }
+let micRec=null, micChunks=[];
+async function micToggle(){
+  const btn=document.getElementById('anMic');
+  if(micRec && micRec.state==='recording'){ micRec.stop(); return; }
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ toast('Microfone não disponível neste navegador'); return; }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    micChunks=[]; micRec=new MediaRecorder(stream);
+    micRec.ondataavailable=e=>{ if(e.data&&e.data.size)micChunks.push(e.data); };
+    micRec.onstop=()=>{ const blob=new Blob(micChunks,{type:'audio/webm'}); const url=URL.createObjectURL(blob);
+      S.anim.sound={kind:'mic', audio:new Audio(url), url}; try{stream.getTracks().forEach(t=>t.stop());}catch(e){}
+      const sel=document.getElementById('anSfx'); if(sel)sel.value=''; updateSoundLbl(); if(btn)btn.textContent='🎤 Gravar'; toast('🎤 Áudio gravado! Dê ▶ Play pra ouvir'); };
+    micRec.start(); if(btn)btn.textContent='⏺ Parar'; toast('🎤 Gravando… clique em Parar quando terminar');
+  }catch(e){ toast('Não consegui usar o microfone — permita o acesso 😕'); }
 }
 
 // ---- animações guiadas: cria os quadros e mostra um risco em cada um ----
@@ -2923,6 +2985,9 @@ function wire(){
   document.getElementById('anFps').addEventListener('input',e=>{ S.anim.fps=+e.target.value; document.getElementById('anFpsV').textContent=e.target.value; if(S.anim.playing){ stopAnim(); playAnim(); } });
   document.getElementById('anOnion').onchange=e=>{ S.anim.onion=e.target.checked; S.anim.onionImg=(S.anim.onion&&S.anim.i>0&&S.anim.frames)?flattenLayers(S.anim.frames[S.anim.i-1].layers):null; render(); };
   document.getElementById('anExport').onclick=exportAnim;
+  document.getElementById('anMic').onclick=micToggle;
+  document.getElementById('anSfx').onchange=e=>{ const v=e.target.value; S.anim.sound=v?{kind:'sfx',id:v}:null; updateSoundLbl(); if(v)playSfx(v); };
+  document.getElementById('anSoundTest').onclick=testSound;
   buildAnimLessonPicker();
   document.getElementById('anGuide').onclick=()=>openModal('modalAnimLesson');
   document.getElementById('lessonTour').onclick=()=>{ closeModals(); startTour(); };
