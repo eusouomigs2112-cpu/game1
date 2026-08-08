@@ -1300,9 +1300,8 @@ function selCommitFloat(){
   const {canvas,ox,oy}=S.sel.float;
   L.ctx.drawImage(canvas, Math.round(ox), Math.round(oy));
   if(selMoveBefore){ pushPixelChange(L,selMoveBefore); selMoveBefore=null; }
-  S.sel.path=S.sel.path.map(p=>({x:p.x+ox,y:p.y+oy}));
-  S.sel.float=null;
-  render(); renderLayerThumb(); scheduleAutosave();
+  S.sel=null;   // laço some sozinho após mover a parte
+  render(); renderLayerThumb(); renderOverlay(); scheduleAutosave();
 }
 function selDeselect(){
   if(S.sel && S.sel.float) selCommitFloat();
@@ -1322,6 +1321,7 @@ function fillSelection(rgb){
   L.ctx.fillRect(0,0,S.docW,S.docH);
   L.ctx.restore();
   pushPixelChange(L,before);
+  S.sel=null;   // laço some sozinho após pintar a seleção
   addRecent(); render(); renderOverlay(); renderLayerThumb(); scheduleAutosave();
   toast('Seleção pintada');
 }
