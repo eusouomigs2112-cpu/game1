@@ -110,6 +110,13 @@
   #profInput{display:flex;gap:6px;padding:9px;border-top:1px solid var(--line)}
   #profInput input{flex:1;background:#0d0a16;border:1px solid var(--line);border-radius:9px;color:#fff;padding:8px 10px;font-size:12.5px;outline:none}
   #profInput button{background:linear-gradient(135deg,var(--accent),#5a3fd6);border:none;color:#fff;border-radius:9px;padding:0 14px;font-size:13px;cursor:pointer}
+  /* balão de dica proativa do Prof. Pix */
+  #profTip{position:absolute;right:12px;top:54px;z-index:9;max-width:250px;display:none;gap:8px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:9px 11px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  #profTip svg{width:28px;height:28px;flex:0 0 auto}
+  #profTip .tt{font-size:12px;line-height:1.4;color:#e9e5f5}
+  #profTip .ttoff{margin-top:5px;font-size:10.5px;color:var(--mut);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0}
+  #profTip .ttx{position:absolute;top:-8px;right:-8px;background:#2a2340;border:1px solid var(--line);color:#fff;width:20px;height:20px;border-radius:50%;font-size:11px;cursor:pointer;line-height:1}
 
   /* animation timeline */
   #animBar{position:absolute;left:0;right:0;bottom:0;z-index:7;display:none;flex-direction:column;gap:6px;
@@ -454,6 +461,11 @@
         <button id="btnFotos" title="Buscar fotos de referência">📷 Fotos</button>
         <button id="btnTutorial" title="Tutorial guiado">🎓 Tutorial</button>
         <button id="btnProf" title="Prof. Pix — tire dúvidas">🟣 Prof. Pix</button>
+      </div>
+      <div id="profTip">
+        <span id="profTipAv"></span>
+        <div><div class="tt" id="profTipTxt"></div><button class="ttoff" id="profTipOff">não mostrar dicas</button></div>
+        <button class="ttx" id="profTipX" title="Fechar">✕</button>
       </div>
       <div id="profPanel">
         <div class="ph">
@@ -1832,6 +1844,7 @@ function setTool(id){
   stage.classList.toggle('pan',id==='hand');
   overlay.style.cursor = id==='hand' ? 'grab' : 'crosshair';
   renderOverlay();
+  if(typeof maybeToolTip==='function') maybeToolTip(id);
 }
 
 function buildBrushPresets(){
@@ -2848,15 +2861,41 @@ const FAQ=[
   {k:['estilo','fofo','chibi','kawaii','treinar','aprender','dica','melhorar','proporcao'],a:'😊 Clique em "Tutorial" e escolha "Rosto fofo" ou "Boneco chibi". O segredo do estilo fofo: cabeça e olhos GRANDES, corpo pequeno, traço limpo e bochechas coradas. Treine cobrindo o risco!'},
   {k:['pikachu','pukasi','pokemon','personagem pronto','desenha o'],a:'Eu não posso copiar personagens registrados (tipo o Pikachu 😅), mas te ajudo a criar o SEU personagem fofo! Faça as aulas "Rosto fofo"/"Boneco chibi" e capriche nos olhos grandes. 💪'},
   {k:['obrigado','valeu','brigado','vlw','thanks'],a:'De nada! 😄 Qualquer dúvida é só chamar. Bom desenho!'},
+  {k:['olho','olhos','rosto','cara','face'],a:'👁️ Rosto/olhos: comece com um círculo pra cabeça e uma linha no meio pra alinhar os olhos. No estilo fofo, olhos GRANDES e brilho branquinho dão vida. Boca simples embaixo.'},
+  {k:['mao','maos','mãos','dedo'],a:'✋ Mãos: comece por um formato de "luva" (palma + polegar) e só depois separe os dedos. Referência ajuda MUITO — use 📷 Fotos.'},
+  {k:['corpo','pose','boneco','personagem inteiro'],a:'🧍 Corpo: esboce em "palitos" (linhas + bolinhas nas juntas) pra pegar a pose, depois engrosse. No chibi, corpo pequeno e cabeça grande.'},
+  {k:['cabelo','cabelos'],a:'💇 Cabelo: pense em mechas grandes, não fio por fio. Faça o contorno geral primeiro e depois algumas linhas dentro pra dar volume.'},
+  {k:['sombra','luz','sombrear','iluminar','volume'],a:'🌗 Sombra e luz: escolha de que lado vem a luz. Use Escurecer (M) nas partes opostas e Clarear (K) onde a luz bate. Esfumar (U) suaviza. Uma camada em "Multiplicar" também faz sombra linda.'},
+  {k:['combina','harmonia','paleta de cor','quais cores','esquema de cor'],a:'🎨 Cores que combinam: escolha 1 cor principal + 1 ou 2 vizinhas na barra de matiz, e uma cor oposta pra destaque. Menos cores costuma ficar mais bonito!'},
+  {k:['circulo perfeito','reta','linha reta','forma perfeita','quadrado perfeito'],a:'📐 Segure Shift usando Linha/Retângulo/Elipse pra travar: reta certinha, quadrado e círculo perfeitos.'},
+  {k:['simetria','espelhado','dois lados','reflexo'],a:'🔀 No painel esquerdo há Simetria (Vertical/Horizontal/4 lados/Radial): o que você desenha de um lado aparece espelhado no outro — ótimo pra rostos e mandalas!'},
+  {k:['fundo transparente','tirar o fundo','sem fundo','png transparente'],a:'🧩 Comece uma tela com fundo "Transparente" (em Novo), ou apague o fundo. Ao Exportar em PNG, a transparência é mantida.'},
+  {k:['importar','abrir imagem','colocar foto','minha imagem','carregar'],a:'🖼️ Use o botão "Imagem" (no topo) pra abrir uma figura do seu aparelho, ou "📷 Fotos" pra buscar/colar link. Serve de base pra você desenhar por cima.'},
+  {k:['travou','bugou','lento','travando','engasga'],a:'🐢 Se ficar lento: use uma tela menor, junte camadas que não usa mais (Achatar), e evite pincel gigante. Recarregar a página costuma ajudar (seu trabalho tem autosave).'},
+  {k:['atalho','atalhos','teclas','tecla'],a:'⌨️ Atalhos: B pincel, E borracha, G balde, I pipeta, L linha, S laço, T texto, [ ] tamanho, Ctrl+Z desfaz, Espaço arrasta a tela. Aperte "?" no app pra ver todos.'},
+  {k:['nova tela','tamanho da tela','novo desenho','resolucao','criar tela'],a:'🆕 "Novo" (topo) cria uma tela nova — escolha tamanho e fundo. "Redimensionar tela" muda o tamanho mantendo o desenho.'},
+  {k:['copiar','colar','duplicar parte'],a:'✂️ Pra reaproveitar um pedaço: use o Laço, contorne e arraste pra mover. Pra repetir, é só desenhar de novo — ou duplicar a camada inteira no painel de camadas.'},
+  {k:['piada','conta uma piada','engracado','me faz rir'],a:'😆 Por que o lápis foi ao médico? Porque estava se sentindo meio "sem ponta"! Agora bora desenhar 😄'},
+  {k:['voce e legal','voce e bom','gostei de voce','voce e otimo','muito bom'],a:'Aaah, obrigado! 🥰 Você é quem tá mandando bem. Bora desenhar mais!'},
 ];
 function normp(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 let profGreeted=false;
 function addProfMsg(txt,who){ const m=document.createElement('div'); m.className='pm '+(who||'bot'); m.textContent=txt;
   const box=document.getElementById('profMsgs'); box.appendChild(m); box.scrollTop=box.scrollHeight; }
 const IP_NAMES=['double king','doubleking','pikachu','pukasi','pokemon','beast brother','beast broter','mario','sonic','naruto','goku','dragon ball','disney','minecraft','fortnite','among us','hello kitty','bob esponja','spongebob','homem aranha','batman'];
+let profRot=0;
 function profReply(q){
   const n=normp(q);
   const anim=/(anima|quadro|gif|video|movimen|mexer|flipbook)/.test(n);
+  // 0) conversa: o que você faz / sugestão / dica
+  if(/(o que|oque|q).*(voce faz|vc faz|voce pode|vc pode|voce sabe|vc sabe)|pra que (voce |vc |)serve|suas funcoes|o que da pra fazer/.test(n))
+    return 'Eu sou seu ajudante de desenho! 💜 Posso:\n• Explicar qualquer ferramenta (pincel, laço, balde, pipeta, animação, som...)\n• Dar dicas de desenho e de estilo fofo\n• Sugerir o que desenhar\nÉ só perguntar — e eu também solto dicas sozinho enquanto você desenha!';
+  if(/(o que desenh|oque desenh|nao sei o que|sem ideia|to sem ideia|me da uma ideia|sugere|sugestao|sugestão|o que posso desenhar)/.test(n)){
+    const ideias=['um gato fofo 🐱','uma paisagem com montanhas 🏔️','um monstrinho fofo 👾','um rosto com uma expressão engraçada 😜','uma comida que você ama 🍔','o céu à noite com estrelas ✨','uma flor colorida 🌸','um robô simpático 🤖','seu personagem próprio no estilo fofo 🎨'];
+    return 'Que tal desenhar '+ideias[profRot++%ideias.length]+'?\nComeça esboçando as formas básicas (círculos/linhas), depois o contorno e a pintura. Se quiser, uso o "Tutorial" pra te guiar!';
+  }
+  if(/(me da|da uma|manda|quero) (uma )?dica|^dica|uma dica/.test(n))
+    return (typeof IDLE_TIPS!=='undefined'?IDLE_TIPS[profRot++%IDLE_TIPS.length]:'💡 Dica: desenhe o contorno e a pintura em camadas separadas!');
   // 1) pedido envolvendo personagem/obra de outra pessoa -> ajuda a criar a própria versão
   if(IP_NAMES.some(x=>n.includes(x)) || /(personagem|desenho|serie|anime|filme|jogo)\s+(do|da|de|dos|das)\s/.test(n)){
     return 'Eu não posso copiar personagens/obras de outras pessoas 😅 — mas te ajudo a criar a SUA versão original no mesmo clima!\n\n'+(anim
@@ -2876,7 +2915,52 @@ function profReply(q){
   // 4) fallback amigável
   return 'Ainda não manjo desse assunto 😅, mas eu ajudo com DESENHO e o app! Tente: "como eu pinto?", "como faço camadas?", "como animo?", "como uso o laço?", "como salvo?".';
 }
-function profAsk(q){ q=(q||'').trim(); if(!q)return; addProfMsg(q,'me'); setTimeout(()=>addProfMsg(profReply(q),'bot'),140); }
+function profAsk(q){ q=(q||'').trim(); if(!q)return; addProfMsg(q,'me');
+  const n=normp(q);
+  if(/(desativ|desliga|parar|tira|sem|nao quero).{0,12}(dica|dicas)/.test(n)){ tipsOff(); setTimeout(()=>addProfMsg('Ok, desliguei as dicas automáticas. Peça "ativar dicas" quando quiser de volta. 👍','bot'),140); return; }
+  if(/((^|[^s])ativ|ligar|liga|voltar|quero).{0,12}(dica|dicas)|dicas? (on|de novo|ligad)/.test(n)){ profTipsOn=true; try{localStorage.setItem('ed_tips','1');}catch(e){} startIdleTips(); setTimeout(()=>addProfMsg('Prontinho, dicas ligadas! 💜 Vou te dar dicas conforme você usa as ferramentas.','bot'),140); return; }
+  setTimeout(()=>addProfMsg(profReply(q),'bot'),140);
+}
+// ---- dicas proativas (ajuda sem você pedir) ----
+let profTipsOn=true; try{ profTipsOn=localStorage.getItem('ed_tips')!=='0'; }catch(e){}
+const shownTips=new Set(); let tipTimer=null;
+const TOOL_TIPS={
+  brush:'🖌️ Pincel: arraste pra pintar. Troque a "Ponta" (caneta, aquarela, carvão...) no painel.',
+  pencil:'✏️ Lápis: traço firme e fino, ótimo pra contornos.',
+  eraser:'🧽 Borracha: apaga. Errou? Ctrl+Z desfaz!',
+  fill:'🪣 Balde: clica e preenche a área da mesma cor.',
+  eyedropper:'💧 Pipeta: clica numa cor do desenho pra usar ela (ou Alt+clique).',
+  lasso:'🔗 Laço: contorne uma parte e arraste pra mover — ou pinte só ela com o balde.',
+  line:'📏 Linha: arraste. Segure Shift pra travar o ângulo.',
+  rect:'▭ Retângulo: arraste; Shift faz quadrado.',
+  ellipse:'⬭ Elipse: arraste; Shift faz círculo perfeito.',
+  gradient:'🌈 Gradiente: arraste pra fazer a transição entre 2 cores.',
+  smudge:'🌫️ Esfumar: arraste pra misturar cores — ótimo pra sombras.',
+  blur:'💧 Desfoque: suaviza a área.',
+  dodge:'☀️ Clarear: pinta luz/brilho.',
+  burn:'🌑 Escurecer: pinta sombra.',
+  text:'🔤 Texto: clica e digita; dá pra mudar a fonte.',
+  move:'✋ Mover: arrasta a camada inteira.',
+  hand:'🖐️ Mão: arrasta a tela (ou segure Espaço).',
+};
+const IDLE_TIPS=[
+  '💡 Dica: contorno numa camada e pintura em outra — fica fácil de corrigir!',
+  '💡 Dica: no modo Animação, "Sombra do anterior" guia o movimento.',
+  '💡 Dica: salve suas cores no + de "Minha paleta".',
+  '💡 Dica: segure Shift na Linha/Elipse pra travar ângulo/círculo.',
+  '💡 Dica: use 📷 Fotos pra ter uma referência no canto.',
+  '💡 Dica: no modo pressão "Velocidade", rápido afina o traço.',
+  '💡 Dica: qualquer dúvida, clique em mim, o Prof. Pix! 💜',
+];
+function showProfTip(txt){ if(!profTipsOn)return; const t=document.getElementById('profTip'); if(!t)return;
+  document.getElementById('profTipAv').innerHTML=MASCOT_SVG; document.getElementById('profTipTxt').textContent=txt;
+  t.style.display='flex'; clearTimeout(t._h); t._h=setTimeout(()=>{ t.style.display='none'; }, 6500); }
+function maybeToolTip(id){ if(!profTipsOn||shownTips.has(id))return; const tip=TOOL_TIPS[id]; if(!tip)return; shownTips.add(id); showProfTip(tip); }
+function tipsOff(){ profTipsOn=false; try{localStorage.setItem('ed_tips','0');}catch(e){} const t=document.getElementById('profTip'); if(t)t.style.display='none'; if(tipTimer){clearInterval(tipTimer);tipTimer=null;} }
+let idleN=0;
+function startIdleTips(){ if(tipTimer)clearInterval(tipTimer); tipTimer=setInterval(()=>{ if(!profTipsOn)return;
+  if(S.drawing||(S.anim&&S.anim.playing))return; const pan=document.getElementById('profPanel'); if(pan&&pan.style.display==='flex')return;
+  showProfTip(IDLE_TIPS[idleN++%IDLE_TIPS.length]); }, 80000); }
 function openProf(){
   const pan=document.getElementById('profPanel'); pan.style.display='flex';
   document.getElementById('profAvatar').innerHTML=MASCOT_SVG;
@@ -2976,6 +3060,8 @@ function wire(){
   document.getElementById('profClose').onclick=closeProf;
   document.getElementById('profSend').onclick=()=>{ const i=document.getElementById('profQ'); profAsk(i.value); i.value=''; };
   document.getElementById('profQ').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); profAsk(e.target.value); e.target.value=''; } });
+  document.getElementById('profTipX').onclick=()=>{ document.getElementById('profTip').style.display='none'; };
+  document.getElementById('profTipOff').onclick=tipsOff;
   // animação
   document.getElementById('btnAnim').onclick=toggleAnim;
   document.getElementById('anPlay').onclick=playAnim;
@@ -3107,6 +3193,9 @@ function boot(){
   // restore previous session if there is one, else welcome
   const restored=restoreAutosave();
   if(!restored) setTimeout(()=>toast('Bem-vindo! Aperte ? para atalhos'),400);
+  // Prof. Pix proativo: dá boas-vindas e depois vai soltando dicas sozinho
+  setTimeout(()=>{ if(profTipsOn) showProfTip('Oi! Sou o Prof. Pix 💜 Vou te dar dicas conforme você desenha. Clique em mim pra tirar dúvidas!'); }, 1400);
+  startIdleTips();
 }
 // wait for layout
 requestAnimationFrame(()=>requestAnimationFrame(boot));
