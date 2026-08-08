@@ -2791,10 +2791,28 @@ function normp(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ
 let profGreeted=false;
 function addProfMsg(txt,who){ const m=document.createElement('div'); m.className='pm '+(who||'bot'); m.textContent=txt;
   const box=document.getElementById('profMsgs'); box.appendChild(m); box.scrollTop=box.scrollHeight; }
+const IP_NAMES=['double king','doubleking','pikachu','pukasi','pokemon','beast brother','beast broter','mario','sonic','naruto','goku','dragon ball','disney','minecraft','fortnite','among us','hello kitty','bob esponja','spongebob','homem aranha','batman'];
 function profReply(q){
-  const n=normp(q); let best=null,bs=0;
+  const n=normp(q);
+  const anim=/(anima|quadro|gif|video|movimen|mexer|flipbook)/.test(n);
+  // 1) pedido envolvendo personagem/obra de outra pessoa -> ajuda a criar a própria versão
+  if(IP_NAMES.some(x=>n.includes(x)) || /(personagem|desenho|serie|anime|filme|jogo)\s+(do|da|de|dos|das)\s/.test(n)){
+    return 'Eu não posso copiar personagens/obras de outras pessoas 😅 — mas te ajudo a criar a SUA versão original no mesmo clima!\n\n'+(anim
+      ? '🎬 Animação:\n1) Abra "Animação" e crie vários quadros (+ Quadro).\n2) Desenhe SEU personagem em cada quadro, mudando só um pouco (ligue "Sombra do anterior" pra guiar o movimento).\n3) Use cores fortes e formas criativas.\n4) Ajuste o FPS e dê ▶ Play; depois "Salvar vídeo".\n5) Dica: use 📷 Fotos só como referência de movimento.'
+      : '✏️ Desenho:\n1) Esboce as formas básicas numa camada.\n2) Faça o contorno por cima, em outra camada.\n3) Pinte embaixo e sombreie com Esfumar/Escurecer.\n4) Use 📷 Fotos como referência e capriche no SEU estilo!');
+  }
+  // 2) FAQ (respostas específicas)
+  let best=null,bs=0;
   for(const f of FAQ){ let s=0; for(const k of f.k){ if(n.includes(normp(k)))s++; } if(s>bs){ bs=s; best=f; } }
-  return (best&&bs>0)?best.a:'Ainda não sei responder isso 😅. Eu ajudo com DESENHO e o app! Tente: "como eu pinto?", "como faço camadas?", "como animo?", "como uso o laço?", "como salvo?".';
+  if(best&&bs>0) return best.a;
+  // 3) pedido genérico de "como fazer/desenhar/animar algo"
+  if(/(como|quero|faz|fazer|criar|desenh|anim|ajuda|dica|melhor)/.test(n)){
+    return anim
+      ? '🎬 Pra fazer uma animação aqui:\n1) Clique em "Animação" (topo).\n2) "+ Quadro" pra cada pose; desenhe mudando um pouquinho em cada.\n3) "Sombra do anterior" te guia.\n4) Ajuste o FPS e dê ▶ Play; "Salvar vídeo" no fim.\nQuer treinar? Tem "✨ Guiada" com modelos prontos!'
+      : '✏️ Pra desenhar algo:\n1) Esboce as formas básicas (círculos/linhas) numa camada.\n2) Faça o contorno em outra camada, por cima.\n3) Pinte e faça sombras (Esfumar/Escurecer).\n4) Use 📷 Fotos como referência.\nDica: comece pelas aulas do "Tutorial"!';
+  }
+  // 4) fallback amigável
+  return 'Ainda não manjo desse assunto 😅, mas eu ajudo com DESENHO e o app! Tente: "como eu pinto?", "como faço camadas?", "como animo?", "como uso o laço?", "como salvo?".';
 }
 function profAsk(q){ q=(q||'').trim(); if(!q)return; addProfMsg(q,'me'); setTimeout(()=>addProfMsg(profReply(q),'bot'),140); }
 function openProf(){
