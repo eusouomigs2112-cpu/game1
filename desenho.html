@@ -93,6 +93,24 @@
     backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.35);transition:.12s}
   #cornerBtns button:hover{border-color:rgba(124,92,255,.6);background:rgba(36,29,61,.92);transform:translateY(-1px)}
 
+  /* Prof. Pix (mascote/ajudante) */
+  #profPanel{position:absolute;right:12px;bottom:12px;z-index:9;width:min(330px,92vw);height:min(460px,72vh);display:none;
+    flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    box-shadow:0 18px 50px rgba(0,0,0,.55)}
+  #profPanel .ph{display:flex;align-items:center;gap:9px;padding:9px 11px;background:linear-gradient(135deg,#241d3d,#1a1530);border-bottom:1px solid var(--line)}
+  #profPanel .ph svg{width:36px;height:36px;flex:0 0 auto}
+  #profPanel .ph b{font-size:13px}#profPanel .ph span{font-size:10.5px;color:var(--mut);display:block}
+  #profPanel .ph .x{margin-left:auto;background:#2a2340;border:none;color:#fff;width:24px;height:24px;border-radius:7px;font-size:14px;cursor:pointer}
+  #profMsgs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+  .pm{max-width:86%;padding:8px 11px;border-radius:12px;font-size:12.5px;line-height:1.45;white-space:pre-wrap}
+  .pm.bot{background:#221b38;color:#e9e5f5;align-self:flex-start;border-bottom-left-radius:4px}
+  .pm.me{background:linear-gradient(135deg,var(--accent),#5a3fd6);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+  #profSugs{display:flex;flex-wrap:wrap;gap:5px;padding:0 10px 8px}
+  #profSugs button{font-size:11px;padding:5px 8px;border-radius:14px;border:1px solid var(--line);background:#1b1630;color:#cfc9e0;cursor:pointer}
+  #profInput{display:flex;gap:6px;padding:9px;border-top:1px solid var(--line)}
+  #profInput input{flex:1;background:#0d0a16;border:1px solid var(--line);border-radius:9px;color:#fff;padding:8px 10px;font-size:12.5px;outline:none}
+  #profInput button{background:linear-gradient(135deg,var(--accent),#5a3fd6);border:none;color:#fff;border-radius:9px;padding:0 14px;font-size:13px;cursor:pointer}
+
   /* animation timeline */
   #animBar{position:absolute;left:0;right:0;bottom:0;z-index:7;display:none;flex-direction:column;gap:6px;
     background:rgba(14,10,22,.95);border-top:1px solid var(--line);padding:8px 10px;backdrop-filter:blur(8px)}
@@ -433,6 +451,17 @@
       <div id="cornerBtns">
         <button id="btnFotos" title="Buscar fotos de referência">📷 Fotos</button>
         <button id="btnTutorial" title="Tutorial guiado">🎓 Tutorial</button>
+        <button id="btnProf" title="Prof. Pix — tire dúvidas">🟣 Prof. Pix</button>
+      </div>
+      <div id="profPanel">
+        <div class="ph">
+          <span id="profAvatar"></span>
+          <div><b>Prof. Pix</b><span>seu ajudante de desenho</span></div>
+          <button class="x" id="profClose" title="Fechar">✕</button>
+        </div>
+        <div id="profMsgs"></div>
+        <div id="profSugs"></div>
+        <div id="profInput"><input id="profQ" placeholder="Pergunte algo... ex.: como pinto?" spellcheck="false"><button id="profSend">Enviar</button></div>
       </div>
       <div id="lessonHud">
         <div class="lh-color" id="lhColor"></div>
@@ -2723,6 +2752,65 @@ function drawAnimGuide(z){
 }
 
 // ================================================================
+//  PROF. PIX — mascote original + chat de ajuda (offline)
+// ================================================================
+const MASCOT_SVG=`<svg viewBox="0 0 64 64" fill="none">
+  <defs><linearGradient id="pgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b6bff"/><stop offset="1" stop-color="#00d4ff"/></linearGradient></defs>
+  <ellipse cx="32" cy="55" rx="15" ry="4" fill="#000" opacity=".18"/>
+  <path d="M32 12c13 0 20 11 20 24 0 14-9 19-20 19S12 50 12 36C12 23 19 12 32 12Z" fill="url(#pgrad)"/>
+  <path d="M13 18 32 11 51 18 32 25Z" fill="#2a2340"/><rect x="30.5" y="18" width="3" height="8" fill="#2a2340"/><circle cx="51" cy="18" r="2.1" fill="#ffd166"/>
+  <circle cx="25" cy="35" r="6.2" fill="#fff"/><circle cx="39" cy="35" r="6.2" fill="#fff"/>
+  <circle cx="26.4" cy="36" r="2.8" fill="#20143a"/><circle cx="40.4" cy="36" r="2.8" fill="#20143a"/>
+  <circle cx="18.5" cy="43" r="3.2" fill="#ff8ec7" opacity=".85"/><circle cx="45.5" cy="43" r="3.2" fill="#ff8ec7" opacity=".85"/>
+  <path d="M27 45q5 5 10 0" stroke="#20143a" stroke-width="2.2" stroke-linecap="round"/>
+</svg>`;
+const FAQ=[
+  {k:['oi','ola','eai','opa','bom dia','boa tarde','boa noite','hello'],a:'Oi! 👋 Sou o Prof. Pix. Pergunte sobre pincel, cores, camadas, laço, animação, exportar... tô aqui pra ajudar!'},
+  {k:['quem e voce','seu nome','o que voce e','quem es'],a:'Eu sou o Prof. Pix 🟣, um mascote deste app de desenho. Eu te explico como usar as ferramentas e dou dicas de desenho!'},
+  {k:['pinto','pintar','pincel','desenhar','como desenho','brush'],a:'🖌️ Pegue o Pincel (tecla B) na barra da esquerda, escolha a cor, e arraste na tela. Ajuste Tamanho, Opacidade e Dureza no painel. Em "Ponta" há vários pincéis (caneta, aquarela, carvão...).'},
+  {k:['borracha','apagar','apagou','errei','tirar'],a:'🧽 Use a Borracha (tecla E) pra apagar. Pra desfazer o último passo, aperte Ctrl+Z (ou o botão ↩ em cima).'},
+  {k:['cor','cores','colorir','paleta','mudar a cor'],a:'🎨 Escolha a cor no quadrado grande e na barra de matiz (direita). Salve suas favoritas no + de "Minha paleta". O conta-gotas (I) copia uma cor do desenho.'},
+  {k:['camada','camadas','layer'],a:'📚 Camadas ficam na direita. Use o + pra criar, o olho pra esconder, e arraste a opacidade. Desenhe o contorno numa camada e a pintura em outra — fica mais fácil de corrigir!'},
+  {k:['laco','laço','selecionar','selecao','recortar','mover parte','pegar'],a:'🔗 Laço (S): contorne uma parte, solte, e clique dentro pra arrastar pra outro lugar. Com a seleção ativa, o balde/pincel só pintam dentro dela!'},
+  {k:['balde','preencher','pintar tudo','encher','fill'],a:'🪣 Balde (G) preenche uma área da mesma cor com um clique. Se tiver uma seleção do laço, ele pinta só dentro dela.'},
+  {k:['anim','anima','animar','quadro','quadros','gif','video','flipbook','movimento','mexer'],a:'🎬 Clique em "Animação" (em cima). Crie quadros (+ Quadro), desenhe em cada um, veja o anterior por transparência e dê Play. Tem até "✨ Guiada" com animações prontas pra treinar!'},
+  {k:['foto','fotos','referencia','imagem','colar link'],a:'📷 Botão "Fotos": pesquise ou cole o link de uma imagem — ela vira uma referência flutuante no canto pra você copiar enquanto desenha. (Precisa de internet e abrir no navegador.)'},
+  {k:['desfazer','undo','refazer','redo','voltar'],a:'↩️ Ctrl+Z desfaz, Ctrl+Shift+Z (ou Ctrl+Y) refaz. Também tem os botões de setas no topo.'},
+  {k:['salv','salvar','exportar','export','baixar','png','jpg','guardar','projeto'],a:'💾 "Exportar" salva a imagem (PNG/JPG). "Projeto" salva com as camadas pra continuar depois. E tem autosave: seu desenho volta ao reabrir.'},
+  {k:['zoom','aproximar','afastar','perto','longe','aumentar a tela'],a:'🔍 Use o scroll do mouse pra dar zoom, ou os botões de lupa no topo. "Ajustar" enquadra o desenho todo.'},
+  {k:['pressao','dinamica','afinar','fino','grosso','caneta pressao','stylus','velocidade'],a:'✍️ Em "Pressão / dinâmica" (painel do pincel): modo "Caneta" usa a pressão real do stylus; modo "Velocidade" afina o traço quando você move rápido — funciona no mouse!'},
+  {k:['texto','escrever','letra','palavra'],a:'🔤 Ferramenta Texto (T): clique na tela e digite. Dá pra escolher a fonte e o tamanho no painel.'},
+  {k:['gradiente','degrade','degradê'],a:'🌈 Ferramenta Gradiente (F): arraste na tela pra criar uma transição entre duas cores (ou cor → transparente).'},
+  {k:['esfumar','borrar','misturar','sombra','sombrear','esfuma'],a:'🌫️ Ferramenta Esfumar (U) mistura/borra as cores — ótima pra sombras suaves. Também tem Escurecer (M) e Clarear (K).'},
+  {k:['girar','espelhar','virar','inverter tela','rotacionar'],a:'🔄 No painel esquerdo, "Virar tela" espelha o desenho todo, e "Girar 90°" gira. "Esp. camada" vira só a camada atual.'},
+  {k:['estilo','fofo','chibi','kawaii','treinar','aprender','dica','melhorar','proporcao'],a:'😊 Clique em "Tutorial" e escolha "Rosto fofo" ou "Boneco chibi". O segredo do estilo fofo: cabeça e olhos GRANDES, corpo pequeno, traço limpo e bochechas coradas. Treine cobrindo o risco!'},
+  {k:['pikachu','pukasi','pokemon','personagem pronto','desenha o'],a:'Eu não posso copiar personagens registrados (tipo o Pikachu 😅), mas te ajudo a criar o SEU personagem fofo! Faça as aulas "Rosto fofo"/"Boneco chibi" e capriche nos olhos grandes. 💪'},
+  {k:['obrigado','valeu','brigado','vlw','thanks'],a:'De nada! 😄 Qualquer dúvida é só chamar. Bom desenho!'},
+];
+function normp(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+let profGreeted=false;
+function addProfMsg(txt,who){ const m=document.createElement('div'); m.className='pm '+(who||'bot'); m.textContent=txt;
+  const box=document.getElementById('profMsgs'); box.appendChild(m); box.scrollTop=box.scrollHeight; }
+function profReply(q){
+  const n=normp(q); let best=null,bs=0;
+  for(const f of FAQ){ let s=0; for(const k of f.k){ if(n.includes(normp(k)))s++; } if(s>bs){ bs=s; best=f; } }
+  return (best&&bs>0)?best.a:'Ainda não sei responder isso 😅. Eu ajudo com DESENHO e o app! Tente: "como eu pinto?", "como faço camadas?", "como animo?", "como uso o laço?", "como salvo?".';
+}
+function profAsk(q){ q=(q||'').trim(); if(!q)return; addProfMsg(q,'me'); setTimeout(()=>addProfMsg(profReply(q),'bot'),140); }
+function openProf(){
+  const pan=document.getElementById('profPanel'); pan.style.display='flex';
+  document.getElementById('profAvatar').innerHTML=MASCOT_SVG;
+  if(!profGreeted){ profGreeted=true;
+    addProfMsg('Oi! 👋 Eu sou o Prof. Pix, seu ajudante de desenho. Me pergunte qualquer coisa sobre o app — ou toque numa sugestão abaixo!','bot');
+    const sugs=['Como eu pinto?','Como faço camadas?','Como animo?','Como uso o laço?','Como salvo?'];
+    const el=document.getElementById('profSugs'); el.innerHTML='';
+    sugs.forEach(s=>{ const b=document.createElement('button'); b.textContent=s; b.onclick=()=>profAsk(s); el.appendChild(b); });
+  }
+  setTimeout(()=>document.getElementById('profQ').focus(),60);
+}
+function closeProf(){ document.getElementById('profPanel').style.display='none'; }
+
+// ================================================================
 //  EVENT WIRING
 // ================================================================
 function wire(){
@@ -2803,6 +2891,11 @@ function wire(){
   document.getElementById('fotoUrl').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();useFotoUrl();} });
   buildLessonPicker();
   document.getElementById('btnTutorial').onclick=()=>openModal('modalLesson');
+  // Prof. Pix (ajudante)
+  document.getElementById('btnProf').onclick=openProf;
+  document.getElementById('profClose').onclick=closeProf;
+  document.getElementById('profSend').onclick=()=>{ const i=document.getElementById('profQ'); profAsk(i.value); i.value=''; };
+  document.getElementById('profQ').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); profAsk(e.target.value); e.target.value=''; } });
   // animação
   document.getElementById('btnAnim').onclick=toggleAnim;
   document.getElementById('anPlay').onclick=playAnim;
