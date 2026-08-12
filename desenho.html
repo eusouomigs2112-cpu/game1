@@ -415,10 +415,11 @@
       </div>
 
       <div class="sec" id="fillSec" style="display:none">
-        <h4>Balde</h4>
+        <h4 id="fillHead">Balde</h4>
         <div class="row"><label>Tolerância</label><span class="val" id="tolVal">32</span></div>
         <input type="range" id="tol" min="0" max="255" value="32">
         <label class="toggle" style="margin-top:6px"><input type="checkbox" id="fillGlobal"><span class="sw"></span>Toda a camada</label>
+        <div id="magicHint" style="display:none;margin-top:9px;font-size:11px;line-height:1.4;color:var(--mut);background:#1b1630;border:1px solid var(--line);border-radius:8px;padding:7px 9px">🪄 Clique numa cor pra apagá-la (vira transparente). Aumente a <b>Tolerância</b> pra pegar tons parecidos. Ligue <b>Toda a camada</b> pra apagar essa cor no desenho inteiro (ótimo pra tirar o fundo).</div>
       </div>
 
       <div class="sec" id="textSec" style="display:none">
@@ -766,7 +767,8 @@ const ICONS = {
   dodge:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/>',
   burn:'<path d="M20 14.5A8 8 0 1 1 10.2 4.3 6.2 6.2 0 0 0 20 14.5z"/>',
   gradient:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7 19.5 20 6.5M11 19.5 20.5 10M15 19.5l5.5-5.5"/>',
-  lasso:'<path d="M4 12c0-4 4-6.5 8-6.5s8 2.5 8 6.5c0 3-2.6 4.7-5 5" stroke-dasharray="2.6 2.4"/><path d="M7 16.5c-1.2.6-2 1.6-1.4 2.8"/><circle cx="6" cy="20.5" r="1.6"/>'
+  lasso:'<path d="M4 12c0-4 4-6.5 8-6.5s8 2.5 8 6.5c0 3-2.6 4.7-5 5" stroke-dasharray="2.6 2.4"/><path d="M7 16.5c-1.2.6-2 1.6-1.4 2.8"/><circle cx="6" cy="20.5" r="1.6"/>',
+  magicerase:'<path d="M4 15.5 11 8.5a1.8 1.8 0 0 1 2.6 0l2.4 2.4a1.8 1.8 0 0 1 0 2.6L12 18H7.5z"/><path d="M8 18h9"/><path d="M18.5 3.2l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7L16.2 5.5l1.7-.6z"/>'
 };
 const TOOLS=[
   {id:'move',name:'Mover camada',key:'v'},
@@ -774,6 +776,7 @@ const TOOLS=[
   {id:'brush',name:'Pincel',key:'b'},
   {id:'pencil',name:'Lápis',key:'n'},
   {id:'eraser',name:'Borracha',key:'e'},
+  {id:'magicerase',name:'Borracha mágica (apaga a cor → transparente)',key:'w'},
   {id:'fill',name:'Balde de tinta',key:'g'},
   {id:'eyedropper',name:'Pipeta / conta-gotas',key:'i'},
   {id:'line',name:'Linha',key:'l'},
@@ -1406,6 +1409,7 @@ function beginStroke(doc,e){
     return;
   }
   if(S.tool==='fill'){ if(hasSelection())fillSelection(rgb); else doFill(doc,rgb); S.drawing=false; return; }
+  if(S.tool==='magicerase'){ doMagicErase(doc); S.drawing=false; return; }
   if(S.tool==='eyedropper'){ pickColor(doc); S.drawing=false; return; }
   if(S.tool==='move'){ moveStart={...doc}; moveImg=snapshotLayer(L); strokeBefore=moveImg; return; }
   if(S.tool==='text'){ startText(doc); S.drawing=false; return; }
@@ -1656,6 +1660,44 @@ function doFill(doc,rgb){
   addRecent(); render(); renderLayerThumb();
 }
 
+function selMask(){ // Uint8Array(W*H): 1 dentro da seleção do laço, ou null se não há seleção
+  if(!hasSelection())return null;
+  const W=S.docW,H=S.docH, c=document.createElement('canvas'); c.width=W; c.height=H;
+  const x=c.getContext('2d'); x.fillStyle='#fff'; tracePath(x,S.sel.path,0,0); x.fill();
+  const d=x.getImageData(0,0,W,H).data, m=new Uint8Array(W*H);
+  for(let p=0;p<m.length;p++) m[p]=d[p*4+3]>10?1:0;
+  return m;
+}
+// borracha mágica: apaga (deixa transparente) todos os pixels da cor clicada
+function doMagicErase(doc){
+  const L=activeLayer(); if(!L)return;
+  const x=Math.floor(doc.x), y=Math.floor(doc.y);
+  if(x<0||y<0||x>=S.docW||y>=S.docH)return;
+  const W=S.docW,H=S.docH;
+  const before=snapshotLayer(L);
+  const img=L.ctx.getImageData(0,0,W,H), data=img.data;
+  const idx=(y*W+x)*4, ta=data[idx+3];
+  if(ta===0){ toast('Aqui já está transparente'); return; }
+  const tr=data[idx],tg=data[idx+1],tb=data[idx+2], tol=S.tol;
+  const mask=selMask();
+  const match=(i)=>{ const dr=data[i]-tr,dg=data[i+1]-tg,db=data[i+2]-tb,da=data[i+3]-ta; return (dr*dr+dg*dg+db*db+da*da)<=tol*tol*4; };
+  let erased=0;
+  if(S.fillGlobal){
+    for(let p=0;p<W*H;p++){ const i=p*4; if(data[i+3]!==0 && (!mask||mask[p]) && match(i)){ data[i+3]=0; erased++; } }
+  } else {
+    const stack=[idx], seen=new Uint8Array(W*H);
+    while(stack.length){ const i=stack.pop(), p=i/4; if(seen[p])continue; if(mask&&!mask[p])continue; if(!match(i))continue;
+      seen[p]=1; data[i+3]=0; erased++;
+      const px=p%W, py=(p-px)/W;
+      if(px>0)stack.push(i-4); if(px<W-1)stack.push(i+4); if(py>0)stack.push(i-W*4); if(py<H-1)stack.push(i+W*4);
+    }
+  }
+  L.ctx.putImageData(img,0,0);
+  pushPixelChange(L,before);
+  render(); renderLayerThumb(); scheduleAutosave();
+  toast('🪄 Apagou '+erased+' pixels'+(S.fillGlobal?' (toda a camada)':''));
+}
+
 function flatten(){ // returns a canvas with all visible layers composited
   fctx.setTransform(1,0,0,1,0,0);
   flat.width=S.docW; flat.height=S.docH;
@@ -1849,7 +1891,9 @@ function setTool(id){
   document.getElementById('brushSec').style.display=['brush','pencil','eraser','airbrush','line','rect','ellipse','text','smudge','blur','dodge','burn'].includes(id)?'':'none';
   document.getElementById('presetSec').style.display=['brush','pencil','airbrush'].includes(id)?'':'none';
   document.getElementById('shapeSec').style.display=['rect','ellipse'].includes(id)?'':'none';
-  document.getElementById('fillSec').style.display=id==='fill'?'':'none';
+  document.getElementById('fillSec').style.display=(id==='fill'||id==='magicerase')?'':'none';
+  const fh=document.getElementById('fillHead'); if(fh)fh.textContent=id==='magicerase'?'Borracha mágica':'Balde';
+  const me=document.getElementById('magicHint'); if(me)me.style.display=id==='magicerase'?'':'none';
   document.getElementById('textSec').style.display=id==='text'?'':'none';
   document.getElementById('gradSec').style.display=id==='gradient'?'':'none';
   const fxTip=document.getElementById('fxTip');
